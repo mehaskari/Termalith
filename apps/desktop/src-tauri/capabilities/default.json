@@ -23,6 +23,8 @@
     "allow-sftp-download",
     "allow-sftp-upload",
     "allow-transfer-cancel",
-    "allow-known-host-forget"
+    "allow-known-host-forget",
+    "allow-ssh-config-preview",
+    "allow-ssh-config-import"
   ]
 }

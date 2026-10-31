@@ -558,3 +558,43 @@ code {
   font-family: Menlo, "SF Mono", Consolas, monospace;
   font-size: 12px;
 }
+
+.import-link {
+  align-self: flex-start;
+  font-size: 12px;
+  margin: 4px;
+}
+.import-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.import-list li {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.import-list li:last-child {
+  border-bottom: none;
+}
+.import-name {
+  font-weight: 500;
+}
+.import-target {
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: auto;
+}
+.import-warning {
+  color: var(--warning);
+  font-size: 11px;
+  margin: 4px 0 0 24px;
+}
+.import-list label.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

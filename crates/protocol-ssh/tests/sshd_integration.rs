@@ -765,3 +765,92 @@ async fn sftp_lists_directories_first_and_resolves_home() {
     assert!(home.starts_with('/'), "home should be absolute: {home}");
     sess.disconnect().await.unwrap();
 }
+
+/// A private ssh-agent on its own socket, killed on drop.
+#[cfg(unix)]
+struct TestAgent {
+    socket: std::path::PathBuf,
+    child: std::process::Child,
+}
+
+#[cfg(unix)]
+impl TestAgent {
+    fn start(dir: &Path) -> Self {
+        let socket = dir.join("agent.sock");
+        let child = std::process::Command::new("ssh-agent")
+            .args(["-D", "-a"])
+            .arg(&socket)
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .expect("ssh-agent");
+        let start = Instant::now();
+        while !socket.exists() {
+            assert!(
+                start.elapsed() < Duration::from_secs(5),
+                "agent socket never appeared"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        Self { socket, child }
+    }
+
+    fn add(&self, key: &Path) {
+        let ok = std::process::Command::new("ssh-add")
+            .arg(key)
+            .env("SSH_AUTH_SOCK", &self.socket)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .expect("ssh-add")
+            .status
+            .success();
+        assert!(ok, "ssh-add failed");
+    }
+}
+
+#[cfg(unix)]
+impl Drop for TestAgent {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn agent_authentication() {
+    let s = sshd_or_skip!(SshdConfig::default());
+    let kh = known_hosts(&s);
+    kh.add("127.0.0.1", s.port, &host_key(&s)).unwrap();
+    let o = opts(kh, Arc::new(RejectUnknown));
+    let agent = TestAgent::start(s.dir.path());
+    let auth = Auth::Agent {
+        socket: agent.socket.clone(),
+    };
+
+    // Empty agent: a clear agent error, not a generic failure.
+    match SshSession::connect(&target(&s), &auth, &o).await {
+        Err(SshError::Agent(msg)) => assert!(msg.contains("no keys"), "{msg}"),
+        other => panic!("expected agent error, got {:?}", other.err()),
+    }
+
+    // An unrelated key first, then the authorized one: the client tries
+    // each identity until the server accepts one.
+    let other = s.path("unrelated");
+    common::keygen(&other, "ed25519", "").unwrap();
+    agent.add(&other);
+    agent.add(&s.user_key);
+    let sess = SshSession::connect(&target(&s), &auth, &o)
+        .await
+        .unwrap_or_else(|e| panic!("agent auth failed: {e}\n{}", s.log()));
+    assert_eq!(sess.exec("printf ok").await.unwrap().stdout, b"ok");
+    sess.disconnect().await.unwrap();
+
+    // No agent at that path.
+    let missing = Auth::Agent {
+        socket: s.path("no-such.sock"),
+    };
+    assert!(matches!(
+        SshSession::connect(&target(&s), &missing, &o).await,
+        Err(SshError::Agent(_))
+    ));
+}

@@ -60,7 +60,7 @@ export function closeTerminal(id: TerminalId): Promise<void> {
 
 // ---------------------------------------------------------------- sessions
 
-export type AuthMethod = { kind: "password" } | { kind: "keyFile"; path: string };
+export type AuthMethod = { kind: "password" } | { kind: "keyFile"; path: string } | { kind: "agent" };
 
 export interface SessionInput {
   name: string;
@@ -80,7 +80,18 @@ export interface SessionRecord extends SessionInput {
 export interface AppInfo {
   version: string;
   secretsAvailable: boolean;
+  agentAvailable: boolean;
 }
+
+export interface ImportCandidate {
+  alias: string;
+  input: SessionInput;
+  warnings: string[];
+}
+
+export const sshConfigPreview = () => invoke<ImportCandidate[]>("ssh_config_preview");
+export const sshConfigImport = (aliases: string[]) =>
+  invoke<{ created: string[]; skipped: string[] }>("ssh_config_import", { aliases });
 
 export const appInfo = () => invoke<AppInfo>("app_info");
 export const listSessions = () => invoke<SessionRecord[]>("sessions_list");

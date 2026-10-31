@@ -68,6 +68,7 @@ impl From<SshError> for IpcError {
             }
             SshError::AuthFailed => Self::new("auth_failed", message),
             SshError::Key(_) => Self::new("key_error", message),
+            SshError::Agent(_) => Self::new("agent_error", message),
             SshError::KnownHosts(_) => Self::new("known_hosts_error", message),
             SshError::Protocol(_) => Self::new("protocol_error", message),
             SshError::Sftp(_) => Self::new("sftp_error", message),

@@ -7,6 +7,7 @@ mod error;
 mod files;
 mod host_keys;
 mod sessions;
+mod ssh_config;
 mod terminals;
 mod transfers;
 
@@ -15,5 +16,8 @@ pub use error::AppError;
 pub use files::{DroppedFile, DroppedFiles, safe_file_name, unique_destination};
 pub use host_keys::{HostKeyPrompt, PromptBroker};
 pub use sessions::{AuthMethod, SessionId, SessionInput, SessionRecord, SessionStore};
+pub use ssh_config::{
+    IMPORT_FOLDER, ImportCandidate, ImportReport, import_candidates, parse_ssh_config,
+};
 pub use terminals::{FLOW_HIGH_WATERMARK, TerminalHub};
 pub use transfers::{TransferEvent, Transfers, remote_join};

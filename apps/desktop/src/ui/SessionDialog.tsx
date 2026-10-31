@@ -103,6 +103,7 @@ export function SessionDialog({ mode, initial, onSubmit, onCancel }: Props) {
           >
             <option value="password">Password</option>
             <option value="keyFile">Private key file</option>
+            <option value="agent">SSH agent</option>
           </select>
         </label>
         {form.authKind === "keyFile" && (

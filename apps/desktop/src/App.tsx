@@ -27,6 +27,7 @@ import {
 import { Dialog } from "./ui/Dialog";
 import { FilesPanel } from "./ui/FilesPanel";
 import { HostKeyDialog } from "./ui/HostKeyDialog";
+import { ImportDialog } from "./ui/ImportDialog";
 import { type PasswordAnswer, PasswordDialog } from "./ui/PasswordDialog";
 import { SessionDialog } from "./ui/SessionDialog";
 import { Sidebar } from "./ui/Sidebar";
@@ -73,6 +74,7 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [dropped, setDropped] = useState<DroppedFile[] | null>(null);
   const [confirmForget, setConfirmForget] = useState<Tab | null>(null);
+  const [importing, setImporting] = useState(false);
   const activeRef = useRef<Tab | undefined>(undefined);
   const nextKey = useRef(1);
 
@@ -173,7 +175,7 @@ export function App() {
 
   const didOpenInitialTab = useRef(false);
   useEffect(() => {
-    appInfo().then(setInfo, () => setInfo({ version: "?", secretsAvailable: false }));
+    appInfo().then(setInfo, () => setInfo({ version: "?", secretsAvailable: false, agentAvailable: false }));
     refresh();
     // StrictMode runs effects twice in development; open one tab only.
     if (!didOpenInitialTab.current) {
@@ -256,6 +258,7 @@ export function App() {
         onNew={() => setSessionDialog({ mode: "create" })}
         onQuickConnect={() => setSessionDialog({ mode: "quick" })}
         onLocalTerminal={openLocal}
+        onImport={() => setImporting(true)}
       />
       <main className="workspace">
         <div className="tabbar" role="tablist">
@@ -382,6 +385,16 @@ export function App() {
           key={currentPrompt.requestId}
           prompt={currentPrompt}
           onAnswer={(a) => answerHostKey(currentPrompt, a)}
+        />
+      )}
+      {importing && (
+        <ImportDialog
+          onCancel={() => setImporting(false)}
+          onDone={(summary) => {
+            setImporting(false);
+            setNotice(summary);
+            refresh();
+          }}
         />
       )}
       {confirmForget?.changedKey && (

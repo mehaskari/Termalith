@@ -34,6 +34,12 @@ pub enum Auth {
         path: PathBuf,
         passphrase: Option<Zeroizing<String>>,
     },
+    /// Keys held by an SSH agent; the private keys never enter this
+    /// process. `socket` is the agent's Unix socket or, on Windows, its
+    /// named pipe (OpenSSH agent: `\\.\pipe\openssh-ssh-agent`).
+    Agent {
+        socket: PathBuf,
+    },
 }
 
 impl fmt::Debug for Auth {
@@ -44,6 +50,10 @@ impl fmt::Debug for Auth {
                 .debug_struct("Auth::KeyFile")
                 .field("path", path)
                 .field("passphrase", &passphrase.as_ref().map(|_| "<redacted>"))
+                .finish(),
+            Auth::Agent { socket } => f
+                .debug_struct("Auth::Agent")
+                .field("socket", socket)
                 .finish(),
         }
     }
@@ -210,6 +220,9 @@ impl SshSession {
                     )
                     .await?
             }
+            Auth::Agent { socket } => {
+                agent::authenticate(&mut handle, &target.user, socket).await?
+            }
         };
         if !result.success() {
             return Err(SshError::AuthFailed);
@@ -261,6 +274,79 @@ impl SshSession {
             .disconnect(Disconnect::ByApplication, "", "en")
             .await?;
         Ok(())
+    }
+}
+
+mod agent {
+    use std::path::Path;
+
+    use russh::client::{AuthResult, Handle};
+    use russh::keys::HashAlg;
+    use russh::keys::agent::AgentIdentity;
+    use russh::keys::agent::client::AgentClient;
+    use tokio::io::{AsyncRead, AsyncWrite};
+
+    use super::ClientHandler;
+    use crate::SshError;
+
+    /// Tries each identity the agent offers until one is accepted.
+    pub(super) async fn authenticate(
+        handle: &mut Handle<ClientHandler>,
+        user: &str,
+        socket: &Path,
+    ) -> Result<AuthResult, SshError> {
+        #[cfg(unix)]
+        let agent = AgentClient::connect_uds(socket).await;
+        #[cfg(windows)]
+        let agent = AgentClient::connect_named_pipe(socket).await;
+        let agent = agent.map_err(|e| SshError::Agent(format!("cannot connect: {e}")))?;
+        with_agent(handle, user, agent).await
+    }
+
+    async fn with_agent<R>(
+        handle: &mut Handle<ClientHandler>,
+        user: &str,
+        mut agent: AgentClient<R>,
+    ) -> Result<AuthResult, SshError>
+    where
+        R: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    {
+        let identities = agent
+            .request_identities()
+            .await
+            .map_err(|e| SshError::Agent(e.to_string()))?;
+        let keys: Vec<_> = identities
+            .iter()
+            .filter_map(|i| match i {
+                AgentIdentity::PublicKey { key, .. } => Some(key.clone()),
+                _ => None,
+            })
+            .collect();
+        if keys.is_empty() {
+            return Err(SshError::Agent("the agent holds no keys".into()));
+        }
+        let mut last = None;
+        for key in keys {
+            let hash = if key.algorithm().is_rsa() {
+                // Never SHA-1 signatures.
+                handle
+                    .best_supported_rsa_hash()
+                    .await?
+                    .flatten()
+                    .or(Some(HashAlg::Sha256))
+            } else {
+                None
+            };
+            let r = handle
+                .authenticate_publickey_with(user, key, hash, &mut agent)
+                .await
+                .map_err(|e| SshError::Agent(e.to_string()))?;
+            if r.success() {
+                return Ok(r);
+            }
+            last = Some(r);
+        }
+        Ok(last.expect("at least one key was tried"))
     }
 }
 

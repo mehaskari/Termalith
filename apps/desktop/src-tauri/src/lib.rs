@@ -58,6 +58,8 @@ pub fn run() {
             sessions::session_update,
             sessions::session_delete,
             sessions::session_forget_secret,
+            sessions::ssh_config_preview,
+            sessions::ssh_config_import,
             files::sftp_home,
             files::sftp_list,
             files::sftp_download,

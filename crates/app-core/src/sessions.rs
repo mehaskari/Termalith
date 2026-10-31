@@ -47,7 +47,11 @@ impl SessionId {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AuthMethod {
     Password,
-    KeyFile { path: PathBuf },
+    KeyFile {
+        path: PathBuf,
+    },
+    /// Keys from the user's SSH agent.
+    Agent,
 }
 
 /// User-editable fields of a session.
@@ -135,6 +139,26 @@ const MIGRATIONS: &[&str] = &[
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
     );
+    CREATE INDEX sessions_name ON sessions (name COLLATE NOCASE);",
+    // v2: allow 'agent' auth. SQLite cannot alter a CHECK constraint, so the
+    // table is rebuilt (inside the migration transaction).
+    "CREATE TABLE sessions_v2 (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        host TEXT NOT NULL,
+        port INTEGER NOT NULL CHECK (port BETWEEN 1 AND 65535),
+        username TEXT NOT NULL,
+        auth_kind TEXT NOT NULL CHECK (auth_kind IN ('password', 'key_file', 'agent')),
+        key_path TEXT,
+        credential_ref TEXT,
+        folder TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+    );
+    INSERT INTO sessions_v2 SELECT id, name, host, port, username, auth_kind, key_path,
+        credential_ref, folder, created_at, updated_at FROM sessions;
+    DROP TABLE sessions;
+    ALTER TABLE sessions_v2 RENAME TO sessions;
     CREATE INDEX sessions_name ON sessions (name COLLATE NOCASE);",
 ];
 
@@ -298,6 +322,7 @@ fn auth_columns(a: &AuthMethod) -> (&'static str, Option<String>) {
     match a {
         AuthMethod::Password => ("password", None),
         AuthMethod::KeyFile { path } => ("key_file", Some(path.to_string_lossy().into_owned())),
+        AuthMethod::Agent => ("agent", None),
     }
 }
 
@@ -309,6 +334,7 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
     let auth = match (kind.as_str(), key) {
         ("password", _) => AuthMethod::Password,
         ("key_file", Some(p)) => AuthMethod::KeyFile { path: p.into() },
+        ("agent", _) => AuthMethod::Agent,
         _ => return Ok(Err(AppError::Db(format!("session {id}: bad auth columns")))),
     };
     let credential = match cred.as_deref().map(CredentialRef::parse).transpose() {
@@ -450,6 +476,32 @@ mod tests {
         conn.pragma_update(None, "user_version", 99).unwrap();
         drop(conn);
         assert!(matches!(SessionStore::open(&path), Err(AppError::Db(_))));
+    }
+
+    #[test]
+    fn v1_database_is_migrated_and_keeps_data() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("old.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(MIGRATIONS[0]).unwrap();
+            conn.pragma_update(None, "user_version", 1).unwrap();
+            conn.execute(
+                "INSERT INTO sessions (id, name, host, port, username, auth_kind, created_at, updated_at)
+                 VALUES ('ses-0123456789abcdef01234567', 'old', 'h', 22, 'u', 'password', 1, 1)",
+                [],
+            )
+            .unwrap();
+        }
+        let s = SessionStore::open(&path).unwrap();
+        let old = s
+            .get(&SessionId::parse("ses-0123456789abcdef01234567").unwrap())
+            .unwrap();
+        assert_eq!(old.input.name, "old");
+        let mut i = input();
+        i.auth = AuthMethod::Agent;
+        let rec = s.create(&i).unwrap();
+        assert_eq!(s.get(&rec.id).unwrap().input.auth, AuthMethod::Agent);
     }
 
     #[test]

@@ -25,6 +25,8 @@ interface Props {
   onReady?: (id: TerminalId) => void;
   onFailed?: (error: unknown) => void;
   onExited?: () => void;
+  /** Keyboard input typed into this terminal (used for broadcast). */
+  onInput?: (data: string) => void;
   settings?: Settings;
   theme?: ResolvedTheme;
   /** One-shot command from a keyboard shortcut; `seq` changes per request. */
@@ -37,6 +39,7 @@ export function TerminalView({
   onReady,
   onFailed,
   onExited,
+  onInput,
   settings = DEFAULT_SETTINGS,
   theme = "dark",
   command,
@@ -52,8 +55,8 @@ export function TerminalView({
   // `open` must not re-run the effect; keep the first one.
   const openRef = useRef(open);
   const initial = useRef({ settings, theme });
-  const callbacks = useRef({ onReady, onFailed, onExited });
-  callbacks.current = { onReady, onFailed, onExited };
+  const callbacks = useRef({ onReady, onFailed, onExited, onInput });
+  callbacks.current = { onReady, onFailed, onExited, onInput };
 
   useEffect(() => {
     const host = hostRef.current;
@@ -148,6 +151,7 @@ export function TerminalView({
       for (const chunk of chunkInput(data)) {
         input.push(async () => writeTerminal(await opened, chunk));
       }
+      callbacks.current.onInput?.(data);
     });
 
     let resizeFrame = 0;

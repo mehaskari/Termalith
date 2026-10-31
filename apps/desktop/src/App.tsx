@@ -8,6 +8,7 @@ import {
   getSettings,
   saveSettings,
   setFavorite,
+  writeTerminal,
   type DroppedFile,
   type IpcError,
   type TerminalId,
@@ -41,6 +42,9 @@ import { SessionDialog } from "./ui/SessionDialog";
 import { TunnelsPanel } from "./ui/TunnelsPanel";
 import { SnippetsPanel } from "./ui/SnippetsPanel";
 import { NetworkTools } from "./ui/NetworkTools";
+import { BroadcastDialog } from "./ui/BroadcastDialog";
+import { type BroadcastState, eligibleTargets, resolveTargets } from "./ui/broadcast";
+import { SerialQueue, chunkInput } from "./terminal/flow";
 import { SettingsDialog } from "./ui/SettingsDialog";
 import { SerialDialog } from "./ui/SerialDialog";
 import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
@@ -106,6 +110,9 @@ export function App() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [serialOpen, setSerialOpen] = useState(false);
+  const [broadcast, setBroadcast] = useState<BroadcastState | null>(null);
+  const [broadcastPicker, setBroadcastPicker] = useState<number | null>(null);
+  const broadcastQueues = useRef(new Map<number, SerialQueue>());
   const [transferMode, setTransferMode] = useState<"export" | "import" | null>(null);
   const [systemDark, setSystemDark] = useState(
     () => typeof window.matchMedia !== "function" || window.matchMedia("(prefers-color-scheme: dark)").matches,
@@ -326,6 +333,25 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [openLocal, closeTab, patchTab]);
 
+  // Stop broadcasting when the source tab closes or its session ends.
+  useEffect(() => {
+    if (!broadcast) return;
+    const src = tabs.find((t) => t.key === broadcast.source);
+    if (!src || src.ended) setBroadcast(null);
+  }, [tabs, broadcast]);
+
+  const mirrorInput = (sourceKey: number, data: string) => {
+    if (!broadcast || broadcast.source !== sourceKey) return;
+    for (const { key, terminalId } of resolveTargets(broadcast, tabs).live) {
+      let q = broadcastQueues.current.get(key);
+      if (!q) {
+        q = new SerialQueue(() => {});
+        broadcastQueues.current.set(key, q);
+      }
+      for (const chunk of chunkInput(data)) q.push(() => writeTerminal(terminalId, chunk));
+    }
+  };
+
   const currentPrompt = hostKeyPrompts[0];
   const activeTab = tabs.find((t) => t.key === active);
   activeRef.current = activeTab;
@@ -384,7 +410,11 @@ export function App() {
       <main className="workspace">
         <div className="tabbar" role="tablist">
           {tabs.map((t) => (
-            <div key={t.key} className={`tab ${t.key === active ? "active" : ""}`} role="presentation">
+            <div
+              key={t.key}
+              className={`tab ${t.key === active ? "active" : ""} ${broadcast && (broadcast.source === t.key || broadcast.targets.includes(t.key)) ? "broadcasting" : ""}`}
+              role="presentation"
+            >
               <button
                 type="button"
                 role="tab"
@@ -455,6 +485,20 @@ export function App() {
                     >
                       ⊟
                     </button>
+                    {broadcast?.source === t.key ? (
+                      <button type="button" className="danger" onClick={() => setBroadcast(null)}>
+                        Stop broadcast
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        title="Type into several terminals at once"
+                        disabled={t.terminalId === undefined || t.ended || broadcast !== null}
+                        onClick={() => setBroadcastPicker(t.key)}
+                      >
+                        Broadcast…
+                      </button>
+                    )}
                     <button
                       type="button"
                       aria-pressed={!!t.snippetsOpen}
@@ -490,6 +534,18 @@ export function App() {
                     )}
                   </span>
               </div>
+              {broadcast?.source === t.key && (
+                <div className="broadcast-banner" role="status">
+                  BROADCASTING to {resolveTargets(broadcast, tabs).live.map((x) => tabs.find((y) => y.key === x.key)?.title).join(", ") || "no live terminals"}
+                  {resolveTargets(broadcast, tabs).skipped.length > 0 &&
+                    ` · skipped (not connected): ${resolveTargets(broadcast, tabs).skipped.map((x) => x.title).join(", ")}`}
+                </div>
+              )}
+              {broadcast?.targets.includes(t.key) && broadcast.source !== t.key && (
+                <div className="broadcast-banner receiving" role="status">
+                  Receiving input broadcast from {tabs.find((y) => y.key === broadcast.source)?.title}
+                </div>
+              )}
               <div className="pane-body">
                 <div className={`pane-terminals ${t.direction}`}>
                   <div className="pane-terminal">
@@ -505,6 +561,7 @@ export function App() {
                       settings={settings}
                       theme={theme}
                       command={t.command}
+                      onInput={(d) => mirrorInput(t.key, d)}
                     />
                   </div>
                   {t.splits.map((s) => (
@@ -575,6 +632,18 @@ export function App() {
           key={currentPrompt.requestId}
           prompt={currentPrompt}
           onAnswer={(a) => answerHostKey(currentPrompt, a)}
+        />
+      )}
+      {broadcastPicker !== null && tabs.find((t) => t.key === broadcastPicker) && (
+        <BroadcastDialog
+          source={tabs.find((t) => t.key === broadcastPicker)!}
+          candidates={eligibleTargets(tabs, broadcastPicker)}
+          onCancel={() => setBroadcastPicker(null)}
+          onStart={(targets) => {
+            broadcastQueues.current.clear();
+            setBroadcast({ source: broadcastPicker, targets });
+            setBroadcastPicker(null);
+          }}
         />
       )}
       {serialOpen && (

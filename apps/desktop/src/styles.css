@@ -853,3 +853,20 @@ button.icon.starred {
   color: var(--accent);
   border-color: var(--accent);
 }
+
+.broadcast-banner {
+  padding: 4px 10px;
+  background: var(--danger);
+  color: #fff;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  flex: none;
+}
+.broadcast-banner.receiving {
+  background: color-mix(in srgb, var(--danger) 70%, var(--panel));
+  font-weight: 500;
+}
+.tab.broadcasting {
+  box-shadow: inset 0 -2px 0 var(--danger);
+}

@@ -3,6 +3,7 @@
 //! host-key prompts. No Tauri or React dependencies.
 
 mod connect;
+mod desktops;
 mod error;
 mod files;
 mod host_keys;
@@ -15,10 +16,13 @@ mod transfers;
 mod tunnels;
 
 pub use connect::{ConnectRequest, Connected, Connector, PasswordInput};
+pub use desktops::{DesktopHub, DesktopInfo, DesktopLaunch, DesktopState};
 pub use error::AppError;
 pub use files::{DroppedFile, DroppedFiles, safe_file_name, unique_destination};
 pub use host_keys::{HostKeyPrompt, PromptBroker};
-pub use sessions::{AuthMethod, SessionId, SessionInput, SessionRecord, SessionStore};
+pub use sessions::{
+    AuthMethod, SessionId, SessionInput, SessionProtocol, SessionRecord, SessionStore,
+};
 pub use settings::{CursorStyle, Settings, Theme, export_sessions, import_sessions};
 pub use snippets::{MAX_SNIPPET_LEN, Snippet, SnippetInput};
 pub use ssh_config::{

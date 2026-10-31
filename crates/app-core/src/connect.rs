@@ -12,7 +12,9 @@ use credential_store::{CredentialRef, SecretStore};
 use protocol_ssh::{Auth, ConnectOptions, KnownHostsStore, SshError, SshSession, Target};
 use zeroize::Zeroizing;
 
-use crate::sessions::{AuthMethod, MAX_JUMP_DEPTH, SessionId, SessionInput, SessionStore};
+use crate::sessions::{
+    AuthMethod, MAX_JUMP_DEPTH, SessionId, SessionInput, SessionProtocol, SessionStore,
+};
 use crate::{AppError, PromptBroker};
 
 /// A secret typed by the user for this connection.
@@ -76,6 +78,8 @@ impl Connector {
                     auth,
                     folder: None,
                     jump_via: None,
+                    protocol: SessionProtocol::Ssh,
+                    domain: None,
                 };
                 input.validate()?;
                 let typed = match secret {
@@ -100,6 +104,9 @@ impl Connector {
         secret: PasswordInput,
     ) -> Result<Connected, AppError> {
         let rec = self.sessions.get(id)?;
+        if rec.input.protocol != SessionProtocol::Ssh {
+            return Err(AppError::invalid("session", "not an SSH session"));
+        }
         let (typed, save) = match secret {
             PasswordInput::Provided { secret, save } => (Some(secret), save),
             PasswordInput::None => (None, false),
@@ -179,6 +186,12 @@ impl Connector {
             Some(jump) => SshSession::connect_via(jump, &target, &auth, &opts).await?,
             None => SshSession::connect(&target, &auth, &opts).await?,
         })
+    }
+
+    /// Connects saved SSH session `id` non-interactively, for use as a
+    /// tunnel (e.g. RDP through a bastion).
+    pub async fn connect_tunnel(&self, id: &SessionId) -> Result<Arc<SshSession>, AppError> {
+        Ok(Arc::new(self.jump(id, 1).await?))
     }
 
     /// Connects a jump host non-interactively: it must have a saved

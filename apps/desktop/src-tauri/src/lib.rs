@@ -1,6 +1,7 @@
 //! Tauri boundary. Translates IPC to calls on platform-neutral crates; holds
 //! no domain logic of its own.
 
+mod desktop;
 mod error;
 mod files;
 mod nettools;
@@ -62,6 +63,10 @@ pub fn run() {
             nettools::net_probe_start,
             nettools::net_probe_cancel,
             ssh::ssh_open,
+            desktop::desktop_clients,
+            desktop::desktop_open,
+            desktop::desktop_list,
+            desktop::desktop_close,
             ssh::host_key_respond,
             sessions::app_info,
             sessions::sessions_list,
@@ -95,6 +100,7 @@ pub fn run() {
             && let Some(state) = handle.try_state::<AppState>()
         {
             state.hub.close_all();
+            state.desktops.close_all();
         }
     });
 }

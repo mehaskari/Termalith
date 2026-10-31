@@ -92,6 +92,7 @@ dependencies = [
  "getrandom 0.3.4",
  "nix 0.28.0",
  "protocol-ssh",
+ "remote-desktop",
  "rusqlite",
  "serde",
  "serde_json",
@@ -3844,6 +3845,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
+name = "remote-desktop"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
 name = "reqwest"
 version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5159,6 +5171,7 @@ dependencies = [
  "credential-store",
  "network-tools",
  "protocol-ssh",
+ "remote-desktop",
  "serde",
  "serde_json",
  "serial-console",

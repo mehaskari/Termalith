@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use app_core::{
     AppError, AuthMethod, ConnectRequest, Connector, FLOW_HIGH_WATERMARK, HostKeyPrompt,
-    PasswordInput, PromptBroker, SessionInput, SessionStore, TerminalHub,
+    PasswordInput, PromptBroker, SessionInput, SessionProtocol, SessionStore, TerminalHub,
 };
 use credential_store::MemorySecretStore;
 use protocol_ssh::{FileKnownHosts, HostKeyDecision, KnownHostsStore};
@@ -68,6 +68,8 @@ fn key_session(r: &Rig) -> app_core::SessionRecord {
             },
             folder: None,
             jump_via: None,
+            protocol: SessionProtocol::Ssh,
+            domain: None,
         })
         .unwrap()
 }
@@ -174,6 +176,8 @@ async fn password_sessions_without_secret_ask_for_one() {
             auth: AuthMethod::Password,
             folder: None,
             jump_via: None,
+            protocol: SessionProtocol::Ssh,
+            domain: None,
         })
         .unwrap();
     let res = r
@@ -356,6 +360,8 @@ async fn secret_is_saved_only_after_a_successful_connection() {
             auth: AuthMethod::KeyFile { path: enc },
             folder: None,
             jump_via: None,
+            protocol: SessionProtocol::Ssh,
+            domain: None,
         })
         .unwrap();
     let provided = |s: &str| PasswordInput::Provided {
@@ -648,6 +654,8 @@ async fn agent_session_without_an_agent_explains_why() {
             auth: AuthMethod::Agent,
             folder: None,
             jump_via: None,
+            protocol: SessionProtocol::Ssh,
+            domain: None,
         })
         .unwrap();
     // The rig's connector has `agent: None`.
@@ -681,6 +689,8 @@ async fn saved_session_behind_a_jump_host() {
         },
         folder: None,
         jump_via: Some(bastion.id.clone()),
+        protocol: SessionProtocol::Ssh,
+        domain: None,
     };
     let target = r.connector.sessions.create(&behind).unwrap();
 
@@ -727,6 +737,8 @@ async fn saved_session_behind_a_jump_host() {
             auth: AuthMethod::Password,
             folder: None,
             jump_via: None,
+            protocol: SessionProtocol::Ssh,
+            domain: None,
         })
         .unwrap();
     behind.jump_via = Some(pw_bastion.id);

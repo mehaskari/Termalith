@@ -4,7 +4,8 @@ use std::time::Duration;
 use std::path::PathBuf;
 
 use app_core::{
-    Connector, DroppedFiles, PromptBroker, SessionStore, TerminalHub, Transfers, Tunnels,
+    Connector, DesktopHub, DroppedFiles, PromptBroker, SessionStore, TerminalHub, Transfers,
+    Tunnels,
 };
 use credential_store::{MemorySecretStore, NativeSecretStore, SecretStore};
 use protocol_ssh::FileKnownHosts;
@@ -32,6 +33,7 @@ pub struct AppState {
     pub downloads_dir: PathBuf,
     pub home_dir: Option<PathBuf>,
     pub agent_available: bool,
+    pub desktops: Arc<DesktopHub>,
 }
 
 /// The user's SSH agent: `SSH_AUTH_SOCK` on Unix (set for GUI apps by
@@ -94,6 +96,14 @@ impl AppState {
             .or_else(|_| app.path().home_dir())
             .unwrap_or_else(|_| data_dir.clone());
 
+        // Connection files for external RDP clients (no secrets in them).
+        let desktop_dir = app
+            .path()
+            .app_cache_dir()
+            .unwrap_or_else(|_| data_dir.join("cache"))
+            .join("remote-desktop");
+        std::fs::create_dir_all(&desktop_dir)?;
+
         Ok(Self {
             hub: Arc::new(TerminalHub::with_default_flow()),
             connector,
@@ -106,6 +116,7 @@ impl AppState {
             downloads_dir,
             home_dir: app.path().home_dir().ok(),
             agent_available,
+            desktops: Arc::new(DesktopHub::new(desktop_dir)),
         })
     }
 }

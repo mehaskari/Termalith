@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use russh::client::{self, Handle, Msg};
 use russh::keys::{HashAlg, PrivateKeyWithHashAlg, PublicKeyOrCertificate, load_secret_key};
-use russh::{Channel, ChannelMsg, Disconnect};
+use russh::{ChannelMsg, ChannelReadHalf, ChannelWriteHalf, Disconnect};
 use russh_sftp::client::SftpSession;
 use zeroize::Zeroizing;
 
@@ -241,7 +241,11 @@ impl SshSession {
         ch.request_pty(true, "xterm-256color", cols, rows, 0, 0, &[])
             .await?;
         ch.request_shell(true).await?;
-        Ok(ShellChannel { channel: ch })
+        let (reader, writer) = ch.split();
+        Ok(ShellChannel {
+            reader: ShellReader { inner: reader },
+            writer: ShellWriter { inner: writer },
+        })
     }
 
     /// Starts the SFTP subsystem on a new channel of this connection.
@@ -252,7 +256,7 @@ impl SshSession {
         Ok(SftpClient::new(session))
     }
 
-    pub async fn disconnect(self) -> Result<(), SshError> {
+    pub async fn disconnect(&self) -> Result<(), SshError> {
         self.handle
             .disconnect(Disconnect::ByApplication, "", "en")
             .await?;
@@ -275,26 +279,45 @@ pub enum ShellEvent {
     Closed,
 }
 
-/// An interactive remote shell with a PTY.
+/// An interactive remote shell with a PTY. Use [`split`](Self::split) to
+/// read and write from different tasks.
 pub struct ShellChannel {
-    channel: Channel<Msg>,
+    reader: ShellReader,
+    writer: ShellWriter,
 }
 
 impl ShellChannel {
     pub async fn write(&self, data: &[u8]) -> Result<(), SshError> {
-        self.channel.data(data).await?;
-        Ok(())
+        self.writer.write(data).await
     }
 
     pub async fn resize(&self, cols: u32, rows: u32) -> Result<(), SshError> {
-        self.channel.window_change(cols, rows, 0, 0).await?;
-        Ok(())
+        self.writer.resize(cols, rows).await
     }
 
     /// Next event; `Closed` once the channel is gone.
     pub async fn next_event(&mut self) -> ShellEvent {
+        self.reader.next_event().await
+    }
+
+    pub async fn close(&self) -> Result<(), SshError> {
+        self.writer.close().await
+    }
+
+    pub fn split(self) -> (ShellReader, ShellWriter) {
+        (self.reader, self.writer)
+    }
+}
+
+pub struct ShellReader {
+    inner: ChannelReadHalf,
+}
+
+impl ShellReader {
+    /// Next event; `Closed` once the channel is gone.
+    pub async fn next_event(&mut self) -> ShellEvent {
         loop {
-            match self.channel.wait().await {
+            match self.inner.wait().await {
                 None | Some(ChannelMsg::Close) => return ShellEvent::Closed,
                 Some(ChannelMsg::Data { data }) => return ShellEvent::Output(data.to_vec()),
                 Some(ChannelMsg::ExtendedData { data, .. }) => {
@@ -307,9 +330,25 @@ impl ShellChannel {
             }
         }
     }
+}
+
+pub struct ShellWriter {
+    inner: ChannelWriteHalf<Msg>,
+}
+
+impl ShellWriter {
+    pub async fn write(&self, data: &[u8]) -> Result<(), SshError> {
+        self.inner.data(data).await?;
+        Ok(())
+    }
+
+    pub async fn resize(&self, cols: u32, rows: u32) -> Result<(), SshError> {
+        self.inner.window_change(cols, rows, 0, 0).await?;
+        Ok(())
+    }
 
     pub async fn close(&self) -> Result<(), SshError> {
-        self.channel.close().await?;
+        self.inner.close().await?;
         Ok(())
     }
 }

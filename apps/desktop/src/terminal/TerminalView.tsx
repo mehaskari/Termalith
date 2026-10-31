@@ -3,32 +3,31 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import {
-  type ExitPayload,
+  type Opener,
   type TerminalId,
   ackTerminal,
   closeTerminal,
-  isIpcError,
-  openTerminal,
   resizeTerminal,
   writeTerminal,
 } from "./api";
 import { AckBatcher, SerialQueue, chunkInput } from "./flow";
+import { connectFailureLines, describeError, describeExit } from "./messages";
 
 const SCROLLBACK_LINES = 5000;
 
-function describeError(e: unknown): string {
-  if (isIpcError(e)) return `${e.code}: ${e.message}`;
-  return e instanceof Error ? e.message : String(e);
+interface Props {
+  /** Creates the backend terminal; called once per mount. */
+  open: Opener;
+  /** Visible tab: refit and focus when it becomes active. */
+  active: boolean;
 }
 
-function describeExit({ exit }: ExitPayload): string {
-  if (!exit) return "process exited";
-  if (exit.signal) return `process terminated by ${exit.signal}`;
-  return `process exited with code ${exit.code}`;
-}
-
-export function TerminalView() {
+export function TerminalView({ open, active }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const termRef = useRef<Terminal | null>(null);
+  const fitRef = useRef<FitAddon | null>(null);
+  // `open` must not re-run the effect; keep the first one.
+  const openRef = useRef(open);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -52,6 +51,8 @@ export function TerminalView() {
       // Falls back to xterm's DOM renderer.
     }
     fit.fit();
+    termRef.current = term;
+    fitRef.current = fit;
 
     let id: TerminalId | null = null;
     let disposed = false;
@@ -65,15 +66,24 @@ export function TerminalView() {
     });
     const input = new SerialQueue(report("write failed"));
 
-    const opened = openTerminal(
-      term.cols,
-      term.rows,
-      (data) => term.write(data, () => acks.add(data.length)),
-      (payload) => {
-        exited = true;
-        term.write(`\r\n\x1b[2m[${describeExit(payload)}]\x1b[0m\r\n`);
-      },
-    );
+    // Start on the next tick: a mount that is torn down immediately (React
+    // StrictMode in development) must not open a connection nobody owns.
+    let startTimer = 0;
+    const opened = new Promise<TerminalId>((resolve, reject) => {
+      startTimer = window.setTimeout(() => {
+        openRef
+          .current(
+            term.cols,
+            term.rows,
+            (data) => term.write(data, () => acks.add(data.length)),
+            (payload) => {
+              exited = true;
+              term.write(`\r\n\x1b[2m[${describeExit(payload)}]\x1b[0m\r\n`);
+            },
+          )
+          .then(resolve, reject);
+      }, 0);
+    });
     opened.then(
       (tid) => {
         if (disposed) {
@@ -87,7 +97,9 @@ export function TerminalView() {
       },
       (e) => {
         startFailed = true;
-        report("failed to start terminal")(e);
+        if (disposed) return;
+        const lines = connectFailureLines(e);
+        term.write(`\r\n\x1b[31m${lines.join("\r\n")}\x1b[0m\r\n`);
       },
     );
 
@@ -109,20 +121,34 @@ export function TerminalView() {
         if (id !== null && !exited) resizeTerminal(id, cols, rows).catch(report("resize failed"));
       });
     });
-    const observer = new ResizeObserver(() => fit.fit());
+    // Hidden tabs have zero size; fitting them would shrink the PTY.
+    const observer = new ResizeObserver(() => {
+      if (host.offsetWidth > 0 && host.offsetHeight > 0) fit.fit();
+    });
     observer.observe(host);
-    term.focus();
 
     return () => {
       disposed = true;
+      clearTimeout(startTimer);
       observer.disconnect();
       cancelAnimationFrame(resizeFrame);
       onData.dispose();
       onResize.dispose();
       if (id !== null) void closeTerminal(id).catch(() => {});
       term.dispose();
+      termRef.current = null;
+      fitRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!active) return;
+    const frame = requestAnimationFrame(() => {
+      fitRef.current?.fit();
+      termRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [active]);
 
   return <div ref={hostRef} className="terminal-host" />;
 }

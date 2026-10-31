@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-host-key-respond"
+description = "Enables the host_key_respond command without any pre-configured scope."
+commands.allow = ["host_key_respond"]
+
+[[permission]]
+identifier = "deny-host-key-respond"
+description = "Denies the host_key_respond command without any pre-configured scope."
+commands.deny = ["host_key_respond"]

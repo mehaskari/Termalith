@@ -5,15 +5,12 @@
 //! If `sshd` is not available the tests are skipped, unless
 //! `TERMALITH_REQUIRE_SSHD=1` is set (CI on macOS/Linux), which turns a
 //! missing or failing server into a test failure.
-#![allow(dead_code)]
 
 use std::fmt::Write as _;
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
-
-use protocol_ssh::Target;
 
 pub struct TestSshd {
     pub dir: tempfile::TempDir,
@@ -179,18 +176,6 @@ fn wait_for_banner(port: u16, timeout: Duration) -> bool {
 }
 
 impl TestSshd {
-    pub fn target(&self) -> Target {
-        Target {
-            host: "127.0.0.1".into(),
-            port: self.port,
-            user: self.user.clone(),
-        }
-    }
-
-    pub fn host_key(&self) -> russh::keys::PublicKey {
-        russh::keys::PublicKey::from_openssh(self.host_pub.trim()).expect("host key")
-    }
-
     pub fn path(&self, name: &str) -> PathBuf {
         self.dir.path().join(name)
     }

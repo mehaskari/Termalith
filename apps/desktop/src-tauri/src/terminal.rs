@@ -1,19 +1,16 @@
-//! Terminal IPC commands.
+//! Terminal IPC commands, shared by local and SSH terminals.
 //!
-//! The frontend can only ask for "a terminal of this size". It cannot choose
-//! the program, arguments, working directory or environment; the backend
-//! resolves the shell from OS configuration.
-
-use std::sync::Arc;
+//! For local terminals the frontend can only ask for "a terminal of this
+//! size"; it cannot choose the program, arguments, working directory or
+//! environment. The backend resolves the shell from OS configuration.
 
 use serde::Serialize;
 use tauri::State;
 use tauri::ipc::{Channel, InvokeResponseBody};
-use terminal_pty::{ExitInfo, TerminalEvent, TerminalId, TerminalManager, TerminalSize};
+use terminal_pty::{ExitInfo, TerminalEvent, TerminalSize};
 
 use crate::error::IpcError;
-
-type Terminals<'a> = State<'a, Arc<TerminalManager>>;
+use crate::state::AppState;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,66 +36,64 @@ impl From<Option<ExitInfo>> for ExitPayload {
     }
 }
 
-/// Runs blocking terminal work off the main thread and the async executor.
-async fn blocking<T, F>(f: F) -> Result<T, IpcError>
-where
-    T: Send + 'static,
-    F: FnOnce() -> Result<T, IpcError> + Send + 'static,
-{
-    tauri::async_runtime::spawn_blocking(f)
-        .await
-        .map_err(|_| IpcError::internal("terminal task failed"))?
+/// Forwards terminal events to the two frontend channels.
+pub fn channel_sink(
+    on_output: Channel<InvokeResponseBody>,
+    on_exit: Channel<ExitPayload>,
+) -> impl FnMut(TerminalEvent) -> bool + Send + 'static {
+    move |event| match event {
+        TerminalEvent::Output(bytes) => on_output.send(InvokeResponseBody::Raw(bytes)).is_ok(),
+        TerminalEvent::Exited(info) => on_exit.send(ExitPayload::from(info)).is_ok(),
+    }
 }
 
 #[tauri::command]
 pub async fn terminal_open(
-    terminals: Terminals<'_>,
+    state: State<'_, AppState>,
     cols: u16,
     rows: u16,
     on_output: Channel<InvokeResponseBody>,
     on_exit: Channel<ExitPayload>,
 ) -> Result<u64, IpcError> {
     let size = TerminalSize::new(cols, rows)?;
-    let terminals = Arc::clone(&terminals);
-    blocking(move || {
+    let hub = state.hub.clone();
+    tauri::async_runtime::spawn_blocking(move || {
         let shell = terminal_pty::default_shell()?;
-        let id = terminals.open(&shell, size, move |event| match event {
-            TerminalEvent::Output(bytes) => on_output.send(InvokeResponseBody::Raw(bytes)).is_ok(),
-            TerminalEvent::Exited(info) => on_exit.send(ExitPayload::from(info)).is_ok(),
-        })?;
-        Ok(id.as_u64())
+        Ok(hub.open_local(&shell, size, channel_sink(on_output, on_exit))?)
     })
     .await
+    .map_err(|_| IpcError::internal("terminal task failed"))?
 }
 
 #[tauri::command]
 pub async fn terminal_write(
-    terminals: Terminals<'_>,
+    state: State<'_, AppState>,
     id: u64,
     data: String,
 ) -> Result<(), IpcError> {
-    let terminals = Arc::clone(&terminals);
-    blocking(move || Ok(terminals.write(TerminalId::from_u64(id), data.as_bytes())?)).await
+    Ok(state.hub.write(id, data.as_bytes()).await?)
 }
 
 #[tauri::command]
 pub async fn terminal_resize(
-    terminals: Terminals<'_>,
+    state: State<'_, AppState>,
     id: u64,
     cols: u16,
     rows: u16,
 ) -> Result<(), IpcError> {
     let size = TerminalSize::new(cols, rows)?;
-    Ok(terminals.resize(TerminalId::from_u64(id), size)?)
+    Ok(state.hub.resize(id, size).await?)
 }
 
 #[tauri::command]
-pub async fn terminal_ack(terminals: Terminals<'_>, id: u64, bytes: u32) -> Result<(), IpcError> {
-    Ok(terminals.ack(TerminalId::from_u64(id), bytes as usize)?)
+pub async fn terminal_ack(state: State<'_, AppState>, id: u64, bytes: u32) -> Result<(), IpcError> {
+    Ok(state.hub.ack(id, bytes as usize)?)
 }
 
 #[tauri::command]
-pub async fn terminal_close(terminals: Terminals<'_>, id: u64) -> Result<(), IpcError> {
-    let terminals = Arc::clone(&terminals);
-    blocking(move || Ok(terminals.close(TerminalId::from_u64(id))?)).await
+pub async fn terminal_close(state: State<'_, AppState>, id: u64) -> Result<(), IpcError> {
+    match state.hub.close(id).await {
+        Ok(()) | Err(app_core::AppError::NotFound) => Ok(()),
+        Err(e) => Err(e.into()),
+    }
 }

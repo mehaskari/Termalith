@@ -32,6 +32,11 @@ pub trait PtyControl: Send {
     /// Ask the child to exit, escalating to a forced kill after `grace`.
     /// Returns once the child has exited or the forced kill was issued.
     fn terminate(&mut self, grace: Duration) -> Result<(), PtyError>;
+    /// Release the PTY master and input writer once the child has exited.
+    /// Output already produced remains readable until EOF. Required on
+    /// Windows, where the ConPTY output pipe only reports EOF after the
+    /// pseudo console is closed. May block while the pseudo console flushes.
+    fn release_pty(&mut self);
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -72,8 +77,8 @@ impl PtyBackend for NativePtyBackend {
         Ok(SpawnedPty {
             reader,
             control: Box::new(NativeControl {
-                master: pair.master,
-                writer,
+                master: Some(pair.master),
+                writer: Some(writer),
                 child,
             }),
         })
@@ -81,20 +86,23 @@ impl PtyBackend for NativePtyBackend {
 }
 
 struct NativeControl {
-    master: Box<dyn MasterPty + Send>,
-    writer: Box<dyn Write + Send>,
+    master: Option<Box<dyn MasterPty + Send>>,
+    writer: Option<Box<dyn Write + Send>>,
     child: Box<dyn Child + Send + Sync>,
 }
 
 impl PtyControl for NativeControl {
     fn write_all(&mut self, data: &[u8]) -> Result<(), PtyError> {
-        self.writer.write_all(data)?;
-        self.writer.flush()?;
+        let writer = self.writer.as_mut().ok_or_else(released)?;
+        writer.write_all(data)?;
+        writer.flush()?;
         Ok(())
     }
 
     fn resize(&self, size: TerminalSize) -> Result<(), PtyError> {
         self.master
+            .as_ref()
+            .ok_or_else(released)?
             .resize(to_pty_size(size))
             .map_err(|e| PtyError::Io(std::io::Error::other(e.to_string())))
     }
@@ -128,6 +136,18 @@ impl PtyControl for NativeControl {
         force_kill(self.pid());
         Ok(())
     }
+
+    fn release_pty(&mut self) {
+        self.writer = None;
+        self.master = None;
+    }
+}
+
+fn released() -> PtyError {
+    PtyError::Io(std::io::Error::new(
+        std::io::ErrorKind::BrokenPipe,
+        "pseudo-terminal already released",
+    ))
 }
 
 #[cfg(unix)]

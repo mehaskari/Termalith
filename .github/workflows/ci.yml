@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+jobs:
+  build-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS arm64
+            os: macos-latest
+            bin: target/debug/termalith-desktop
+          - name: Windows x64
+            os: windows-latest
+            bin: target/debug/termalith-desktop.exe
+          - name: Linux x64
+            os: ubuntu-latest
+            bin: target/debug/termalith-desktop
+
+    steps:
+      # Third-party actions are pinned to full commit SHAs.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Runner info
+        shell: bash
+        run: |
+          echo "image: ${ImageOS:-unknown} ${ImageVersion:-unknown}"
+          uname -a || true
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
+            libayatana-appindicator3-dev libssl-dev build-essential \
+            xvfb
+
+      - name: Install Rust toolchain (from rust-toolchain.toml)
+        shell: bash
+        run: |
+          rustup toolchain install
+          rustc --version
+          cargo --version
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Install frontend dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Rust format
+        if: runner.os == 'Linux'
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - name: TypeScript typecheck
+        run: corepack pnpm typecheck
+
+      - name: Frontend tests
+        run: corepack pnpm test
+
+      # Build and smoke-test even if earlier checks failed, for more signal per run.
+      - name: Build desktop app (debug, embedded frontend)
+        if: ${{ !cancelled() }}
+        run: corepack pnpm --filter @termalith/desktop tauri build --debug --no-bundle
+
+      - name: Smoke test (macOS)
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
+        run: bash scripts/smoke-test.sh ${{ matrix.bin }}
+
+      - name: Smoke test (Linux, Xvfb)
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
+        env:
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: xvfb-run -a bash scripts/smoke-test.sh ${{ matrix.bin }}
+
+      - name: Smoke test (Windows)
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
+        shell: pwsh
+        run: ./scripts/smoke-test.ps1 -Bin ${{ matrix.bin }}

@@ -152,3 +152,30 @@ pub fn sessions_export(state: State<'_, AppState>) -> Result<ExportResult, IpcEr
 pub fn sessions_import(state: State<'_, AppState>, json: String) -> Result<ImportReport, IpcError> {
     Ok(app_core::import_sessions(&state.connector.sessions, &json)?)
 }
+
+#[tauri::command]
+pub fn snippets_list(state: State<'_, AppState>) -> Result<Vec<app_core::Snippet>, IpcError> {
+    Ok(state.connector.sessions.snippets()?)
+}
+
+#[tauri::command]
+pub fn snippet_create(
+    state: State<'_, AppState>,
+    input: app_core::SnippetInput,
+) -> Result<app_core::Snippet, IpcError> {
+    Ok(state.connector.sessions.create_snippet(&input)?)
+}
+
+#[tauri::command]
+pub fn snippet_update(
+    state: State<'_, AppState>,
+    id: String,
+    input: app_core::SnippetInput,
+) -> Result<app_core::Snippet, IpcError> {
+    Ok(state.connector.sessions.update_snippet(&id, &input)?)
+}
+
+#[tauri::command]
+pub fn snippet_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    Ok(state.connector.sessions.delete_snippet(&id)?)
+}

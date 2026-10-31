@@ -30,6 +30,10 @@ const remoteFiles: Record<string, Array<{ name: string; kind: string; size: numb
   "/home/deploy/releases": [],
 };
 let nextTransfer = 1;
+const mockSnippets: Array<{ id: string; name: string; command: string; folder: string | null }> = [
+  { id: "snp-1", name: "Interface status", command: "show interfaces {{iface}} status", folder: "Cisco" },
+  { id: "snp-2", name: "Disk usage", command: "df -h\ndu -sh {{path}}", folder: null },
+];
 const mockSettings: Record<string, unknown> = { theme: "system", fontSize: 13, fontFamily: "", cursorStyle: "block", cursorBlink: true, scrollback: 5000 };
 let nextTunnel = 1;
 const tunnels: Array<Record<string, unknown> & { id: number; terminalId: number }> = [];
@@ -127,6 +131,21 @@ mockIPC(
         if (s) s.hasSavedSecret = false;
         return null;
       }
+      case "snippets_list":
+        return mockSnippets;
+      case "snippet_create": {
+        const s = { id: `snp-${mockSnippets.length + 1}`, ...(a.input as object) } as (typeof mockSnippets)[number];
+        mockSnippets.push(s);
+        return s;
+      }
+      case "snippet_update": {
+        const i = mockSnippets.findIndex((s) => s.id === a.id);
+        mockSnippets[i] = { id: a.id as string, ...(a.input as object) } as (typeof mockSnippets)[number];
+        return mockSnippets[i];
+      }
+      case "snippet_delete":
+        mockSnippets.splice(mockSnippets.findIndex((s) => s.id === a.id), 1);
+        return null;
       case "serial_ports":
         return [{ path: "/dev/cu.usbserial-A10K", description: "USB (FTDI FT232R USB UART)" }, { path: "/dev/cu.Bluetooth-Incoming-Port", description: "" }];
       case "serial_open": {

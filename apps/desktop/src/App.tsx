@@ -39,6 +39,7 @@ import { ImportDialog } from "./ui/ImportDialog";
 import { type PasswordAnswer, PasswordDialog } from "./ui/PasswordDialog";
 import { SessionDialog } from "./ui/SessionDialog";
 import { TunnelsPanel } from "./ui/TunnelsPanel";
+import { SnippetsPanel } from "./ui/SnippetsPanel";
 import { SettingsDialog } from "./ui/SettingsDialog";
 import { SerialDialog } from "./ui/SerialDialog";
 import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
@@ -56,6 +57,7 @@ interface Tab {
   ended?: boolean;
   filesOpen?: boolean;
   tunnelsOpen?: boolean;
+  snippetsOpen?: boolean;
   /** Set when the connection was refused because the host key changed. */
   changedKey?: { host: string; port: number; presented: string; known: string[] };
   reconnect?: () => void;
@@ -396,6 +398,14 @@ export function App() {
                     >
                       ⊟
                     </button>
+                    <button
+                      type="button"
+                      aria-pressed={!!t.snippetsOpen}
+                      disabled={t.terminalId === undefined || t.ended}
+                      onClick={() => patchTab(t.key, { snippetsOpen: !t.snippetsOpen, filesOpen: false, tunnelsOpen: false })}
+                    >
+                      Snippets
+                    </button>
                     {t.reconnect && t.ended && (
                       <button type="button" onClick={() => { closeTab(t.key); t.reconnect?.(); }}>
                         Reconnect
@@ -407,7 +417,7 @@ export function App() {
                           type="button"
                           aria-pressed={!!t.tunnelsOpen}
                           disabled={t.terminalId === undefined || t.ended}
-                          onClick={() => patchTab(t.key, { tunnelsOpen: !t.tunnelsOpen, filesOpen: false })}
+                          onClick={() => patchTab(t.key, { tunnelsOpen: !t.tunnelsOpen, filesOpen: false, snippetsOpen: false })}
                         >
                           Tunnels
                         </button>
@@ -415,7 +425,7 @@ export function App() {
                           type="button"
                           aria-pressed={!!t.filesOpen}
                           disabled={t.terminalId === undefined || t.ended}
-                          onClick={() => patchTab(t.key, { filesOpen: !t.filesOpen, tunnelsOpen: false })}
+                          onClick={() => patchTab(t.key, { filesOpen: !t.filesOpen, tunnelsOpen: false, snippetsOpen: false })}
                         >
                           Files
                         </button>
@@ -434,7 +444,7 @@ export function App() {
                         patchTab(t.key, { ended: true });
                         onTabFailed(t, e);
                       }}
-                      onExited={() => patchTab(t.key, { ended: true, filesOpen: false, tunnelsOpen: false })}
+                      onExited={() => patchTab(t.key, { ended: true, filesOpen: false, tunnelsOpen: false, snippetsOpen: false })}
                       settings={settings}
                       theme={theme}
                     />
@@ -454,6 +464,9 @@ export function App() {
                     </div>
                   ))}
                 </div>
+                {t.snippetsOpen && t.terminalId !== undefined && (
+                  <SnippetsPanel terminalId={t.terminalId} onClose={() => patchTab(t.key, { snippetsOpen: false })} />
+                )}
                 {t.tunnelsOpen && t.terminalId !== undefined && (
                   <TunnelsPanel terminalId={t.terminalId} onClose={() => patchTab(t.key, { tunnelsOpen: false })} />
                 )}

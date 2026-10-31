@@ -75,6 +75,7 @@ corepack pnpm test
 - Host-key verification: dialog for unknown keys; changed keys are refused with an explicit warning and a deliberate "remove recorded key" step.
 - Tunnels per SSH tab: local forwards (-L) and a SOCKS5 proxy (-D); loopback-only unless you explicitly allow other machines.
 - Serial consoles (COM / tty): port discovery, baud, data bits, parity, stop bits, flow control.
+- Command snippets with `{{variables}}`, a preview of exactly what will be typed, and an explicit "press Enter" choice.
 - SFTP side panel per SSH tab: browse, download to the Downloads folder, upload by dropping files on the window, progress and cancel.
 
 Not yet: remote forwards (-R), RDP/VNC, tags/favorites, transfer retry.

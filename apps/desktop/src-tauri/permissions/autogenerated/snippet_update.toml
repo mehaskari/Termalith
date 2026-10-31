@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-snippet-update"
+description = "Enables the snippet_update command without any pre-configured scope."
+commands.allow = ["snippet_update"]
+
+[[permission]]
+identifier = "deny-snippet-update"
+description = "Denies the snippet_update command without any pre-configured scope."
+commands.deny = ["snippet_update"]

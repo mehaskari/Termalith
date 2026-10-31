@@ -905,3 +905,65 @@ async fn tunnels_on_a_terminal_connection() {
     assert!(tunnels.list(None).is_empty());
     r.hub.close_all();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn remote_tunnel_through_the_manager() {
+    use app_core::{TunnelKind, TunnelSpec, Tunnels};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let Some(r) = rig() else { return };
+    let session = trusted_connection(&r).await;
+    let (sink, _c) = collector();
+    let term = r
+        .hub
+        .open_ssh(session, TerminalSize::new(80, 24).unwrap(), sink)
+        .await
+        .unwrap();
+    let echo = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let echo_port = echo.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        while let Ok((mut s, _)) = echo.accept().await {
+            tokio::spawn(async move {
+                let (mut rd, mut wr) = s.split();
+                let _ = tokio::io::copy(&mut rd, &mut wr).await;
+            });
+        }
+    });
+    let tunnels = Tunnels::default();
+    let info = tunnels
+        .start(
+            &r.hub,
+            term,
+            TunnelSpec {
+                kind: TunnelKind::Remote {
+                    target_host: "127.0.0.1".into(),
+                    target_port: echo_port,
+                },
+                local_port: 0,
+                allow_remote_clients: false,
+            },
+        )
+        .await
+        .unwrap();
+    assert!(
+        info.local_address.starts_with("server:127.0.0.1:"),
+        "{}",
+        info.local_address
+    );
+    assert!(!info.exposed);
+    let port: u16 = info
+        .local_address
+        .rsplit(':')
+        .next()
+        .unwrap()
+        .parse()
+        .unwrap();
+    let mut c = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .unwrap();
+    c.write_all(b"R ok").await.unwrap();
+    let mut buf = [0u8; 4];
+    c.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"R ok");
+    assert!(tunnels.stop(info.id));
+    r.hub.close_all();
+}

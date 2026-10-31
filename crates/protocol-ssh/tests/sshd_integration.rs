@@ -1082,3 +1082,37 @@ async fn socks5_dynamic_forward() {
     c.read_exact(&mut m).await.unwrap();
     assert_eq!(m, [5, 0xFF]);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn remote_forward_reaches_a_local_service() {
+    let s = sshd_or_skip!(SshdConfig::default());
+    let sess = connect_trusted(&s).await;
+    let local_echo = echo_server().await;
+    // The server listens (on its loopback) and forwards back to us.
+    let server_port = sess
+        .forward_remote("127.0.0.1", 0, "127.0.0.1", local_echo)
+        .await
+        .unwrap_or_else(|e| panic!("forward_remote: {e}\n{}", s.log()));
+    assert_ne!(server_port, 0);
+
+    let mut c = tokio::net::TcpStream::connect(("127.0.0.1", server_port))
+        .await
+        .unwrap();
+    assert_eq!(round_trip(&mut c, b"hello via -R").await, b"hello via -R");
+
+    sess.cancel_remote_forward("127.0.0.1", server_port)
+        .await
+        .unwrap();
+    let start = Instant::now();
+    while tokio::net::TcpStream::connect(("127.0.0.1", server_port))
+        .await
+        .is_ok()
+    {
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "server still listening after cancel"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    sess.disconnect().await.unwrap();
+}

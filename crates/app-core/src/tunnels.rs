@@ -24,6 +24,13 @@ pub enum TunnelKind {
     },
     /// `ssh -D`: SOCKS5 proxy.
     Socks,
+    /// `ssh -R`: the server listens on `local_port` (its side) and forwards
+    /// to `target_host:target_port` on this machine.
+    #[serde(rename_all = "camelCase")]
+    Remote {
+        target_host: String,
+        target_port: u16,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,6 +52,8 @@ pub struct TunnelInfo {
     pub terminal_id: u64,
     #[serde(flatten)]
     pub kind: TunnelKind,
+    /// Where connections are accepted: a local address, or `server:<addr>`
+    /// for remote forwards.
     pub local_address: String,
     /// True when other machines can reach the listener.
     pub exposed: bool,
@@ -52,10 +61,35 @@ pub struct TunnelInfo {
     pub total_connections: u64,
 }
 
+enum Handle {
+    Local(ForwardHandle),
+    Remote {
+        session: std::sync::Arc<protocol_ssh::SshSession>,
+        bind: String,
+        port: u16,
+    },
+}
+
+impl Drop for Handle {
+    fn drop(&mut self) {
+        if let Handle::Remote {
+            session,
+            bind,
+            port,
+        } = self
+        {
+            let (session, bind, port) = (session.clone(), bind.clone(), *port);
+            tokio::spawn(async move {
+                let _ = session.cancel_remote_forward(&bind, port).await;
+            });
+        }
+    }
+}
+
 struct Running {
     terminal_id: u64,
     spec: TunnelSpec,
-    handle: ForwardHandle,
+    handle: Handle,
 }
 
 #[derive(Default)]
@@ -66,6 +100,25 @@ pub struct Tunnels {
 
 impl TunnelSpec {
     pub fn validate(&self) -> Result<(), AppError> {
+        if let TunnelKind::Remote {
+            target_host,
+            target_port,
+        } = &self.kind
+        {
+            let h = target_host.trim();
+            if h.is_empty()
+                || h.len() > 253
+                || h.chars().any(|c| c.is_whitespace() || c.is_control())
+            {
+                return Err(AppError::invalid(
+                    "local target",
+                    "not a valid host name or address",
+                ));
+            }
+            if *target_port == 0 {
+                return Err(AppError::invalid("local target port", "must be 1-65535"));
+            }
+        }
         if let TunnelKind::Local {
             remote_host,
             remote_port,
@@ -107,6 +160,38 @@ impl Tunnels {
     ) -> Result<TunnelInfo, AppError> {
         spec.validate()?;
         let session = hub.ssh_session(terminal_id)?;
+        if let TunnelKind::Remote {
+            target_host,
+            target_port,
+        } = &spec.kind
+        {
+            // Loopback on the server unless explicitly exposed (the server's
+            // GatewayPorts setting may still restrict this).
+            let bind = if spec.allow_remote_clients {
+                "0.0.0.0"
+            } else {
+                "127.0.0.1"
+            };
+            let port = session
+                .forward_remote(bind, spec.local_port, target_host.trim(), *target_port)
+                .await?;
+            let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
+            let handle = Handle::Remote {
+                session,
+                bind: bind.to_owned(),
+                port,
+            };
+            let info = info(id, terminal_id, &spec, &handle);
+            self.lock().insert(
+                id,
+                Running {
+                    terminal_id,
+                    spec,
+                    handle,
+                },
+            );
+            return Ok(info);
+        }
         let kind = match &spec.kind {
             TunnelKind::Local {
                 remote_host,
@@ -116,6 +201,7 @@ impl Tunnels {
                 port: *remote_port,
             },
             TunnelKind::Socks => ForwardKind::Socks,
+            TunnelKind::Remote { .. } => unreachable!("handled above"),
         };
         let handle = start_forward(session, spec.bind_addr(), kind)
             .await
@@ -129,6 +215,7 @@ impl Tunnels {
                 other => other.into(),
             })?;
         let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
+        let handle = Handle::Local(handle);
         let info = info(id, terminal_id, &spec, &handle);
         self.lock().insert(
             id,
@@ -169,15 +256,26 @@ impl Tunnels {
     }
 }
 
-fn info(id: u64, terminal_id: u64, spec: &TunnelSpec, h: &ForwardHandle) -> TunnelInfo {
-    TunnelInfo {
-        id,
-        terminal_id,
-        kind: spec.kind.clone(),
-        local_address: h.local_addr().to_string(),
-        exposed: !h.local_addr().ip().is_loopback(),
-        active_connections: h.active_connections(),
-        total_connections: h.total_connections(),
+fn info(id: u64, terminal_id: u64, spec: &TunnelSpec, h: &Handle) -> TunnelInfo {
+    match h {
+        Handle::Local(f) => TunnelInfo {
+            id,
+            terminal_id,
+            kind: spec.kind.clone(),
+            local_address: f.local_addr().to_string(),
+            exposed: !f.local_addr().ip().is_loopback(),
+            active_connections: f.active_connections(),
+            total_connections: f.total_connections(),
+        },
+        Handle::Remote { bind, port, .. } => TunnelInfo {
+            id,
+            terminal_id,
+            kind: spec.kind.clone(),
+            local_address: format!("server:{bind}:{port}"),
+            exposed: bind != "127.0.0.1",
+            active_connections: 0,
+            total_connections: 0,
+        },
     }
 }
 

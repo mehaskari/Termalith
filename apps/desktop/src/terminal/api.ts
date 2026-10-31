@@ -215,7 +215,10 @@ export const forgetHostKey = (host: string, port: number) =>
 
 // ---------------------------------------------------------------- tunnels
 
-export type TunnelKind = { kind: "local"; remoteHost: string; remotePort: number } | { kind: "socks" };
+export type TunnelKind =
+  | { kind: "local"; remoteHost: string; remotePort: number }
+  | { kind: "socks" }
+  | { kind: "remote"; targetHost: string; targetPort: number };
 
 export type TunnelSpec = TunnelKind & { localPort: number; allowRemoteClients: boolean };
 

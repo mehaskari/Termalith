@@ -3,7 +3,7 @@
 //! the same events, ack-based flow control and lifecycle.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use protocol_ssh::{SftpClient, ShellEvent, ShellWriter, SshSession};
@@ -25,13 +25,34 @@ enum Entry {
     Ssh(Arc<SshTerminal>),
 }
 
+/// One SSH connection, shared by every terminal (split pane) opened on it.
+struct SshConnection {
+    session: Arc<SshSession>,
+    /// Terminals still using the connection; the last one disconnects it.
+    users: AtomicUsize,
+    /// Created on first use, shared by the file browser and transfers.
+    sftp: tokio::sync::Mutex<Option<Arc<SftpClient>>>,
+}
+
 struct SshTerminal {
     writer: ShellWriter,
     gate: Arc<AsyncGate>,
     cancel: CancellationToken,
-    session: Arc<SshSession>,
-    /// Created on first use, shared by the file browser and transfers.
-    sftp: tokio::sync::Mutex<Option<Arc<SftpClient>>>,
+    conn: Arc<SshConnection>,
+    released: AtomicBool,
+}
+
+impl SshTerminal {
+    /// Gives up this terminal's share of the connection exactly once (the
+    /// tab may be closed and the remote shell exit at the same time).
+    async fn release(&self) {
+        if self.released.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        if self.conn.users.fetch_sub(1, Ordering::SeqCst) == 1 {
+            let _ = self.conn.session.disconnect().await;
+        }
+    }
 }
 
 pub struct TerminalHub {
@@ -88,17 +109,57 @@ impl TerminalHub {
     }
 
     /// Opens an interactive shell on an authenticated SSH session. The hub
-    /// owns the session from now on; it is disconnected when the terminal
-    /// closes.
+    /// owns the session from now on; it is disconnected when the last
+    /// terminal using it closes.
     pub async fn open_ssh(
         &self,
         session: Arc<SshSession>,
         size: TerminalSize,
+        sink: impl TerminalEventSink,
+    ) -> Result<u64, AppError> {
+        let conn = Arc::new(SshConnection {
+            session,
+            users: AtomicUsize::new(0),
+            sftp: tokio::sync::Mutex::new(None),
+        });
+        self.open_shell_on(conn, size, sink).await
+    }
+
+    /// Opens another shell on the connection behind SSH terminal `id`
+    /// (split pane): no new login, no new host-key check.
+    pub async fn open_ssh_sibling(
+        &self,
+        id: u64,
+        size: TerminalSize,
+        sink: impl TerminalEventSink,
+    ) -> Result<u64, AppError> {
+        let conn = match self.target(id)? {
+            Target::Ssh(t) => Arc::clone(&t.conn),
+            Target::Local(_) => return Err(AppError::invalid("terminal", "not an SSH terminal")),
+        };
+        self.open_shell_on(conn, size, sink).await
+    }
+
+    async fn open_shell_on(
+        &self,
+        conn: Arc<SshConnection>,
+        size: TerminalSize,
         mut sink: impl TerminalEventSink,
     ) -> Result<u64, AppError> {
-        let shell = session
+        conn.users.fetch_add(1, Ordering::SeqCst);
+        let shell = match conn
+            .session
             .open_shell(u32::from(size.cols()), u32::from(size.rows()))
-            .await?;
+            .await
+        {
+            Ok(s) => s,
+            Err(e) => {
+                if conn.users.fetch_sub(1, Ordering::SeqCst) == 1 {
+                    let _ = conn.session.disconnect().await;
+                }
+                return Err(e.into());
+            }
+        };
         let (mut reader, writer) = shell.split();
         let id = self.alloc();
         let gate = Arc::new(AsyncGate::default());
@@ -107,10 +168,10 @@ impl TerminalHub {
             writer,
             gate: Arc::clone(&gate),
             cancel: cancel.clone(),
-            session: Arc::clone(&session),
-            sftp: tokio::sync::Mutex::new(None),
+            conn,
+            released: AtomicBool::new(false),
         });
-        self.lock().insert(id, Entry::Ssh(term));
+        self.lock().insert(id, Entry::Ssh(Arc::clone(&term)));
 
         let entries = Arc::downgrade(&self.entries);
         tokio::spawn(async move {
@@ -144,9 +205,22 @@ impl TerminalHub {
             if let Some(e) = entries.upgrade() {
                 e.lock().unwrap_or_else(|p| p.into_inner()).remove(&id);
             }
-            let _ = session.disconnect().await;
+            term.release().await;
         });
         Ok(id)
+    }
+
+    /// Whether `id` is an SSH terminal (as opposed to a local one).
+    pub fn is_ssh(&self, id: u64) -> Result<bool, AppError> {
+        Ok(matches!(self.target(id)?, Target::Ssh(_)))
+    }
+
+    /// Number of terminals sharing the SSH connection behind `id`.
+    pub fn connection_users(&self, id: u64) -> Result<usize, AppError> {
+        match self.target(id)? {
+            Target::Ssh(t) => Ok(t.conn.users.load(Ordering::SeqCst)),
+            Target::Local(_) => Err(AppError::invalid("terminal", "not an SSH terminal")),
+        }
     }
 
     pub async fn write(&self, id: u64, data: &[u8]) -> Result<(), AppError> {
@@ -184,11 +258,11 @@ impl TerminalHub {
             Target::Ssh(t) => t,
             Target::Local(_) => return Err(AppError::invalid("terminal", "not an SSH terminal")),
         };
-        let mut slot = t.sftp.lock().await;
+        let mut slot = t.conn.sftp.lock().await;
         if let Some(c) = slot.as_ref() {
             return Ok(Arc::clone(c));
         }
-        let client = Arc::new(t.session.sftp().await?);
+        let client = Arc::new(t.conn.session.sftp().await?);
         *slot = Some(Arc::clone(&client));
         Ok(client)
     }
@@ -218,7 +292,7 @@ impl TerminalHub {
                 t.cancel.cancel();
                 t.gate.close();
                 let _ = t.writer.close().await;
-                let _ = t.session.disconnect().await;
+                t.release().await;
                 Ok(())
             }
         }

@@ -10,6 +10,7 @@
     "allow-terminal-resize",
     "allow-terminal-ack",
     "allow-terminal-close",
+    "allow-terminal-split",
     "allow-ssh-open",
     "allow-host-key-respond",
     "allow-app-info",

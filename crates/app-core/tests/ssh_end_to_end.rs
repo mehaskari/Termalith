@@ -746,3 +746,51 @@ async fn saved_session_behind_a_jump_host() {
         other => panic!("expected jump host explanation, got {:?}", other.err()),
     }
 }
+
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn split_panes_share_one_connection() {
+    let Some(r) = rig() else { return };
+    let session = trusted_connection(&r).await;
+    let probe = Arc::clone(&session);
+    let size = TerminalSize::new(80, 24).unwrap();
+    let (sink_a, (out_a, _, _)) = collector();
+    let a = r.hub.open_ssh(session, size, sink_a).await.unwrap();
+    let (sink_b, (out_b, _, exited_b)) = collector();
+    let b = r.hub.open_ssh_sibling(a, size, sink_b).await.unwrap();
+    assert_eq!(r.hub.connection_users(a).unwrap(), 2);
+    // File browser state is per connection, not per pane.
+    assert!(Arc::ptr_eq(
+        &r.hub.sftp(a).await.unwrap(),
+        &r.hub.sftp(b).await.unwrap()
+    ));
+
+    // Independent shells.
+    r.hub.write(a, b"echo pane-a-$((1+1))\n").await.unwrap();
+    r.hub.write(b, b"echo pane-b-$((2+2))\n").await.unwrap();
+    wait_for(&out_a, "pane-a-2").await;
+    wait_for(&out_b, "pane-b-4").await;
+    assert!(!String::from_utf8_lossy(&out_a.lock().unwrap()).contains("pane-b-4"));
+
+    // Closing one pane keeps the connection for the other.
+    r.hub.close(a).await.unwrap();
+    assert_eq!(r.hub.connection_users(b).unwrap(), 1);
+    r.hub.write(b, b"echo still-$((3+3))\n").await.unwrap();
+    wait_for(&out_b, "still-6").await;
+    assert_eq!(probe.exec("printf alive").await.unwrap().stdout, b"alive");
+
+    // The last pane ending disconnects the connection.
+    r.hub.write(b, b"exit\n").await.unwrap();
+    exited_b
+        .recv_timeout(Duration::from_secs(10))
+        .expect("Exited");
+    let start = Instant::now();
+    while probe.exec("true").await.is_ok() {
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "connection was not closed"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert!(r.hub.is_empty());
+}

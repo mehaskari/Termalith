@@ -42,6 +42,12 @@ function channels(onOutput: (data: Uint8Array) => void, onExit: (p: ExitPayload)
 export const openLocalTerminal: Opener = (cols, rows, onOutput, onExit) =>
   invoke<TerminalId>("terminal_open", { cols, rows, ...channels(onOutput, onExit) });
 
+/** Another terminal next to `source`: a local shell, or a shell on the same SSH connection. */
+export const splitTerminal =
+  (source: TerminalId): Opener =>
+  (cols, rows, onOutput, onExit) =>
+    invoke<TerminalId>("terminal_split", { source, cols, rows, ...channels(onOutput, onExit) });
+
 export function writeTerminal(id: TerminalId, data: string): Promise<void> {
   return invoke("terminal_write", { id, data });
 }

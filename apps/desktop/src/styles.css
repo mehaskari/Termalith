@@ -598,3 +598,34 @@ code {
   align-items: center;
   gap: 8px;
 }
+
+.pane-terminals {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.pane-terminals.row {
+  flex-direction: row;
+}
+.pane-terminals.column {
+  flex-direction: column;
+}
+.pane-terminals > .pane-terminal {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+}
+.pane-terminals.row > .pane-terminal + .pane-terminal {
+  border-left: 1px solid var(--line);
+}
+.pane-terminals.column > .pane-terminal + .pane-terminal {
+  border-top: 1px solid var(--line);
+}
+.split-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 2;
+  background: var(--panel) !important;
+}

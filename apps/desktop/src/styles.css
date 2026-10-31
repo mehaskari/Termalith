@@ -1,0 +1,26 @@
+@import "@xterm/xterm/css/xterm.css";
+
+:root {
+  --terminal-bg: #101317;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--terminal-bg);
+  overflow: hidden;
+}
+
+.app {
+  height: 100%;
+  box-sizing: border-box;
+  padding: 6px 4px 4px 8px;
+}
+
+.terminal-host {
+  height: 100%;
+  width: 100%;
+}

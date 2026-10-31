@@ -1,0 +1,118 @@
+import { useEffect, useRef } from "react";
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
+import {
+  type ExitPayload,
+  type TerminalId,
+  ackTerminal,
+  closeTerminal,
+  isIpcError,
+  openTerminal,
+  resizeTerminal,
+  writeTerminal,
+} from "./api";
+import { AckBatcher, SerialQueue, chunkInput } from "./flow";
+
+const SCROLLBACK_LINES = 5000;
+
+function describeError(e: unknown): string {
+  if (isIpcError(e)) return `${e.code}: ${e.message}`;
+  return e instanceof Error ? e.message : String(e);
+}
+
+function describeExit({ exit }: ExitPayload): string {
+  if (!exit) return "process exited";
+  if (exit.signal) return `process terminated by ${exit.signal}`;
+  return `process exited with code ${exit.code}`;
+}
+
+export function TerminalView() {
+  const hostRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+
+    const term = new Terminal({
+      cursorBlink: true,
+      fontFamily: 'Menlo, "SF Mono", Monaco, Consolas, "DejaVu Sans Mono", monospace',
+      fontSize: 13,
+      scrollback: SCROLLBACK_LINES,
+      theme: { background: "#101317" },
+    });
+    const fit = new FitAddon();
+    term.loadAddon(fit);
+    term.open(host);
+    try {
+      const webgl = new WebglAddon();
+      webgl.onContextLoss(() => webgl.dispose());
+      term.loadAddon(webgl);
+    } catch {
+      // Falls back to xterm's DOM renderer.
+    }
+    fit.fit();
+
+    let id: TerminalId | null = null;
+    let disposed = false;
+    let exited = false;
+    const report = (what: string) => (e: unknown) => {
+      if (!disposed) term.write(`\r\n\x1b[31m[${what}: ${describeError(e)}]\x1b[0m\r\n`);
+    };
+    const acks = new AckBatcher<TerminalId>((tid, bytes) => {
+      ackTerminal(tid, bytes).catch(report("ack failed"));
+    });
+    const input = new SerialQueue(report("write failed"));
+
+    openTerminal(
+      term.cols,
+      term.rows,
+      (data) => term.write(data, () => acks.add(data.length)),
+      (payload) => {
+        exited = true;
+        term.write(`\r\n\x1b[2m[${describeExit(payload)}]\x1b[0m\r\n`);
+      },
+    ).then(
+      (tid) => {
+        if (disposed) {
+          void closeTerminal(tid).catch(() => {});
+          return;
+        }
+        id = tid;
+        acks.setId(tid);
+        // The window may have been resized while the shell was starting.
+        if (term.cols && term.rows) void resizeTerminal(tid, term.cols, term.rows).catch(() => {});
+      },
+      report("failed to start terminal"),
+    );
+
+    const onData = term.onData((data) => {
+      const tid = id;
+      if (tid === null || exited) return;
+      for (const chunk of chunkInput(data)) input.push(() => writeTerminal(tid, chunk));
+    });
+
+    let resizeFrame = 0;
+    const onResize = term.onResize(({ cols, rows }) => {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => {
+        if (id !== null && !exited) resizeTerminal(id, cols, rows).catch(report("resize failed"));
+      });
+    });
+    const observer = new ResizeObserver(() => fit.fit());
+    observer.observe(host);
+    term.focus();
+
+    return () => {
+      disposed = true;
+      observer.disconnect();
+      cancelAnimationFrame(resizeFrame);
+      onData.dispose();
+      onResize.dispose();
+      if (id !== null) void closeTerminal(id).catch(() => {});
+      term.dispose();
+    };
+  }, []);
+
+  return <div ref={hostRef} className="terminal-host" />;
+}

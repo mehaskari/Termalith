@@ -1,0 +1,25 @@
+[package]
+name = "termalith-desktop"
+description = "Termalith desktop shell (Tauri boundary only; no domain logic here)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "termalith_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+terminal-pty = { path = "../../../crates/terminal-pty" }
+tauri.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

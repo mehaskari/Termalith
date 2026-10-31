@@ -1,0 +1,13 @@
+{
+  "name": "termalith-workspace",
+  "private": true,
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "corepack pnpm --filter @termalith/desktop tauri dev",
+    "typecheck": "corepack pnpm --filter @termalith/desktop typecheck",
+    "test": "corepack pnpm --filter @termalith/desktop test"
+  }
+}

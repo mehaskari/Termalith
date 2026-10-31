@@ -73,7 +73,21 @@ mockIPC(
     const a = (args ?? {}) as Record<string, unknown>;
     switch (cmd) {
       case "app_info":
-        return { version: "0.0.0-mock", secretsAvailable: true };
+        return { version: "0.0.0-mock", secretsAvailable: true, agentAvailable: true };
+      case "ssh_config_preview":
+        return [
+          { alias: "prod-web", input: { name: "prod-web", host: "prod-web.example.com", port: 22, username: "deploy", auth: { kind: "agent" }, folder: "SSH config" }, warnings: [] },
+          { alias: "db", input: { name: "db", host: "10.0.0.9", port: 2222, username: "postgres", auth: { kind: "keyFile", path: "/Users/me/.ssh/id_db" }, folder: "SSH config" }, warnings: [] },
+          { alias: "bastion", input: { name: "bastion", host: "bastion.example.com", port: 22, username: "me", auth: { kind: "agent" }, folder: "SSH config" }, warnings: ["proxyjump is not supported yet and was not imported"] },
+        ];
+      case "ssh_config_import": {
+        const created: string[] = [];
+        for (const alias of a.aliases as string[]) {
+          seed({ name: alias, host: `${alias}.example.com`, port: 22, username: "me", auth: { kind: "agent" }, folder: "SSH config" });
+          created.push(alias);
+        }
+        return { created, skipped: [] };
+      }
       case "sessions_list":
         return [...sessions.values()];
       case "session_create": {

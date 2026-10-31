@@ -22,6 +22,8 @@ fn main() {
             "sftp_upload",
             "transfer_cancel",
             "known_host_forget",
+            "ssh_config_preview",
+            "ssh_config_import",
         ]),
     ))
     .expect("failed to run tauri-build");

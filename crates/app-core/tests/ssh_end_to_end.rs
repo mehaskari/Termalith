@@ -43,6 +43,7 @@ fn rig() -> Option<Rig> {
         known_hosts: known_hosts.clone(),
         broker: broker.clone(),
         timeout: Duration::from_secs(20),
+        agent: None,
     });
     Some(Rig {
         sshd,
@@ -628,4 +629,36 @@ async fn forgetting_a_changed_key_allows_a_fresh_prompt() {
         .disconnect()
         .await
         .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn agent_session_without_an_agent_explains_why() {
+    let Some(r) = rig() else { return };
+    let rec = r
+        .connector
+        .sessions
+        .create(&SessionInput {
+            name: "via agent".into(),
+            host: "127.0.0.1".into(),
+            port: r.sshd.port,
+            username: r.sshd.user.clone(),
+            auth: AuthMethod::Agent,
+            folder: None,
+        })
+        .unwrap();
+    // The rig's connector has `agent: None`.
+    match r
+        .connector
+        .connect(ConnectRequest::Saved {
+            id: rec.id,
+            secret: PasswordInput::None,
+        })
+        .await
+    {
+        Err(AppError::Invalid { field, reason }) => {
+            assert_eq!(field, "ssh-agent");
+            assert!(reason.contains("SSH_AUTH_SOCK"), "{reason}");
+        }
+        other => panic!("expected an explanation, got {:?}", other.err()),
+    }
 }

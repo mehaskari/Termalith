@@ -26,6 +26,24 @@ pub struct AppState {
     pub dropped: Arc<DroppedFiles>,
     /// Where downloads are saved (chosen by the backend, not the UI).
     pub downloads_dir: PathBuf,
+    pub home_dir: Option<PathBuf>,
+    pub agent_available: bool,
+}
+
+/// The user's SSH agent: `SSH_AUTH_SOCK` on Unix (set for GUI apps by
+/// launchd on macOS and by most Linux desktops), the OpenSSH agent pipe on
+/// Windows.
+fn agent_socket() -> Option<PathBuf> {
+    #[cfg(unix)]
+    {
+        std::env::var_os("SSH_AUTH_SOCK")
+            .map(PathBuf::from)
+            .filter(|p| p.is_absolute() && p.exists())
+    }
+    #[cfg(windows)]
+    {
+        Some(PathBuf::from(r"\\.\pipe\openssh-ssh-agent"))
+    }
 }
 
 impl AppState {
@@ -55,12 +73,15 @@ impl AppState {
             HOST_KEY_PROMPT_TIMEOUT,
         ));
 
+        let agent = agent_socket();
+        let agent_available = agent.is_some();
         let connector = Arc::new(Connector {
             sessions,
             secrets,
             known_hosts: Arc::new(known_hosts),
             broker: broker.clone(),
             timeout: CONNECT_TIMEOUT + HOST_KEY_PROMPT_TIMEOUT,
+            agent,
         });
 
         let downloads_dir = app
@@ -77,6 +98,8 @@ impl AppState {
             transfers: Arc::new(Transfers::default()),
             dropped: Arc::new(DroppedFiles::default()),
             downloads_dir,
+            home_dir: app.path().home_dir().ok(),
+            agent_available,
         })
     }
 }

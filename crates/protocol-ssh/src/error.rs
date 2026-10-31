@@ -35,6 +35,9 @@ pub enum SshError {
     #[error("could not load private key: {0}")]
     Key(String),
 
+    #[error("ssh-agent: {0}")]
+    Agent(String),
+
     #[error("known-hosts store error: {0}")]
     KnownHosts(String),
 

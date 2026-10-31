@@ -2,6 +2,7 @@
 //! SSH connection: resolves the secret, runs host-key verification through
 //! the prompt broker, and saves a new password only after it worked.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -43,6 +44,8 @@ pub struct Connector {
     pub known_hosts: Arc<dyn KnownHostsStore>,
     pub broker: Arc<PromptBroker>,
     pub timeout: Duration,
+    /// SSH agent socket (Unix) or named pipe (Windows), if one is available.
+    pub agent: Option<PathBuf>,
 }
 
 /// Result of a successful connection.
@@ -147,6 +150,14 @@ impl Connector {
             AuthMethod::KeyFile { path } => Auth::KeyFile {
                 path: path.clone(),
                 passphrase: secret,
+            },
+            AuthMethod::Agent => Auth::Agent {
+                socket: self.agent.clone().ok_or_else(|| {
+                    AppError::invalid(
+                        "ssh-agent",
+                        "no SSH agent is available (SSH_AUTH_SOCK is not set)",
+                    )
+                })?,
             },
         };
         let target = Target {

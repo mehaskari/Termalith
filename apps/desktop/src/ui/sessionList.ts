@@ -39,6 +39,12 @@ export function groupSessions(sessions: SessionRecord[]): SessionGroup[] {
   return groups;
 }
 
+export function authLabel(s: Pick<SessionRecord, "auth" | "hasSavedSecret">): string {
+  if (s.auth.kind === "keyFile") return "key";
+  if (s.auth.kind === "agent") return "agent";
+  return s.hasSavedSecret ? "saved" : "";
+}
+
 export function targetLabel(s: Pick<SessionInput, "username" | "host" | "port">): string {
   return s.port === 22 ? `${s.username}@${s.host}` : `${s.username}@${s.host}:${s.port}`;
 }
@@ -48,7 +54,7 @@ export interface SessionFormState {
   host: string;
   port: string;
   username: string;
-  authKind: "password" | "keyFile";
+  authKind: "password" | "keyFile" | "agent";
   keyPath: string;
   folder: string;
 }
@@ -90,7 +96,9 @@ export function parseForm(
   const name = f.name.trim() || (requireName ? "" : `${username}@${host}`);
   if (!name) return { ok: false, field: "name", message: "Name is required" };
   let auth: SessionInput["auth"];
-  if (f.authKind === "keyFile") {
+  if (f.authKind === "agent") {
+    auth = { kind: "agent" };
+  } else if (f.authKind === "keyFile") {
     const path = f.keyPath.trim();
     if (!path) return { ok: false, field: "keyPath", message: "Key file path is required" };
     if (!(path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)))

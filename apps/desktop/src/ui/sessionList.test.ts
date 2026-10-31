@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionRecord } from "../terminal/api";
-import { emptyForm, filterSessions, formFromSession, groupSessions, parseForm, targetLabel } from "./sessionList";
+import { authLabel, emptyForm, filterSessions, formFromSession, groupSessions, parseForm, targetLabel } from "./sessionList";
 
 function s(name: string, folder: string | null, host = "10.0.0.1", username = "root"): SessionRecord {
   return {
@@ -92,5 +92,15 @@ describe("targetLabel", () => {
   it("omits the default port", () => {
     expect(targetLabel({ username: "me", host: "h", port: 22 })).toBe("me@h");
     expect(targetLabel({ username: "me", host: "h", port: 2222 })).toBe("me@h:2222");
+  });
+});
+
+describe("agent auth", () => {
+  it("parses and labels agent sessions", () => {
+    const r = parseForm({ ...emptyForm(), name: "n", host: "h", username: "u", authKind: "agent" }, { requireName: true });
+    expect(r.ok && r.value.auth).toEqual({ kind: "agent" });
+    expect(authLabel({ auth: { kind: "agent" }, hasSavedSecret: false })).toBe("agent");
+    expect(authLabel({ auth: { kind: "password" }, hasSavedSecret: true })).toBe("saved");
+    expect(authLabel({ auth: { kind: "password" }, hasSavedSecret: false })).toBe("");
   });
 });

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { SessionRecord } from "../terminal/api";
-import { filterSessions, groupSessions, targetLabel } from "./sessionList";
+import { authLabel, filterSessions, groupSessions, targetLabel } from "./sessionList";
 
 interface Props {
   sessions: SessionRecord[];
@@ -11,6 +11,7 @@ interface Props {
   onNew: () => void;
   onQuickConnect: () => void;
   onLocalTerminal: () => void;
+  onImport: () => void;
 }
 
 export function Sidebar(p: Props) {
@@ -67,7 +68,7 @@ export function Sidebar(p: Props) {
                     <span className="session-name">{s.name}</span>
                     <span className="session-target">
                       {targetLabel(s)}
-                      {s.auth.kind === "keyFile" ? " · key" : s.hasSavedSecret ? " · saved" : ""}
+                      {authLabel(s) && ` · ${authLabel(s)}`}
                     </span>
                   </button>
                   <span className="row-actions">
@@ -95,6 +96,9 @@ export function Sidebar(p: Props) {
           </section>
         ))}
       </nav>
+      <button type="button" className="link import-link" onClick={p.onImport}>
+        Import from ~/.ssh/config…
+      </button>
     </aside>
   );
 }

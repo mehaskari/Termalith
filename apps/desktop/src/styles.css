@@ -1,5 +1,6 @@
 @import "@xterm/xterm/css/xterm.css";
 
+/* Dark is the base palette; light overrides it. */
 :root {
   --bg: #101317;
   --panel: #161a20;
@@ -12,6 +13,7 @@
   --danger: #e2727a;
   --warning: #e6b45c;
   --radius: 6px;
+  --term-bg: #101317;
   color-scheme: dark;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", sans-serif;
   font-size: 13px;
@@ -668,4 +670,54 @@ code {
   margin: 0;
   font-size: 11px;
   color: var(--warning);
+}
+
+:root[data-theme="light"] {
+  --bg: #fbfbf9;
+  --panel: #f1f2ef;
+  --panel-2: #e6e8e4;
+  --line: #d6d9d3;
+  --text: #1d232b;
+  --muted: #5d6874;
+  --accent: #1f7a63;
+  --accent-ink: #ffffff;
+  --danger: #b42318;
+  --warning: #8a6100;
+  --term-bg: #fbfbf9;
+  color-scheme: light;
+}
+:root[data-theme="light"] .dialog::backdrop {
+  background: rgb(30 35 40 / 0.35);
+}
+.pane-terminal {
+  background: var(--term-bg);
+}
+
+.sidebar-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 12px;
+  padding: 4px;
+  border-top: 1px solid var(--line);
+}
+.sidebar-footer .icon {
+  margin-left: auto;
+  font-size: 15px;
+}
+button.icon.starred {
+  color: var(--warning);
+}
+.json-box {
+  width: 100%;
+  min-height: 220px;
+  font-family: Menlo, "SF Mono", Consolas, monospace;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px;
+  resize: vertical;
 }

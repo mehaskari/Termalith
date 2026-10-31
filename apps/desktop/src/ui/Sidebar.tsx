@@ -12,11 +12,21 @@ interface Props {
   onQuickConnect: () => void;
   onLocalTerminal: () => void;
   onImport: () => void;
+  onToggleFavorite: (s: SessionRecord) => void;
+  onDuplicate: (s: SessionRecord) => void;
+  onExport: () => void;
+  onImportSessions: () => void;
+  onSettings: () => void;
 }
 
 export function Sidebar(p: Props) {
   const [query, setQuery] = useState("");
-  const groups = useMemo(() => groupSessions(filterSessions(p.sessions, query)), [p.sessions, query]);
+  const filtered = useMemo(() => filterSessions(p.sessions, query), [p.sessions, query]);
+  const groups = useMemo(() => {
+    const g = groupSessions(filtered);
+    const favorites = filtered.filter((s) => s.favorite);
+    return favorites.length ? [{ folder: "★ Favorites", sessions: favorites }, ...g] : g;
+  }, [filtered]);
 
   return (
     <aside className="sidebar" aria-label="Sessions">
@@ -54,7 +64,7 @@ export function Sidebar(p: Props) {
         )}
         {p.sessions.length > 0 && groups.length === 0 && <p className="empty">No matches.</p>}
         {groups.map((g) => (
-          <section key={g.folder ?? "\u0000"}>
+          <section key={`${g.folder ?? "\u0000"}`}>
             {g.folder ? <h3>{g.folder}</h3> : groups.length > 1 && <h3>Ungrouped</h3>}
             <ul>
               {g.sessions.map((s) => (
@@ -73,6 +83,18 @@ export function Sidebar(p: Props) {
                     </span>
                   </button>
                   <span className="row-actions">
+                    <button
+                      type="button"
+                      className={`icon ${s.favorite ? "starred" : ""}`}
+                      onClick={() => p.onToggleFavorite(s)}
+                      aria-label={s.favorite ? `Remove ${s.name} from favorites` : `Add ${s.name} to favorites`}
+                      title={s.favorite ? "Remove from favorites" : "Add to favorites"}
+                    >
+                      {s.favorite ? "★" : "☆"}
+                    </button>
+                    <button type="button" className="icon" onClick={() => p.onDuplicate(s)} aria-label={`Duplicate ${s.name}`} title="Duplicate">
+                      ⧉
+                    </button>
                     <button type="button" className="icon" onClick={() => p.onEdit(s)} aria-label={`Edit ${s.name}`} title="Edit">
                       ✎
                     </button>
@@ -97,9 +119,20 @@ export function Sidebar(p: Props) {
           </section>
         ))}
       </nav>
-      <button type="button" className="link import-link" onClick={p.onImport}>
-        Import from ~/.ssh/config…
-      </button>
+      <div className="sidebar-footer">
+        <button type="button" className="link" onClick={p.onImport}>
+          Import ~/.ssh/config…
+        </button>
+        <button type="button" className="link" onClick={p.onImportSessions}>
+          Import…
+        </button>
+        <button type="button" className="link" onClick={p.onExport}>
+          Export…
+        </button>
+        <button type="button" className="icon" onClick={p.onSettings} aria-label="Settings" title="Settings">
+          ⚙
+        </button>
+      </div>
     </aside>
   );
 }

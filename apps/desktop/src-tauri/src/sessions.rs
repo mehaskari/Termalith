@@ -103,3 +103,52 @@ pub async fn session_forget_secret(state: State<'_, AppState>, id: String) -> Re
     let id = SessionId::parse(&id)?;
     Ok(state.connector.forget_secret(&id).await?)
 }
+
+#[tauri::command]
+pub fn settings_get(state: State<'_, AppState>) -> Result<app_core::Settings, IpcError> {
+    Ok(state.connector.sessions.settings()?)
+}
+
+#[tauri::command]
+pub fn settings_save(
+    state: State<'_, AppState>,
+    settings: app_core::Settings,
+) -> Result<(), IpcError> {
+    Ok(state.connector.sessions.save_settings(&settings)?)
+}
+
+#[tauri::command]
+pub fn session_set_favorite(
+    state: State<'_, AppState>,
+    id: String,
+    favorite: bool,
+) -> Result<(), IpcError> {
+    let id = SessionId::parse(&id)?;
+    Ok(state.connector.sessions.set_favorite(&id, favorite)?)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportResult {
+    /// The exported JSON (also offered for copying).
+    json: String,
+    /// Where a copy was saved, if writing it succeeded.
+    saved_to: Option<String>,
+}
+
+/// Exports all sessions (no secrets) and saves a copy in Downloads.
+#[tauri::command]
+pub fn sessions_export(state: State<'_, AppState>) -> Result<ExportResult, IpcError> {
+    let json = app_core::export_sessions(&state.connector.sessions)?;
+    let dest = app_core::unique_destination(&state.downloads_dir, "termalith-sessions.json");
+    let saved_to = std::fs::write(&dest, &json)
+        .ok()
+        .map(|()| dest.to_string_lossy().into_owned());
+    Ok(ExportResult { json, saved_to })
+}
+
+/// Imports sessions from pasted export JSON.
+#[tauri::command]
+pub fn sessions_import(state: State<'_, AppState>, json: String) -> Result<ImportReport, IpcError> {
+    Ok(app_core::import_sessions(&state.connector.sessions, &json)?)
+}

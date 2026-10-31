@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { DEFAULT_SETTINGS, type Settings } from "./api";
+import { type ResolvedTheme, TERMINAL_THEMES, fontStack } from "../ui/theme";
 import {
   type Opener,
   type TerminalId,
@@ -13,7 +15,6 @@ import {
 import { AckBatcher, SerialQueue, chunkInput } from "./flow";
 import { connectFailureLines, describeError, describeExit } from "./messages";
 
-const SCROLLBACK_LINES = 5000;
 
 interface Props {
   /** Creates the backend terminal; called once per mount. */
@@ -23,14 +24,25 @@ interface Props {
   onReady?: (id: TerminalId) => void;
   onFailed?: (error: unknown) => void;
   onExited?: () => void;
+  settings?: Settings;
+  theme?: ResolvedTheme;
 }
 
-export function TerminalView({ open, active, onReady, onFailed, onExited }: Props) {
+export function TerminalView({
+  open,
+  active,
+  onReady,
+  onFailed,
+  onExited,
+  settings = DEFAULT_SETTINGS,
+  theme = "dark",
+}: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   // `open` must not re-run the effect; keep the first one.
   const openRef = useRef(open);
+  const initial = useRef({ settings, theme });
   const callbacks = useRef({ onReady, onFailed, onExited });
   callbacks.current = { onReady, onFailed, onExited };
 
@@ -38,12 +50,14 @@ export function TerminalView({ open, active, onReady, onFailed, onExited }: Prop
     const host = hostRef.current;
     if (!host) return;
 
+    const s = initial.current.settings;
     const term = new Terminal({
-      cursorBlink: true,
-      fontFamily: 'Menlo, "SF Mono", Monaco, Consolas, "DejaVu Sans Mono", monospace',
-      fontSize: 13,
-      scrollback: SCROLLBACK_LINES,
-      theme: { background: "#101317" },
+      cursorBlink: s.cursorBlink,
+      cursorStyle: s.cursorStyle,
+      fontFamily: fontStack(s.fontFamily),
+      fontSize: s.fontSize,
+      scrollback: s.scrollback,
+      theme: TERMINAL_THEMES[initial.current.theme],
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -148,6 +162,19 @@ export function TerminalView({ open, active, onReady, onFailed, onExited }: Prop
       fitRef.current = null;
     };
   }, []);
+
+  // Apply setting and theme changes to the live terminal.
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+    term.options.theme = TERMINAL_THEMES[theme];
+    term.options.fontSize = settings.fontSize;
+    term.options.fontFamily = fontStack(settings.fontFamily);
+    term.options.cursorStyle = settings.cursorStyle;
+    term.options.cursorBlink = settings.cursorBlink;
+    term.options.scrollback = settings.scrollback;
+    fitRef.current?.fit();
+  }, [settings, theme]);
 
   useEffect(() => {
     if (!active) return;

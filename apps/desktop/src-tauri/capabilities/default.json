@@ -29,6 +29,11 @@
     "allow-transfer-cancel",
     "allow-known-host-forget",
     "allow-ssh-config-preview",
-    "allow-ssh-config-import"
+    "allow-ssh-config-import",
+    "allow-settings-get",
+    "allow-settings-save",
+    "allow-session-set-favorite",
+    "allow-sessions-export",
+    "allow-sessions-import"
   ]
 }

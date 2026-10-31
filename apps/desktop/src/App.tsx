@@ -3,6 +3,11 @@ import { listen } from "@tauri-apps/api/event";
 import { TerminalView } from "./terminal/TerminalView";
 import {
   type AppInfo,
+  DEFAULT_SETTINGS,
+  type Settings,
+  getSettings,
+  saveSettings,
+  setFavorite,
   type DroppedFile,
   type IpcError,
   type TerminalId,
@@ -32,6 +37,9 @@ import { ImportDialog } from "./ui/ImportDialog";
 import { type PasswordAnswer, PasswordDialog } from "./ui/PasswordDialog";
 import { SessionDialog } from "./ui/SessionDialog";
 import { TunnelsPanel } from "./ui/TunnelsPanel";
+import { SettingsDialog } from "./ui/SettingsDialog";
+import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
+import { resolveTheme } from "./ui/theme";
 import { Sidebar } from "./ui/Sidebar";
 import { targetLabel } from "./ui/sessionList";
 
@@ -86,6 +94,25 @@ export function App() {
   const [dropped, setDropped] = useState<DroppedFile[] | null>(null);
   const [confirmForget, setConfirmForget] = useState<Tab | null>(null);
   const [importing, setImporting] = useState(false);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [transferMode, setTransferMode] = useState<"export" | "import" | null>(null);
+  const [systemDark, setSystemDark] = useState(
+    () => typeof window.matchMedia !== "function" || window.matchMedia("(prefers-color-scheme: dark)").matches,
+  );
+  const theme = resolveTheme(settings.theme, systemDark);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (e: MediaQueryListEvent) => setSystemDark(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
   const activeRef = useRef<Tab | undefined>(undefined);
   const nextKey = useRef(1);
 
@@ -201,6 +228,7 @@ export function App() {
   const didOpenInitialTab = useRef(false);
   useEffect(() => {
     appInfo().then(setInfo, () => setInfo({ version: "?", secretsAvailable: false, agentAvailable: false }));
+    getSettings().then(setSettings, () => {});
     refresh();
     // StrictMode runs effects twice in development; open one tab only.
     if (!didOpenInitialTab.current) {
@@ -284,6 +312,14 @@ export function App() {
         onQuickConnect={() => setSessionDialog({ mode: "quick" })}
         onLocalTerminal={openLocal}
         onImport={() => setImporting(true)}
+        onToggleFavorite={(s) => setFavorite(s.id, !s.favorite).then(refresh, (e) => setNotice(String(e?.message ?? e)))}
+        onDuplicate={(s) => {
+          const { id: _id, hasSavedSecret: _h, favorite: _f, updatedAt: _u, ...input } = s;
+          createSession({ ...input, name: `${s.name} (copy)` }).then(refresh, (e) => setNotice(String(e?.message ?? e)));
+        }}
+        onExport={() => setTransferMode("export")}
+        onImportSessions={() => setTransferMode("import")}
+        onSettings={() => setSettingsOpen(true)}
       />
       <main className="workspace">
         <div className="tabbar" role="tablist">
@@ -394,6 +430,8 @@ export function App() {
                         onTabFailed(t, e);
                       }}
                       onExited={() => patchTab(t.key, { ended: true, filesOpen: false, tunnelsOpen: false })}
+                      settings={settings}
+                      theme={theme}
                     />
                   </div>
                   {t.splits.map((s) => (
@@ -407,7 +445,7 @@ export function App() {
                       >
                         ×
                       </button>
-                      <TerminalView open={s.open} active={t.key === active} />
+                      <TerminalView open={s.open} active={t.key === active} settings={settings} theme={theme} />
                     </div>
                   ))}
                 </div>
@@ -459,6 +497,28 @@ export function App() {
           key={currentPrompt.requestId}
           prompt={currentPrompt}
           onAnswer={(a) => answerHostKey(currentPrompt, a)}
+        />
+      )}
+      {settingsOpen && (
+        <SettingsDialog
+          initial={settings}
+          onCancel={() => setSettingsOpen(false)}
+          onSave={async (next) => {
+            await saveSettings(next);
+            setSettings(next);
+            setSettingsOpen(false);
+          }}
+        />
+      )}
+      {transferMode && (
+        <TransferSessionsDialog
+          mode={transferMode}
+          onCancel={() => setTransferMode(null)}
+          onDone={(summary) => {
+            setTransferMode(null);
+            setNotice(summary);
+            refresh();
+          }}
         />
       )}
       {importing && (

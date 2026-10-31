@@ -28,6 +28,11 @@ fn main() {
             "known_host_forget",
             "ssh_config_preview",
             "ssh_config_import",
+            "settings_get",
+            "settings_save",
+            "session_set_favorite",
+            "sessions_export",
+            "sessions_import",
         ]),
     ))
     .expect("failed to run tauri-build");

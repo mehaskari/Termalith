@@ -40,6 +40,7 @@ import { type PasswordAnswer, PasswordDialog } from "./ui/PasswordDialog";
 import { SessionDialog } from "./ui/SessionDialog";
 import { TunnelsPanel } from "./ui/TunnelsPanel";
 import { SnippetsPanel } from "./ui/SnippetsPanel";
+import { NetworkTools } from "./ui/NetworkTools";
 import { SettingsDialog } from "./ui/SettingsDialog";
 import { SerialDialog } from "./ui/SerialDialog";
 import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
@@ -50,7 +51,7 @@ import { targetLabel } from "./ui/sessionList";
 interface Tab {
   key: number;
   title: string;
-  kind: "local" | "ssh" | "serial";
+  kind: "local" | "ssh" | "serial" | "tools";
   open: Opener;
   terminalId?: TerminalId;
   /** Connection over (failed, or the remote shell exited). */
@@ -327,6 +328,11 @@ export function App() {
         onImportSessions={() => setTransferMode("import")}
         onSettings={() => setSettingsOpen(true)}
         onSerial={() => setSerialOpen(true)}
+        onTools={() => {
+          const existing = tabs.find((t) => t.kind === "tools");
+          if (existing) setActive(existing.key);
+          else addTab("Network tools", "tools", openLocalTerminal);
+        }}
       />
       <main className="workspace">
         <div className="tabbar" role="tablist">
@@ -368,6 +374,10 @@ export function App() {
           )}
           {tabs.map((t) => (
             <div key={t.key} className="pane" hidden={t.key !== active} role="tabpanel">
+              {t.kind === "tools" ? (
+                <NetworkTools />
+              ) : (
+              <>
               <div className="pane-toolbar">
                   {t.changedKey ? (
                     <span className="pane-warning">
@@ -479,6 +489,8 @@ export function App() {
                   />
                 )}
               </div>
+              </>
+              )}
             </div>
           ))}
         </div>

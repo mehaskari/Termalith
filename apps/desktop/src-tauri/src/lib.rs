@@ -3,6 +3,7 @@
 
 mod error;
 mod files;
+mod nettools;
 mod sessions;
 mod ssh;
 mod state;
@@ -56,6 +57,10 @@ pub fn run() {
             terminal::tunnel_stop,
             terminal::serial_ports,
             terminal::serial_open,
+            nettools::net_tcp_check,
+            nettools::net_dns_lookup,
+            nettools::net_probe_start,
+            nettools::net_probe_cancel,
             ssh::ssh_open,
             ssh::host_key_respond,
             sessions::app_info,

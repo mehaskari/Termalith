@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-net-probe-start"
+description = "Enables the net_probe_start command without any pre-configured scope."
+commands.allow = ["net_probe_start"]
+
+[[permission]]
+identifier = "deny-net-probe-start"
+description = "Denies the net_probe_start command without any pre-configured scope."
+commands.deny = ["net_probe_start"]

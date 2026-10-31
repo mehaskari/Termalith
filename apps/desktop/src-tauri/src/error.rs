@@ -21,6 +21,10 @@ impl IpcError {
         Self::new("internal", message)
     }
 
+    pub fn coded(code: &'static str, message: impl Into<String>) -> Self {
+        Self::new(code, message)
+    }
+
     fn new(code: &'static str, message: impl Into<String>) -> Self {
         Self {
             code,

@@ -19,6 +19,8 @@ app-core = { path = "../../../crates/app-core" }
 credential-store = { path = "../../../crates/credential-store" }
 protocol-ssh = { path = "../../../crates/protocol-ssh" }
 serial-console = { path = "../../../crates/serial-console" }
+network-tools = { path = "../../../crates/network-tools" }
+tokio-util = { version = "0.7.20", default-features = false }
 terminal-pty = { path = "../../../crates/terminal-pty" }
 zeroize = "1.9"
 tauri.workspace = true

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-net-tcp-check"
+description = "Enables the net_tcp_check command without any pre-configured scope."
+commands.allow = ["net_tcp_check"]
+
+[[permission]]
+identifier = "deny-net-tcp-check"
+description = "Denies the net_tcp_check command without any pre-configured scope."
+commands.deny = ["net_tcp_check"]

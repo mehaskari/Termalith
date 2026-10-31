@@ -762,3 +762,66 @@ button.icon.starred {
 .snippet-editor {
   min-height: 120px;
 }
+
+.tools {
+  display: flex;
+  height: 100%;
+  background: var(--bg);
+}
+.tools-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  width: 180px;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+}
+.tools-nav button {
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+}
+.tools-nav button[aria-pressed="true"] {
+  background: var(--panel-2);
+  border-color: var(--line);
+}
+.tools-body {
+  flex: 1;
+  min-width: 0;
+  padding: 16px;
+  overflow: auto;
+}
+.tool-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 820px;
+}
+.tool-form .port {
+  width: 90px;
+  flex: none;
+}
+.tool-output {
+  min-height: 240px;
+  max-height: 60vh;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  background: var(--term-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-family: Menlo, "SF Mono", Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.tool-result {
+  margin: 0;
+  font-family: Menlo, "SF Mono", Consolas, monospace;
+}
+.subnet {
+  max-width: 480px;
+}
+.tab-kind.tools {
+  background: #9aa8ff;
+}

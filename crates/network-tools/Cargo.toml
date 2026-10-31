@@ -1,0 +1,20 @@
+[package]
+name = "network-tools"
+description = "Network diagnostics: TCP check, DNS lookup, ping and traceroute. Independent of Tauri and React."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+tokio = { version = "1.54", features = ["io-util", "macros", "net", "process", "rt", "time"] }
+tokio-util = { version = "0.7.20", default-features = false }
+
+[dev-dependencies]
+tokio = { version = "1.54", features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

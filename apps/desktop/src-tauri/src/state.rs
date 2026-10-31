@@ -25,6 +25,7 @@ pub struct AppState {
     pub secrets_available: bool,
     pub transfers: Arc<Transfers>,
     pub tunnels: Arc<Tunnels>,
+    pub probes: Arc<crate::nettools::Probes>,
     /// Files dropped onto the window; uploads refer to them by token.
     pub dropped: Arc<DroppedFiles>,
     /// Where downloads are saved (chosen by the backend, not the UI).
@@ -100,6 +101,7 @@ impl AppState {
             secrets_available,
             transfers: Arc::new(Transfers::default()),
             tunnels: Arc::new(Tunnels::default()),
+            probes: Arc::new(crate::nettools::Probes::default()),
             dropped: Arc::new(DroppedFiles::default()),
             downloads_dir,
             home_dir: app.path().home_dir().ok(),

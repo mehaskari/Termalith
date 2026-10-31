@@ -5,7 +5,7 @@ members = ["crates/terminal-pty", "apps/desktop/src-tauri"]
 [workspace.package]
 version = "0.0.0"
 edition = "2024"
-license = "UNLICENSED"
+license = "MIT"
 publish = false
 rust-version = "1.99"
 

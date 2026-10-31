@@ -10,7 +10,7 @@ It aims to provide a unified workspace for managing remote systems, network devi
 
 - Product name: Termalith
 - Naming status: Selected working name; domain, trademark, social handle, GitHub organization, and package-registry availability are not yet confirmed.
-- License: Open-source license to be selected before the first public release.
+- License: MIT (see `LICENSE`).
 - UI language: English
 - Target platforms: macOS, Windows, Linux
 - Primary development host: macOS on Apple Silicon

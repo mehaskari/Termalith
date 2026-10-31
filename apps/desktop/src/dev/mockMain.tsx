@@ -110,6 +110,12 @@ mockIPC(
         if (s) s.hasSavedSecret = false;
         return null;
       }
+      case "terminal_split": {
+        const id = nextTerm++;
+        outputs.set(id, { ch: a.onOutput as ChannelLike, index: 0 });
+        setTimeout(() => send(id, `\x1b[2m(split of terminal ${a.source})\x1b[0m\r\n$ `), 50);
+        return id;
+      }
       case "terminal_open": {
         const id = nextTerm++;
         outputs.set(id, { ch: a.onOutput as ChannelLike, index: 0 });

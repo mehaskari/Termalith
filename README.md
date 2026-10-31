@@ -79,7 +79,7 @@ See `docs/phase0/macos-terminal-spike.md` for scope, verification status, and fi
 
 ## What works today (first usable version)
 
-- Local terminals in tabs (macOS, Windows, Linux).
+- Local terminals in tabs (macOS, Windows, Linux), split side by side or top/bottom; SSH splits reuse the same connection.
 - Saved SSH sessions with folders and search; quick connect.
 - Password, private-key, passphrase and ssh-agent authentication; optional saving to the OS keychain (only after a successful login).
 - Jump hosts (ProxyJump) through another saved session; each hop's host key is verified.
@@ -87,6 +87,6 @@ See `docs/phase0/macos-terminal-spike.md` for scope, verification status, and fi
 - Host-key verification: dialog for unknown keys; changed keys are refused with an explicit warning and a deliberate "remove recorded key" step.
 - SFTP side panel per SSH tab: browse, download to the Downloads folder, upload by dropping files on the window, progress and cancel.
 
-Not yet: split panes, port forwarding/tunnels, serial, RDP/VNC, tags/favorites, transfer retry. See `TASKS.md`.
+Not yet: port forwarding/tunnels, serial, RDP/VNC, tags/favorites, transfer retry. See `TASKS.md`.
 
 UI preview without a backend (development only): run `corepack pnpm --filter @termalith/desktop dev` and open `http://localhost:1420/mock.html`.

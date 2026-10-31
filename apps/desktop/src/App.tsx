@@ -22,6 +22,7 @@ import {
   openLocalTerminal,
   openSsh,
   respondHostKey,
+  splitTerminal,
   updateSession,
 } from "./terminal/api";
 import { Dialog } from "./ui/Dialog";
@@ -45,6 +46,14 @@ interface Tab {
   /** Set when the connection was refused because the host key changed. */
   changedKey?: { host: string; port: number; presented: string; known: string[] };
   reconnect?: () => void;
+  /** Extra panes beside the main terminal. */
+  splits: SplitPane[];
+  direction: "row" | "column";
+}
+
+interface SplitPane {
+  key: number;
+  open: Opener;
 }
 
 type SessionDialogState =
@@ -84,7 +93,7 @@ export function App() {
 
   const addTab = useCallback((title: string, kind: Tab["kind"], open: Opener) => {
     const key = nextKey.current++;
-    setTabs((t) => [...t, { key, title, kind, open }]);
+    setTabs((t) => [...t, { key, title, kind, open, splits: [], direction: "row" }]);
     setActive(key);
     return key;
   }, []);
@@ -95,6 +104,20 @@ export function App() {
 
   const patchTab = useCallback((key: number, patch: Partial<Tab>) => {
     setTabs((t) => t.map((x) => (x.key === key ? { ...x, ...patch } : x)));
+  }, []);
+
+  const splitTab = useCallback((tab: Tab, direction: Tab["direction"]) => {
+    if (tab.terminalId === undefined) return;
+    const pane = { key: nextKey.current++, open: splitTerminal(tab.terminalId) };
+    setTabs((t) =>
+      t.map((x) => (x.key === tab.key ? { ...x, direction, splits: [...x.splits, pane] } : x)),
+    );
+  }, []);
+
+  const closeSplit = useCallback((tabKey: number, paneKey: number) => {
+    setTabs((t) =>
+      t.map((x) => (x.key === tabKey ? { ...x, splits: x.splits.filter((s) => s.key !== paneKey) } : x)),
+    );
   }, []);
 
   const closeTab = useCallback((key: number) => {
@@ -300,8 +323,7 @@ export function App() {
           )}
           {tabs.map((t) => (
             <div key={t.key} className="pane" hidden={t.key !== active} role="tabpanel">
-              {t.kind === "ssh" && (
-                <div className="pane-toolbar">
+              <div className="pane-toolbar">
                   {t.changedKey ? (
                     <span className="pane-warning">
                       Host key changed for {t.changedKey.host}.
@@ -313,34 +335,69 @@ export function App() {
                     <span />
                   )}
                   <span className="pane-actions">
+                    <button
+                      type="button"
+                      title="Split side by side"
+                      aria-label="Split side by side"
+                      disabled={t.terminalId === undefined || t.ended}
+                      onClick={() => splitTab(t, "row")}
+                    >
+                      ◫
+                    </button>
+                    <button
+                      type="button"
+                      title="Split top and bottom"
+                      aria-label="Split top and bottom"
+                      disabled={t.terminalId === undefined || t.ended}
+                      onClick={() => splitTab(t, "column")}
+                    >
+                      ⊟
+                    </button>
                     {t.reconnect && t.ended && (
                       <button type="button" onClick={() => { closeTab(t.key); t.reconnect?.(); }}>
                         Reconnect
                       </button>
                     )}
-                    <button
-                      type="button"
-                      aria-pressed={!!t.filesOpen}
-                      disabled={t.terminalId === undefined || t.ended}
-                      onClick={() => patchTab(t.key, { filesOpen: !t.filesOpen })}
-                    >
-                      Files
-                    </button>
+                    {t.kind === "ssh" && (
+                      <button
+                        type="button"
+                        aria-pressed={!!t.filesOpen}
+                        disabled={t.terminalId === undefined || t.ended}
+                        onClick={() => patchTab(t.key, { filesOpen: !t.filesOpen })}
+                      >
+                        Files
+                      </button>
+                    )}
                   </span>
-                </div>
-              )}
+              </div>
               <div className="pane-body">
-                <div className="pane-terminal">
-                  <TerminalView
-                    open={t.open}
-                    active={t.key === active}
-                    onReady={(id) => patchTab(t.key, { terminalId: id })}
-                    onFailed={(e) => {
-                      patchTab(t.key, { ended: true });
-                      onTabFailed(t, e);
-                    }}
-                    onExited={() => patchTab(t.key, { ended: true, filesOpen: false })}
-                  />
+                <div className={`pane-terminals ${t.direction}`}>
+                  <div className="pane-terminal">
+                    <TerminalView
+                      open={t.open}
+                      active={t.key === active}
+                      onReady={(id) => patchTab(t.key, { terminalId: id })}
+                      onFailed={(e) => {
+                        patchTab(t.key, { ended: true });
+                        onTabFailed(t, e);
+                      }}
+                      onExited={() => patchTab(t.key, { ended: true, filesOpen: false })}
+                    />
+                  </div>
+                  {t.splits.map((s) => (
+                    <div key={s.key} className="pane-terminal split">
+                      <button
+                        type="button"
+                        className="split-close icon"
+                        aria-label="Close pane"
+                        title="Close pane"
+                        onClick={() => closeSplit(t.key, s.key)}
+                      >
+                        ×
+                      </button>
+                      <TerminalView open={s.open} active={t.key === active} />
+                    </div>
+                  ))}
                 </div>
                 {t.filesOpen && t.terminalId !== undefined && (
                   <FilesPanel

@@ -97,3 +97,28 @@ pub async fn terminal_close(state: State<'_, AppState>, id: u64) -> Result<(), I
         Err(e) => Err(e.into()),
     }
 }
+
+/// Opens a second terminal next to `source`: another local shell, or
+/// another shell on the same SSH connection (no new login).
+#[tauri::command]
+pub async fn terminal_split(
+    state: State<'_, AppState>,
+    source: u64,
+    cols: u16,
+    rows: u16,
+    on_output: Channel<InvokeResponseBody>,
+    on_exit: Channel<ExitPayload>,
+) -> Result<u64, IpcError> {
+    let size = TerminalSize::new(cols, rows)?;
+    let sink = channel_sink(on_output, on_exit);
+    if state.hub.is_ssh(source)? {
+        return Ok(state.hub.open_ssh_sibling(source, size, sink).await?);
+    }
+    let hub = state.hub.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = terminal_pty::default_shell()?;
+        Ok(hub.open_local(&shell, size, sink)?)
+    })
+    .await
+    .map_err(|_| IpcError::internal("terminal task failed"))?
+}

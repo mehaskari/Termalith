@@ -8,6 +8,7 @@ fn main() {
             "terminal_resize",
             "terminal_ack",
             "terminal_close",
+            "terminal_split",
             "ssh_open",
             "host_key_respond",
             "app_info",

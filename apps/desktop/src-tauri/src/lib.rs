@@ -50,6 +50,7 @@ pub fn run() {
             terminal::terminal_resize,
             terminal::terminal_ack,
             terminal::terminal_close,
+            terminal::terminal_split,
             ssh::ssh_open,
             ssh::host_key_respond,
             sessions::app_info,

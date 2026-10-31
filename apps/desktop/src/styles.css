@@ -121,7 +121,7 @@ input[aria-invalid="true"] {
 }
 .sidebar-actions {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 6px;
 }
 .sidebar-head {
@@ -720,4 +720,12 @@ button.icon.starred {
   border-radius: var(--radius);
   padding: 8px;
   resize: vertical;
+}
+
+.tab-kind.serial {
+  background: var(--warning);
+}
+.row {
+  display: flex;
+  gap: 6px;
 }

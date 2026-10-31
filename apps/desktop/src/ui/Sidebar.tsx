@@ -17,6 +17,7 @@ interface Props {
   onExport: () => void;
   onImportSessions: () => void;
   onSettings: () => void;
+  onSerial: () => void;
 }
 
 export function Sidebar(p: Props) {
@@ -36,6 +37,9 @@ export function Sidebar(p: Props) {
         </button>
         <button type="button" onClick={p.onLocalTerminal} title="Open a local terminal">
           Local
+        </button>
+        <button type="button" onClick={p.onSerial} title="Open a serial console">
+          Serial
         </button>
       </div>
       <div className="sidebar-head">

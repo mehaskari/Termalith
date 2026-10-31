@@ -259,3 +259,30 @@ export const setFavorite = (id: string, favorite: boolean) => invoke<void>("sess
 export const exportSessions = () => invoke<{ json: string; savedTo: string | null }>("sessions_export");
 export const importSessions = (json: string) =>
   invoke<{ created: string[]; skipped: string[]; unresolvedJumps: string[] }>("sessions_import", { json });
+
+// ---------------------------------------------------------------- serial
+
+export interface SerialConfig {
+  path: string;
+  baudRate: number;
+  dataBits: number;
+  parity: "none" | "odd" | "even";
+  stopBits: number;
+  flowControl: "none" | "software" | "hardware";
+}
+
+export interface SerialPortInfo {
+  path: string;
+  description: string;
+}
+
+export const serialPorts = () => invoke<SerialPortInfo[]>("serial_ports");
+
+export const openSerial =
+  (config: SerialConfig): Opener =>
+  (_cols, _rows, onOutput, onExit) =>
+    invoke<TerminalId>("serial_open", { config, ...channels(onOutput, onExit) });
+
+export function serialSummary(c: SerialConfig): string {
+  return `${c.baudRate} ${c.dataBits}${c.parity[0]?.toUpperCase() ?? "N"}${c.stopBits}`;
+}

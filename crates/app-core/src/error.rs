@@ -26,6 +26,12 @@ pub enum AppError {
 
     #[error("database error: {0}")]
     Db(String),
+
+    #[error(transparent)]
+    SerialPort(#[from] serial_console::SerialError),
+
+    #[error("serial I/O failed: {0}")]
+    Serial(String),
 }
 
 impl From<rusqlite::Error> for AppError {

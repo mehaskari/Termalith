@@ -89,6 +89,12 @@ impl From<AppError> for IpcError {
             AppError::Pty(p) => p.into(),
             AppError::Secret(s) => Self::new("secret_store", s.to_string()),
             AppError::Db(_) => Self::new("storage", e.to_string()),
+            AppError::SerialPort(serial_console::SerialError::PermissionDenied { .. }) => {
+                Self::new("serial_permission", e.to_string())
+            }
+            AppError::SerialPort(_) | AppError::Serial(_) => {
+                Self::new("serial_error", e.to_string())
+            }
         }
     }
 }

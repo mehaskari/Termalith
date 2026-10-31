@@ -127,6 +127,14 @@ mockIPC(
         if (s) s.hasSavedSecret = false;
         return null;
       }
+      case "serial_ports":
+        return [{ path: "/dev/cu.usbserial-A10K", description: "USB (FTDI FT232R USB UART)" }, { path: "/dev/cu.Bluetooth-Incoming-Port", description: "" }];
+      case "serial_open": {
+        const id = nextTerm++;
+        outputs.set(id, { ch: a.onOutput as ChannelLike, index: 0 });
+        setTimeout(() => send(id, "\r\nSwitch>"), 50);
+        return id;
+      }
       case "terminal_split": {
         const id = nextTerm++;
         outputs.set(id, { ch: a.onOutput as ChannelLike, index: 0 });

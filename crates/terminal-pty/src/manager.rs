@@ -206,8 +206,14 @@ impl Forwarder {
     fn run(mut self) {
         let mut receiver_alive = true;
         let mut exited_at: Option<Instant> = None;
+        // A chunk that did not fit into the previous batch.
+        let mut carry: Option<Vec<u8>> = None;
         loop {
-            let mut batch = match self.rx.recv_timeout(EXIT_POLL) {
+            let next = match carry.take() {
+                Some(c) => Ok(c),
+                None => self.rx.recv_timeout(EXIT_POLL),
+            };
+            let mut batch = match next {
                 Ok(chunk) => chunk,
                 Err(RecvTimeoutError::Disconnected) => break,
                 Err(RecvTimeoutError::Timeout) => {
@@ -222,10 +228,17 @@ impl Forwarder {
                     continue;
                 }
             };
-            // Coalesce whatever is already queued to cut per-event IPC cost.
+            // Coalesce whatever is already queued to cut per-event IPC cost,
+            // without ever exceeding `max_batch`.
             while batch.len() < self.flow.max_batch {
                 match self.rx.try_recv() {
-                    Ok(more) => batch.extend_from_slice(&more),
+                    Ok(more) if batch.len() + more.len() <= self.flow.max_batch => {
+                        batch.extend_from_slice(&more);
+                    }
+                    Ok(more) => {
+                        carry = Some(more);
+                        break;
+                    }
                     Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
                 }
             }

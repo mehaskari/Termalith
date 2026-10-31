@@ -12,6 +12,8 @@ fn main() {
             "tunnel_start",
             "tunnel_list",
             "tunnel_stop",
+            "serial_ports",
+            "serial_open",
             "ssh_open",
             "host_key_respond",
             "app_info",

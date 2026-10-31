@@ -30,6 +30,7 @@ const remoteFiles: Record<string, Array<{ name: string; kind: string; size: numb
   "/home/deploy/releases": [],
 };
 let nextTransfer = 1;
+const mockSettings: Record<string, unknown> = { theme: "system", fontSize: 13, fontFamily: "", cursorStyle: "block", cursorBlink: true, scrollback: 5000 };
 let nextTunnel = 1;
 const tunnels: Array<Record<string, unknown> & { id: number; terminalId: number }> = [];
 function progressThen(ch: ChannelLike, total: number, done: unknown) {
@@ -76,6 +77,20 @@ mockIPC(
     switch (cmd) {
       case "app_info":
         return { version: "0.0.0-mock", secretsAvailable: true, agentAvailable: true };
+      case "settings_get":
+        return mockSettings;
+      case "settings_save":
+        Object.assign(mockSettings, a.settings);
+        return null;
+      case "session_set_favorite": {
+        const s = sessions.get(a.id as string);
+        if (s) s.favorite = a.favorite as boolean;
+        return null;
+      }
+      case "sessions_export":
+        return { json: JSON.stringify({ format: "termalith-sessions", version: 1, sessions: [...sessions.values()].map(({ id: _i, hasSavedSecret: _h, updatedAt: _u, ...rest }) => rest) }, null, 2), savedTo: "/Users/me/Downloads/termalith-sessions.json" };
+      case "sessions_import":
+        return { created: [], skipped: [], unresolvedJumps: [] };
       case "ssh_config_preview":
         return [
           { alias: "prod-web", input: { name: "prod-web", host: "prod-web.example.com", port: 22, username: "deploy", auth: { kind: "agent" }, folder: "SSH config" }, warnings: [], jumpAlias: null },

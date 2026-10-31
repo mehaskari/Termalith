@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sessions-import"
+description = "Enables the sessions_import command without any pre-configured scope."
+commands.allow = ["sessions_import"]
+
+[[permission]]
+identifier = "deny-sessions-import"
+description = "Denies the sessions_import command without any pre-configured scope."
+commands.deny = ["sessions_import"]

@@ -77,6 +77,7 @@ pub struct SessionRecord {
     pub input: SessionInput,
     /// Whether a password/passphrase is saved in the OS credential store.
     pub has_saved_secret: bool,
+    pub favorite: bool,
     #[serde(skip)]
     pub credential: Option<CredentialRef>,
     pub updated_at: i64,
@@ -168,6 +169,9 @@ const MIGRATIONS: &[&str] = &[
     CREATE INDEX sessions_name ON sessions (name COLLATE NOCASE);",
     // v3: jump host (ProxyJump). Deleting the jump session clears the link.
     "ALTER TABLE sessions ADD COLUMN jump_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL;",
+    // v4: favorites and application settings.
+    "ALTER TABLE sessions ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;
+    CREATE TABLE settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);",
 ];
 
 pub struct SessionStore {
@@ -220,14 +224,14 @@ impl SessionStore {
         })
     }
 
-    fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
+    pub(crate) fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.conn.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     pub fn list(&self) -> Result<Vec<SessionRecord>, AppError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite
              FROM sessions ORDER BY folder IS NOT NULL, folder COLLATE NOCASE, name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], row_to_record)?;
@@ -238,7 +242,7 @@ impl SessionStore {
     pub fn get(&self, id: &SessionId) -> Result<SessionRecord, AppError> {
         let conn = self.conn();
         conn.query_row(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite
              FROM sessions WHERE id = ?1",
             [id.as_str()],
             row_to_record,
@@ -358,6 +362,17 @@ impl SessionStore {
         Ok(())
     }
 
+    pub fn set_favorite(&self, id: &SessionId, favorite: bool) -> Result<(), AppError> {
+        let n = self.conn().execute(
+            "UPDATE sessions SET favorite = ?2 WHERE id = ?1",
+            params![id.as_str(), i64::from(favorite)],
+        )?;
+        if n == 0 {
+            return Err(AppError::NotFound);
+        }
+        Ok(())
+    }
+
     /// Deletes the session and returns its credential reference (if any) so
     /// the caller can remove the secret.
     pub fn delete(&self, id: &SessionId) -> Result<Option<CredentialRef>, AppError> {
@@ -397,6 +412,7 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
     };
     Ok(Ok(SessionRecord {
         has_saved_secret: credential.is_some(),
+        favorite: r.get::<_, i64>(11)? != 0,
         credential,
         id: SessionId(id),
         input: SessionInput {

@@ -82,6 +82,7 @@ export interface SessionInput {
 export interface SessionRecord extends SessionInput {
   id: string;
   hasSavedSecret: boolean;
+  favorite?: boolean;
   updatedAt: number;
 }
 
@@ -231,3 +232,30 @@ export const startTunnel = (terminalId: TerminalId, spec: TunnelSpec) =>
   invoke<TunnelInfo>("tunnel_start", { terminalId, spec });
 export const listTunnels = (terminalId: TerminalId) => invoke<TunnelInfo[]>("tunnel_list", { terminalId });
 export const stopTunnel = (id: number) => invoke<boolean>("tunnel_stop", { id });
+
+// ---------------------------------------------------------------- settings
+
+export interface Settings {
+  theme: "system" | "dark" | "light";
+  fontSize: number;
+  fontFamily: string;
+  cursorStyle: "block" | "bar" | "underline";
+  cursorBlink: boolean;
+  scrollback: number;
+}
+
+export const DEFAULT_SETTINGS: Settings = {
+  theme: "system",
+  fontSize: 13,
+  fontFamily: "",
+  cursorStyle: "block",
+  cursorBlink: true,
+  scrollback: 5000,
+};
+
+export const getSettings = () => invoke<Settings>("settings_get");
+export const saveSettings = (settings: Settings) => invoke<void>("settings_save", { settings });
+export const setFavorite = (id: string, favorite: boolean) => invoke<void>("session_set_favorite", { id, favorite });
+export const exportSessions = () => invoke<{ json: string; savedTo: string | null }>("sessions_export");
+export const importSessions = (json: string) =>
+  invoke<{ created: string[]; skipped: string[]; unresolvedJumps: string[] }>("sessions_import", { json });

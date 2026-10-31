@@ -13,6 +13,7 @@ getrandom = "0.3"
 protocol-ssh = { path = "../protocol-ssh" }
 rusqlite = { version = "0.41.1", features = ["bundled"] }
 serde.workspace = true
+serde_json.workspace = true
 terminal-pty = { path = "../terminal-pty" }
 thiserror.workspace = true
 tokio = { version = "1.54", features = ["macros", "rt", "sync", "time"] }

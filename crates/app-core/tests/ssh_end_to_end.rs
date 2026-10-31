@@ -1,5 +1,8 @@
 //! Saved session → host-key prompt → SSH terminal in the hub, against a real
 //! OpenSSH server (see the `test-sshd` crate).
+// The shell-interaction tests are Unix-only (POSIX commands); their helpers
+// are unused on Windows.
+#![cfg_attr(not(unix), allow(dead_code, unused_imports))]
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};

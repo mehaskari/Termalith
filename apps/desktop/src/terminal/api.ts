@@ -211,3 +211,23 @@ export const cancelTransfer = (id: number) => invoke<boolean>("transfer_cancel",
 
 export const forgetHostKey = (host: string, port: number) =>
   invoke<{ removed: number; remainingInUserFile: number }>("known_host_forget", { host, port });
+
+// ---------------------------------------------------------------- tunnels
+
+export type TunnelKind = { kind: "local"; remoteHost: string; remotePort: number } | { kind: "socks" };
+
+export type TunnelSpec = TunnelKind & { localPort: number; allowRemoteClients: boolean };
+
+export type TunnelInfo = TunnelKind & {
+  id: number;
+  terminalId: number;
+  localAddress: string;
+  exposed: boolean;
+  activeConnections: number;
+  totalConnections: number;
+};
+
+export const startTunnel = (terminalId: TerminalId, spec: TunnelSpec) =>
+  invoke<TunnelInfo>("tunnel_start", { terminalId, spec });
+export const listTunnels = (terminalId: TerminalId) => invoke<TunnelInfo[]>("tunnel_list", { terminalId });
+export const stopTunnel = (id: number) => invoke<boolean>("tunnel_stop", { id });

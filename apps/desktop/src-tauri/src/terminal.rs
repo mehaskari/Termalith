@@ -92,6 +92,7 @@ pub async fn terminal_ack(state: State<'_, AppState>, id: u64, bytes: u32) -> Re
 
 #[tauri::command]
 pub async fn terminal_close(state: State<'_, AppState>, id: u64) -> Result<(), IpcError> {
+    state.tunnels.stop_for_terminal(id);
     match state.hub.close(id).await {
         Ok(()) | Err(app_core::AppError::NotFound) => Ok(()),
         Err(e) => Err(e.into()),
@@ -121,4 +122,26 @@ pub async fn terminal_split(
     })
     .await
     .map_err(|_| IpcError::internal("terminal task failed"))?
+}
+
+#[tauri::command]
+pub async fn tunnel_start(
+    state: State<'_, AppState>,
+    terminal_id: u64,
+    spec: app_core::TunnelSpec,
+) -> Result<app_core::TunnelInfo, IpcError> {
+    Ok(state.tunnels.start(&state.hub, terminal_id, spec).await?)
+}
+
+#[tauri::command]
+pub fn tunnel_list(
+    state: State<'_, AppState>,
+    terminal_id: Option<u64>,
+) -> Vec<app_core::TunnelInfo> {
+    state.tunnels.list(terminal_id)
+}
+
+#[tauri::command]
+pub fn tunnel_stop(state: State<'_, AppState>, id: u64) -> bool {
+    state.tunnels.stop(id)
 }

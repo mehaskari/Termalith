@@ -31,6 +31,7 @@ import { HostKeyDialog } from "./ui/HostKeyDialog";
 import { ImportDialog } from "./ui/ImportDialog";
 import { type PasswordAnswer, PasswordDialog } from "./ui/PasswordDialog";
 import { SessionDialog } from "./ui/SessionDialog";
+import { TunnelsPanel } from "./ui/TunnelsPanel";
 import { Sidebar } from "./ui/Sidebar";
 import { targetLabel } from "./ui/sessionList";
 
@@ -43,6 +44,7 @@ interface Tab {
   /** Connection over (failed, or the remote shell exited). */
   ended?: boolean;
   filesOpen?: boolean;
+  tunnelsOpen?: boolean;
   /** Set when the connection was refused because the host key changed. */
   changedKey?: { host: string; port: number; presented: string; known: string[] };
   reconnect?: () => void;
@@ -359,14 +361,24 @@ export function App() {
                       </button>
                     )}
                     {t.kind === "ssh" && (
-                      <button
-                        type="button"
-                        aria-pressed={!!t.filesOpen}
-                        disabled={t.terminalId === undefined || t.ended}
-                        onClick={() => patchTab(t.key, { filesOpen: !t.filesOpen })}
-                      >
-                        Files
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          aria-pressed={!!t.tunnelsOpen}
+                          disabled={t.terminalId === undefined || t.ended}
+                          onClick={() => patchTab(t.key, { tunnelsOpen: !t.tunnelsOpen, filesOpen: false })}
+                        >
+                          Tunnels
+                        </button>
+                        <button
+                          type="button"
+                          aria-pressed={!!t.filesOpen}
+                          disabled={t.terminalId === undefined || t.ended}
+                          onClick={() => patchTab(t.key, { filesOpen: !t.filesOpen, tunnelsOpen: false })}
+                        >
+                          Files
+                        </button>
+                      </>
                     )}
                   </span>
               </div>
@@ -381,7 +393,7 @@ export function App() {
                         patchTab(t.key, { ended: true });
                         onTabFailed(t, e);
                       }}
-                      onExited={() => patchTab(t.key, { ended: true, filesOpen: false })}
+                      onExited={() => patchTab(t.key, { ended: true, filesOpen: false, tunnelsOpen: false })}
                     />
                   </div>
                   {t.splits.map((s) => (
@@ -399,6 +411,9 @@ export function App() {
                     </div>
                   ))}
                 </div>
+                {t.tunnelsOpen && t.terminalId !== undefined && (
+                  <TunnelsPanel terminalId={t.terminalId} onClose={() => patchTab(t.key, { tunnelsOpen: false })} />
+                )}
                 {t.filesOpen && t.terminalId !== undefined && (
                   <FilesPanel
                     terminalId={t.terminalId}

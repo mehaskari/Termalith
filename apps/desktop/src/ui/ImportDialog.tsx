@@ -39,6 +39,7 @@ export function ImportDialog({ onDone, onCancel }: Props) {
       const r = await sshConfigImport([...selected]);
       const parts = [`Imported ${r.created.length} session(s)`];
       if (r.skipped.length) parts.push(`skipped ${r.skipped.length} that already exist (${r.skipped.join(", ")})`);
+      if (r.unresolvedJumps.length) parts.push(`jump host not found for ${r.unresolvedJumps.join(", ")}`);
       onDone(parts.join("; ") + ".");
     } catch (e) {
       setError(isIpcError(e) ? e.message : String(e));
@@ -77,6 +78,7 @@ export function ImportDialog({ onDone, onCancel }: Props) {
                   <span className="import-name">{c.alias}</span>
                   <span className="import-target">
                     {targetLabel(c.input)} · {c.input.auth.kind === "keyFile" ? "key" : c.input.auth.kind}
+                    {c.jumpAlias && ` · via ${c.jumpAlias}`}
                   </span>
                 </label>
                 {c.warnings.map((w) => (

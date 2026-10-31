@@ -64,6 +64,9 @@ pub struct SessionInput {
     pub username: String,
     pub auth: AuthMethod,
     pub folder: Option<String>,
+    /// Saved session to tunnel through (OpenSSH `ProxyJump`).
+    #[serde(default)]
+    pub jump_via: Option<SessionId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -124,6 +127,9 @@ impl SessionInput {
     }
 }
 
+/// Longest allowed ProxyJump chain.
+pub const MAX_JUMP_DEPTH: usize = 4;
+
 const MIGRATIONS: &[&str] = &[
     // v1
     "CREATE TABLE sessions (
@@ -160,6 +166,8 @@ const MIGRATIONS: &[&str] = &[
     DROP TABLE sessions;
     ALTER TABLE sessions_v2 RENAME TO sessions;
     CREATE INDEX sessions_name ON sessions (name COLLATE NOCASE);",
+    // v3: jump host (ProxyJump). Deleting the jump session clears the link.
+    "ALTER TABLE sessions ADD COLUMN jump_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL;",
 ];
 
 pub struct SessionStore {
@@ -219,7 +227,7 @@ impl SessionStore {
     pub fn list(&self) -> Result<Vec<SessionRecord>, AppError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id
              FROM sessions ORDER BY folder IS NOT NULL, folder COLLATE NOCASE, name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], row_to_record)?;
@@ -230,7 +238,7 @@ impl SessionStore {
     pub fn get(&self, id: &SessionId) -> Result<SessionRecord, AppError> {
         let conn = self.conn();
         conn.query_row(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id
              FROM sessions WHERE id = ?1",
             [id.as_str()],
             row_to_record,
@@ -242,14 +250,53 @@ impl SessionStore {
     pub fn create(&self, input: &SessionInput) -> Result<SessionRecord, AppError> {
         input.validate()?;
         let id = SessionId::generate()?;
+        self.check_jump(&id, input.jump_via.as_ref())?;
         let (kind, key) = auth_columns(&input.auth);
         let t = now();
         self.conn().execute(
-            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
-            params![id.as_str(), input.name.trim(), input.host.trim(), input.port, input.username, kind, key, input.folder, t],
+            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10)",
+            params![
+                id.as_str(),
+                input.name.trim(),
+                input.host.trim(),
+                input.port,
+                input.username,
+                kind,
+                key,
+                input.folder,
+                t,
+                input.jump_via.as_ref().map(SessionId::as_str)
+            ],
         )?;
         self.get(&id)
+    }
+
+    /// A jump host must exist, must not be the session itself, and the chain
+    /// must not loop (or get absurdly long).
+    fn check_jump(&self, id: &SessionId, jump: Option<&SessionId>) -> Result<(), AppError> {
+        let mut next = jump.cloned();
+        let mut depth = 0;
+        while let Some(j) = next {
+            if &j == id {
+                return Err(AppError::invalid("jump host", "would create a loop"));
+            }
+            depth += 1;
+            if depth > MAX_JUMP_DEPTH {
+                return Err(AppError::invalid("jump host", "chain is too long"));
+            }
+            next = match self.get(&j) {
+                Ok(r) => r.input.jump_via,
+                Err(AppError::NotFound) => {
+                    return Err(AppError::invalid(
+                        "jump host",
+                        "the selected session does not exist",
+                    ));
+                }
+                Err(e) => return Err(e),
+            };
+        }
+        Ok(())
     }
 
     /// Updates editable fields. Returns the credential that is no longer
@@ -261,6 +308,7 @@ impl SessionStore {
     ) -> Result<(SessionRecord, Option<CredentialRef>), AppError> {
         input.validate()?;
         let old = self.get(id)?;
+        self.check_jump(id, input.jump_via.as_ref())?;
         let auth_changed =
             std::mem::discriminant(&old.input.auth) != std::mem::discriminant(&input.auth);
         let (kind, key) = auth_columns(&input.auth);
@@ -276,7 +324,8 @@ impl SessionStore {
         };
         self.conn().execute(
             "UPDATE sessions SET name = ?2, host = ?3, port = ?4, username = ?5, auth_kind = ?6,
-             key_path = ?7, folder = ?8, credential_ref = ?9, updated_at = ?10 WHERE id = ?1",
+             key_path = ?7, folder = ?8, credential_ref = ?9, updated_at = ?10, jump_session_id = ?11
+             WHERE id = ?1",
             params![
                 id.as_str(),
                 input.name.trim(),
@@ -287,7 +336,8 @@ impl SessionStore {
                 key,
                 input.folder,
                 cred,
-                now()
+                now(),
+                input.jump_via.as_ref().map(SessionId::as_str)
             ],
         )?;
         Ok((self.get(id)?, stale))
@@ -356,6 +406,7 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
             username: r.get(4)?,
             auth,
             folder: r.get(8)?,
+            jump_via: r.get::<_, Option<String>>(10)?.map(SessionId),
         },
         updated_at: r.get(9)?,
     }))
@@ -373,6 +424,7 @@ mod tests {
             username: "admin".into(),
             auth: AuthMethod::Password,
             folder: Some("Production".into()),
+            jump_via: None,
         }
     }
 
@@ -502,6 +554,46 @@ mod tests {
         i.auth = AuthMethod::Agent;
         let rec = s.create(&i).unwrap();
         assert_eq!(s.get(&rec.id).unwrap().input.auth, AuthMethod::Agent);
+    }
+
+    #[test]
+    fn jump_host_links_are_validated_and_cleared_on_delete() {
+        let s = SessionStore::open_in_memory().unwrap();
+        let bastion = s.create(&input()).unwrap();
+        let mut target = input();
+        target.name = "behind bastion".into();
+        target.jump_via = Some(bastion.id.clone());
+        let t = s.create(&target).unwrap();
+        assert_eq!(
+            s.get(&t.id).unwrap().input.jump_via,
+            Some(bastion.id.clone())
+        );
+
+        // Loop: bastion -> target -> bastion.
+        let mut looping = input();
+        looping.jump_via = Some(t.id.clone());
+        assert!(matches!(
+            s.update(&bastion.id, &looping),
+            Err(AppError::Invalid {
+                field: "jump host",
+                ..
+            })
+        ));
+        // Self reference.
+        let mut own = target.clone();
+        own.jump_via = Some(t.id.clone());
+        assert!(matches!(
+            s.update(&t.id, &own),
+            Err(AppError::Invalid { .. })
+        ));
+        // Unknown session.
+        let mut ghost = input();
+        ghost.jump_via = Some(SessionId::parse("ses-000000000000000000000000").unwrap());
+        assert!(matches!(s.create(&ghost), Err(AppError::Invalid { .. })));
+
+        // Deleting the bastion clears the link (ON DELETE SET NULL).
+        s.delete(&bastion.id).unwrap();
+        assert_eq!(s.get(&t.id).unwrap().input.jump_via, None);
     }
 
     #[test]

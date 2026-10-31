@@ -67,6 +67,7 @@ fn key_session(r: &Rig) -> app_core::SessionRecord {
                 path: r.sshd.user_key.clone(),
             },
             folder: None,
+            jump_via: None,
         })
         .unwrap()
 }
@@ -172,6 +173,7 @@ async fn password_sessions_without_secret_ask_for_one() {
             username: r.sshd.user.clone(),
             auth: AuthMethod::Password,
             folder: None,
+            jump_via: None,
         })
         .unwrap();
     let res = r
@@ -353,6 +355,7 @@ async fn secret_is_saved_only_after_a_successful_connection() {
             username: r.sshd.user.clone(),
             auth: AuthMethod::KeyFile { path: enc },
             folder: None,
+            jump_via: None,
         })
         .unwrap();
     let provided = |s: &str| PasswordInput::Provided {
@@ -644,6 +647,7 @@ async fn agent_session_without_an_agent_explains_why() {
             username: r.sshd.user.clone(),
             auth: AuthMethod::Agent,
             folder: None,
+            jump_via: None,
         })
         .unwrap();
     // The rig's connector has `agent: None`.
@@ -660,5 +664,85 @@ async fn agent_session_without_an_agent_explains_why() {
             assert!(reason.contains("SSH_AUTH_SOCK"), "{reason}");
         }
         other => panic!("expected an explanation, got {:?}", other.err()),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn saved_session_behind_a_jump_host() {
+    let Some(mut r) = rig() else { return };
+    let bastion = key_session(&r);
+    let mut behind = SessionInput {
+        name: "behind bastion".into(),
+        host: "127.0.0.1".into(),
+        port: r.sshd.port,
+        username: r.sshd.user.clone(),
+        auth: AuthMethod::KeyFile {
+            path: r.sshd.user_key.clone(),
+        },
+        folder: None,
+        jump_via: Some(bastion.id.clone()),
+    };
+    let target = r.connector.sessions.create(&behind).unwrap();
+
+    // Answer every host-key prompt (the jump host first, then the target).
+    let broker = r.broker.clone();
+    let mut prompts = std::mem::replace(&mut r.prompts, mpsc::unbounded_channel().1);
+    let answered = Arc::new(AtomicUsize::new(0));
+    let a = answered.clone();
+    let answering = tokio::spawn(async move {
+        while let Some(p) = prompts.recv().await {
+            a.fetch_add(1, Ordering::SeqCst);
+            broker.respond(p.request_id, HostKeyDecision::AcceptAndSave);
+        }
+    });
+
+    let connected = r
+        .connector
+        .connect(ConnectRequest::Saved {
+            id: target.id.clone(),
+            secret: PasswordInput::None,
+        })
+        .await
+        .unwrap_or_else(|e| panic!("connect via jump: {e}\n{}", r.sshd.log()));
+    let out = connected
+        .session
+        .exec("printf hello-through-bastion")
+        .await
+        .unwrap();
+    assert_eq!(out.stdout, b"hello-through-bastion");
+    // Same server for both hops: the key is trusted after the first prompt.
+    assert_eq!(answered.load(Ordering::SeqCst), 1);
+    connected.session.disconnect().await.unwrap();
+    answering.abort();
+
+    // A password jump host without a saved password is explained.
+    let pw_bastion = r
+        .connector
+        .sessions
+        .create(&SessionInput {
+            name: "pw bastion".into(),
+            host: "127.0.0.1".into(),
+            port: r.sshd.port,
+            username: r.sshd.user.clone(),
+            auth: AuthMethod::Password,
+            folder: None,
+            jump_via: None,
+        })
+        .unwrap();
+    behind.jump_via = Some(pw_bastion.id);
+    r.connector.sessions.update(&target.id, &behind).unwrap();
+    match r
+        .connector
+        .connect(ConnectRequest::Saved {
+            id: target.id,
+            secret: PasswordInput::None,
+        })
+        .await
+    {
+        Err(AppError::Invalid { field, reason }) => {
+            assert_eq!(field, "jump host");
+            assert!(reason.contains("pw bastion"), "{reason}");
+        }
+        other => panic!("expected jump host explanation, got {:?}", other.err()),
     }
 }

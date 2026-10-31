@@ -2,7 +2,9 @@
 //! SSH connection: resolves the secret, runs host-key verification through
 //! the prompt broker, and saves a new password only after it worked.
 
+use std::future::Future;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -10,7 +12,7 @@ use credential_store::{CredentialRef, SecretStore};
 use protocol_ssh::{Auth, ConnectOptions, KnownHostsStore, SshError, SshSession, Target};
 use zeroize::Zeroizing;
 
-use crate::sessions::{AuthMethod, SessionId, SessionInput, SessionStore};
+use crate::sessions::{AuthMethod, MAX_JUMP_DEPTH, SessionId, SessionInput, SessionStore};
 use crate::{AppError, PromptBroker};
 
 /// A secret typed by the user for this connection.
@@ -73,6 +75,7 @@ impl Connector {
                     username,
                     auth,
                     folder: None,
+                    jump_via: None,
                 };
                 input.validate()?;
                 let typed = match secret {
@@ -82,7 +85,7 @@ impl Connector {
                 if matches!(input.auth, AuthMethod::Password) && typed.is_none() {
                     return Err(AppError::PasswordRequired);
                 }
-                let session = self.dial(&input, typed).await?;
+                let session = self.dial(&input, typed, 0).await?;
                 Ok(Connected {
                     session: Arc::new(session),
                     label: input.name,
@@ -113,7 +116,7 @@ impl Connector {
             return Err(AppError::PasswordRequired);
         }
 
-        let session = match self.dial(&rec.input, secret).await {
+        let session = match self.dial(&rec.input, secret, 0).await {
             Ok(s) => s,
             // A saved password that no longer works: ask the user again.
             Err(AppError::Ssh(SshError::AuthFailed))
@@ -144,7 +147,12 @@ impl Connector {
         &self,
         input: &SessionInput,
         secret: Option<Zeroizing<String>>,
+        depth: usize,
     ) -> Result<SshSession, AppError> {
+        let via = match &input.jump_via {
+            Some(jump) => Some(Arc::new(self.jump(jump, depth + 1).await?)),
+            None => None,
+        };
         let auth = match &input.auth {
             AuthMethod::Password => Auth::Password(secret.ok_or(AppError::PasswordRequired)?),
             AuthMethod::KeyFile { path } => Auth::KeyFile {
@@ -167,7 +175,49 @@ impl Connector {
         };
         let mut opts = ConnectOptions::new(Arc::clone(&self.known_hosts), self.broker.clone());
         opts.timeout = self.timeout;
-        Ok(SshSession::connect(&target, &auth, &opts).await?)
+        Ok(match via {
+            Some(jump) => SshSession::connect_via(jump, &target, &auth, &opts).await?,
+            None => SshSession::connect(&target, &auth, &opts).await?,
+        })
+    }
+
+    /// Connects a jump host non-interactively: it must have a saved
+    /// password, a key file or use the agent. Host-key prompts still apply.
+    fn jump<'a>(
+        &'a self,
+        id: &'a SessionId,
+        depth: usize,
+    ) -> Pin<Box<dyn Future<Output = Result<SshSession, AppError>> + Send + 'a>> {
+        Box::pin(async move {
+            if depth > MAX_JUMP_DEPTH {
+                return Err(AppError::invalid("jump host", "chain is too long"));
+            }
+            let rec = self.sessions.get(id).map_err(|e| match e {
+                AppError::NotFound => {
+                    AppError::invalid("jump host", "the jump session no longer exists")
+                }
+                other => other,
+            })?;
+            let name = rec.input.name.clone();
+            let secret = match &rec.credential {
+                Some(c) => self.load_secret(c.clone()).await?,
+                None => None,
+            };
+            if matches!(rec.input.auth, AuthMethod::Password) && secret.is_none() {
+                return Err(AppError::invalid(
+                    "jump host",
+                    format!("{name} needs a saved password, a key file or the SSH agent"),
+                ));
+            }
+            self.dial(&rec.input, secret, depth)
+                .await
+                .map_err(|e| match e {
+                    AppError::Ssh(SshError::AuthFailed) => {
+                        AppError::invalid("jump host", format!("authentication to {name} failed"))
+                    }
+                    other => other,
+                })
+        })
     }
 
     async fn load_secret(

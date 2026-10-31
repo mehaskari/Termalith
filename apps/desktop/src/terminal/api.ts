@@ -69,6 +69,8 @@ export interface SessionInput {
   username: string;
   auth: AuthMethod;
   folder: string | null;
+  /** Saved session to tunnel through (ProxyJump). */
+  jumpVia?: string | null;
 }
 
 export interface SessionRecord extends SessionInput {
@@ -87,11 +89,12 @@ export interface ImportCandidate {
   alias: string;
   input: SessionInput;
   warnings: string[];
+  jumpAlias: string | null;
 }
 
 export const sshConfigPreview = () => invoke<ImportCandidate[]>("ssh_config_preview");
 export const sshConfigImport = (aliases: string[]) =>
-  invoke<{ created: string[]; skipped: string[] }>("ssh_config_import", { aliases });
+  invoke<{ created: string[]; skipped: string[]; unresolvedJumps: string[] }>("ssh_config_import", { aliases });
 
 export const appInfo = () => invoke<AppInfo>("app_info");
 export const listSessions = () => invoke<SessionRecord[]>("sessions_list");

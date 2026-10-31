@@ -57,10 +57,12 @@ export interface SessionFormState {
   authKind: "password" | "keyFile" | "agent";
   keyPath: string;
   folder: string;
+  /** Session id of the jump host, or "" for a direct connection. */
+  jumpVia: string;
 }
 
 export function emptyForm(): SessionFormState {
-  return { name: "", host: "", port: "22", username: "", authKind: "password", keyPath: "", folder: "" };
+  return { name: "", host: "", port: "22", username: "", authKind: "password", keyPath: "", folder: "", jumpVia: "" };
 }
 
 export function formFromSession(s: SessionInput): SessionFormState {
@@ -72,6 +74,7 @@ export function formFromSession(s: SessionInput): SessionFormState {
     authKind: s.auth.kind,
     keyPath: s.auth.kind === "keyFile" ? s.auth.path : "",
     folder: s.folder ?? "",
+    jumpVia: s.jumpVia ?? "",
   };
 }
 
@@ -109,6 +112,6 @@ export function parseForm(
   }
   return {
     ok: true,
-    value: { name, host, port, username, auth, folder: f.folder.trim() || null },
+    value: { name, host, port, username, auth, folder: f.folder.trim() || null, jumpVia: f.jumpVia || null },
   };
 }

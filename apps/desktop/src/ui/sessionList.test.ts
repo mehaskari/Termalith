@@ -46,7 +46,7 @@ describe("parseForm", () => {
     const r = parseForm(base, { requireName: true });
     expect(r).toEqual({
       ok: true,
-      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null },
+      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null },
     });
   });
 
@@ -83,7 +83,7 @@ describe("parseForm", () => {
     const rec = s("web", "prod");
     const r = parseForm(formFromSession(rec), { requireName: true });
     expect(r.ok && r.value).toEqual({
-      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder,
+      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null,
     });
   });
 });
@@ -102,5 +102,12 @@ describe("agent auth", () => {
     expect(authLabel({ auth: { kind: "agent" }, hasSavedSecret: false })).toBe("agent");
     expect(authLabel({ auth: { kind: "password" }, hasSavedSecret: true })).toBe("saved");
     expect(authLabel({ auth: { kind: "password" }, hasSavedSecret: false })).toBe("");
+  });
+});
+
+describe("jump host", () => {
+  it("round-trips the jump session id", () => {
+    const r = parseForm({ ...emptyForm(), name: "n", host: "h", username: "u", jumpVia: "ses-abc" }, { requireName: true });
+    expect(r.ok && r.value.jumpVia).toBe("ses-abc");
   });
 });

@@ -360,6 +360,8 @@ export function App() {
         <SessionDialog
           mode={sessionDialog.mode}
           initial={sessionDialog.mode === "edit" ? sessionDialog.session : undefined}
+          editingId={sessionDialog.mode === "edit" ? sessionDialog.session.id : undefined}
+          sessions={sessions}
           onSubmit={submitSession}
           onCancel={() => setSessionDialog(null)}
         />

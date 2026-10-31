@@ -142,6 +142,9 @@ impl client::Handler for ClientHandler {
 
 pub struct SshSession {
     handle: Handle<ClientHandler>,
+    /// Jump host this connection is tunnelled through, kept alive for as
+    /// long as this session exists.
+    _via: Option<Arc<SshSession>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -158,7 +161,29 @@ impl SshSession {
         auth: &Auth,
         opts: &ConnectOptions,
     ) -> Result<Self, SshError> {
-        match tokio::time::timeout(opts.timeout, Self::connect_inner(target, auth, opts)).await {
+        Self::connect_with(target, auth, opts, None).await
+    }
+
+    /// Connects to `target` through an `direct-tcpip` tunnel on an already
+    /// authenticated jump host (OpenSSH `ProxyJump`). The target's host key
+    /// and authentication are verified independently of the jump host's.
+    pub async fn connect_via(
+        jump: Arc<SshSession>,
+        target: &Target,
+        auth: &Auth,
+        opts: &ConnectOptions,
+    ) -> Result<Self, SshError> {
+        Self::connect_with(target, auth, opts, Some(jump)).await
+    }
+
+    async fn connect_with(
+        target: &Target,
+        auth: &Auth,
+        opts: &ConnectOptions,
+        via: Option<Arc<SshSession>>,
+    ) -> Result<Self, SshError> {
+        match tokio::time::timeout(opts.timeout, Self::connect_inner(target, auth, opts, via)).await
+        {
             Ok(r) => r,
             Err(_) => Err(SshError::Timeout {
                 host: target.host.clone(),
@@ -171,6 +196,7 @@ impl SshSession {
         target: &Target,
         auth: &Auth,
         opts: &ConnectOptions,
+        via: Option<Arc<SshSession>>,
     ) -> Result<Self, SshError> {
         let config = Arc::new(client::Config {
             preferred: algorithms::preferred(),
@@ -185,14 +211,34 @@ impl SshSession {
             decider: Arc::clone(&opts.decider),
             refusal: Arc::clone(&refusal),
         };
-        let mut handle =
-            match client::connect(config, (target.host.as_str(), target.port), handler).await {
-                Ok(h) => h,
-                Err(e) => {
-                    let typed = refusal.lock().unwrap_or_else(|p| p.into_inner()).take();
-                    return Err(typed.unwrap_or_else(|| SshError::Connect(e.to_string())));
-                }
-            };
+        let connected = match &via {
+            None => client::connect(config, (target.host.as_str(), target.port), handler).await,
+            Some(jump) => {
+                let channel = jump
+                    .handle
+                    .channel_open_direct_tcpip(
+                        target.host.as_str(),
+                        u32::from(target.port),
+                        "127.0.0.1",
+                        0,
+                    )
+                    .await
+                    .map_err(|e| {
+                        SshError::Connect(format!(
+                            "the jump host could not open a tunnel to {}:{}: {e}",
+                            target.host, target.port
+                        ))
+                    })?;
+                client::connect_stream(config, channel.into_stream(), handler).await
+            }
+        };
+        let mut handle = match connected {
+            Ok(h) => h,
+            Err(e) => {
+                let typed = refusal.lock().unwrap_or_else(|p| p.into_inner()).take();
+                return Err(typed.unwrap_or_else(|| SshError::Connect(e.to_string())));
+            }
+        };
 
         let result = match auth {
             Auth::Password(pw) => {
@@ -227,7 +273,7 @@ impl SshSession {
         if !result.success() {
             return Err(SshError::AuthFailed);
         }
-        Ok(Self { handle })
+        Ok(Self { handle, _via: via })
     }
 
     /// Runs a command and collects its output (bounded).

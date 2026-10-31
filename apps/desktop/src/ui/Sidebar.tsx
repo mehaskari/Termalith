@@ -69,6 +69,7 @@ export function Sidebar(p: Props) {
                     <span className="session-target">
                       {targetLabel(s)}
                       {authLabel(s) && ` · ${authLabel(s)}`}
+                      {s.jumpVia && ` · via ${p.sessions.find((j) => j.id === s.jumpVia)?.name ?? "?"}`}
                     </span>
                   </button>
                   <span className="row-actions">

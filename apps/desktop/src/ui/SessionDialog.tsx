@@ -1,11 +1,15 @@
 import { type FormEvent, useState } from "react";
-import { type SessionInput, isIpcError } from "../terminal/api";
+import { type SessionInput, type SessionRecord, isIpcError } from "../terminal/api";
 import { Dialog } from "./Dialog";
 import { type SessionFormState, emptyForm, formFromSession, parseForm } from "./sessionList";
 
 interface Props {
   mode: "create" | "edit" | "quick";
   initial?: SessionInput;
+  /** Id of the session being edited (excluded from jump host choices). */
+  editingId?: string;
+  /** Saved sessions that can serve as a jump host. */
+  sessions: SessionRecord[];
   /** Persist or connect; reject with an IpcError to show it in the form. */
   onSubmit: (value: SessionInput) => Promise<void>;
   onCancel: () => void;
@@ -14,7 +18,7 @@ interface Props {
 const TITLES = { create: "New session", edit: "Edit session", quick: "Quick connect" };
 const SUBMIT = { create: "Save", edit: "Save", quick: "Connect" };
 
-export function SessionDialog({ mode, initial, onSubmit, onCancel }: Props) {
+export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, onCancel }: Props) {
   const [form, setForm] = useState<SessionFormState>(initial ? formFromSession(initial) : emptyForm());
   const [error, setError] = useState<{ field?: string; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -117,6 +121,21 @@ export function SessionDialog({ mode, initial, onSubmit, onCancel }: Props) {
               aria-invalid={invalid("keyPath")}
               onChange={(e) => set({ keyPath: e.target.value })}
             />
+          </label>
+        )}
+        {mode !== "quick" && (
+          <label className="span-2">
+            Connect via (jump host)
+            <select value={form.jumpVia} onChange={(e) => set({ jumpVia: e.target.value })}>
+              <option value="">Direct connection</option>
+              {sessions
+                .filter((s) => s.id !== editingId)
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.username}@{s.host})
+                  </option>
+                ))}
+            </select>
           </label>
         )}
         {mode !== "quick" && (

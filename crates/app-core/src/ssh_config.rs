@@ -24,6 +24,8 @@ pub struct ImportCandidate {
     pub alias: String,
     pub input: SessionInput,
     pub warnings: Vec<String>,
+    /// `ProxyJump` naming another session, linked on import.
+    pub jump_alias: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -32,6 +34,8 @@ pub struct ImportReport {
     pub created: Vec<String>,
     /// Aliases skipped because a session with that name already exists.
     pub skipped: Vec<String>,
+    /// `alias -> jump` links that could not be made (no such session).
+    pub unresolved_jumps: Vec<String>,
 }
 
 struct Block {
@@ -42,7 +46,6 @@ struct Block {
 
 /// Keywords that change connection behaviour but are not imported.
 const UNSUPPORTED: &[&str] = &[
-    "proxyjump",
     "proxycommand",
     "localforward",
     "remoteforward",
@@ -174,6 +177,18 @@ pub fn parse_ssh_config(text: &str, home: &Path, default_user: &str) -> Vec<Impo
                     22
                 }
             };
+            // `ProxyJump name` (one hop, a session name) is linked; forms
+            // with user@, :port, several hops or `none` are not.
+            let jump_alias = match opts.get("proxyjump").map(String::as_str) {
+                None | Some("none") => None,
+                Some(j) if !j.contains(['@', ':', ',']) && !j.is_empty() => Some(j.to_owned()),
+                Some(j) => {
+                    warnings.push(format!(
+                        "ProxyJump {j} (user@host:port or several hops) is not supported yet"
+                    ));
+                    None
+                }
+            };
             let auth = match opts.get("identityfile") {
                 Some(f) => {
                     let expanded = expand_path(f, home, &user, &alias);
@@ -196,9 +211,11 @@ pub fn parse_ssh_config(text: &str, home: &Path, default_user: &str) -> Vec<Impo
                     username: user,
                     auth,
                     folder: Some(IMPORT_FOLDER.into()),
+                    jump_via: None,
                 },
                 alias,
                 warnings,
+                jump_alias,
             }
         })
         .collect()
@@ -232,6 +249,7 @@ pub fn import_candidates(
         .map(|s| s.input.name.to_lowercase())
         .collect();
     let mut report = ImportReport::default();
+    let mut created = Vec::new();
     for c in candidates {
         if !selected.is_empty() && !selected.iter().any(|s| s == &c.alias) {
             continue;
@@ -240,8 +258,27 @@ pub fn import_candidates(
             report.skipped.push(c.alias.clone());
             continue;
         }
-        store.create(&c.input)?;
+        let rec = store.create(&c.input)?;
         report.created.push(c.alias.clone());
+        created.push((rec, c));
+    }
+    // Second pass: link jump hosts by session name (imported or existing).
+    let by_name = store.list()?;
+    for (rec, c) in created {
+        let Some(jump) = &c.jump_alias else { continue };
+        match by_name
+            .iter()
+            .find(|s| s.input.name.eq_ignore_ascii_case(jump))
+        {
+            Some(j) if j.id != rec.id => {
+                let mut input = rec.input.clone();
+                input.jump_via = Some(j.id.clone());
+                store.update(&rec.id, &input)?;
+            }
+            _ => report
+                .unresolved_jumps
+                .push(format!("{} -> {jump}", c.alias)),
+        }
     }
     Ok(report)
 }
@@ -329,14 +366,39 @@ Match host foo
     fn unsupported_features_are_reported() {
         let c = parse_ssh_config(CONFIG, &home(), "me");
         let bastion = by_alias(&c, "bastion");
-        assert!(
-            bastion.warnings.iter().any(|w| w.contains("proxyjump")),
-            "{:?}",
-            bastion.warnings
-        );
+        // `ProxyJump jump.example.com` is a simple name: linked, not warned.
+        assert_eq!(bastion.jump_alias.as_deref(), Some("jump.example.com"));
         assert!(bastion.warnings.iter().any(|w| w.contains("Match")));
-        let web = by_alias(&c, "web-01");
-        assert!(!web.warnings.iter().any(|w| w.contains("proxyjump")));
+        let c = parse_ssh_config(
+            "Host x\n ProxyJump me@jump:2222\n ProxyCommand nc %h %p\n",
+            &home(),
+            "me",
+        );
+        assert!(c[0].jump_alias.is_none());
+        assert!(
+            c[0].warnings.iter().any(|w| w.contains("ProxyJump")),
+            "{:?}",
+            c[0].warnings
+        );
+        assert!(
+            c[0].warnings.iter().any(|w| w.contains("proxycommand")),
+            "{:?}",
+            c[0].warnings
+        );
+    }
+
+    #[test]
+    fn proxy_jump_is_linked_to_the_named_session() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let text = "Host jump\n HostName jump.example.com\nHost app\n HostName 10.1.1.5\n ProxyJump jump\nHost lost\n ProxyJump nowhere\n";
+        let c = parse_ssh_config(text, &home(), "me");
+        let r = import_candidates(&store, &c, &[]).unwrap();
+        assert_eq!(r.created, ["jump", "app", "lost"]);
+        assert_eq!(r.unresolved_jumps, ["lost -> nowhere"]);
+        let all = store.list().unwrap();
+        let jump = all.iter().find(|s| s.input.name == "jump").unwrap();
+        let app = all.iter().find(|s| s.input.name == "app").unwrap();
+        assert_eq!(app.input.jump_via.as_ref(), Some(&jump.id));
     }
 
     #[test]

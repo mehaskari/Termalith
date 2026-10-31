@@ -76,9 +76,10 @@ mockIPC(
         return { version: "0.0.0-mock", secretsAvailable: true, agentAvailable: true };
       case "ssh_config_preview":
         return [
-          { alias: "prod-web", input: { name: "prod-web", host: "prod-web.example.com", port: 22, username: "deploy", auth: { kind: "agent" }, folder: "SSH config" }, warnings: [] },
-          { alias: "db", input: { name: "db", host: "10.0.0.9", port: 2222, username: "postgres", auth: { kind: "keyFile", path: "/Users/me/.ssh/id_db" }, folder: "SSH config" }, warnings: [] },
-          { alias: "bastion", input: { name: "bastion", host: "bastion.example.com", port: 22, username: "me", auth: { kind: "agent" }, folder: "SSH config" }, warnings: ["proxyjump is not supported yet and was not imported"] },
+          { alias: "prod-web", input: { name: "prod-web", host: "prod-web.example.com", port: 22, username: "deploy", auth: { kind: "agent" }, folder: "SSH config" }, warnings: [], jumpAlias: null },
+          { alias: "db", input: { name: "db", host: "10.0.0.9", port: 2222, username: "postgres", auth: { kind: "keyFile", path: "/Users/me/.ssh/id_db" }, folder: "SSH config" }, warnings: [], jumpAlias: null },
+          { alias: "bastion", input: { name: "bastion", host: "bastion.example.com", port: 22, username: "me", auth: { kind: "agent" }, folder: "SSH config" }, warnings: [], jumpAlias: null },
+          { alias: "app-internal", input: { name: "app-internal", host: "10.1.1.5", port: 22, username: "me", auth: { kind: "agent" }, folder: "SSH config" }, warnings: [], jumpAlias: "bastion" },
         ];
       case "ssh_config_import": {
         const created: string[] = [];
@@ -86,7 +87,7 @@ mockIPC(
           seed({ name: alias, host: `${alias}.example.com`, port: 22, username: "me", auth: { kind: "agent" }, folder: "SSH config" });
           created.push(alias);
         }
-        return { created, skipped: [] };
+        return { created, skipped: [], unresolvedJumps: [] };
       }
       case "sessions_list":
         return [...sessions.values()];

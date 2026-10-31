@@ -854,3 +854,69 @@ async fn agent_authentication() {
         Err(SshError::Agent(_))
     ));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn proxy_jump_through_a_bastion() {
+    // One server plays both roles: the client tunnels through it to itself.
+    let s = sshd_or_skip!(SshdConfig::default());
+    let jump = Arc::new(connect_trusted(&s).await);
+
+    // The target's host key is checked separately: unknown -> asked.
+    let kh = Arc::new(FileKnownHosts::new(s.path("target_known_hosts")));
+    let decider = Fixed::new(HostKeyDecision::AcceptOnce);
+    let target = Target {
+        host: "127.0.0.1".into(),
+        port: s.port,
+        user: s.user.clone(),
+    };
+    let via = SshSession::connect_via(
+        jump.clone(),
+        &target,
+        &key_auth(&s),
+        &opts(kh, decider.clone()),
+    )
+    .await
+    .unwrap_or_else(|e| panic!("jump failed: {e}\n{}", s.log()));
+    assert_eq!(
+        decider.calls(),
+        1,
+        "target host key must be verified on its own"
+    );
+    assert_eq!(
+        via.exec("printf via-jump").await.unwrap().stdout,
+        b"via-jump"
+    );
+    via.disconnect().await.unwrap();
+
+    // The jump connection stays usable on its own.
+    assert_eq!(
+        jump.exec("printf still-up").await.unwrap().stdout,
+        b"still-up"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn proxy_jump_refused_by_server_policy() {
+    let s = sshd_or_skip!(SshdConfig {
+        host_key_type: None,
+        extra: vec!["AllowTcpForwarding no".into()],
+    });
+    let jump = Arc::new(connect_trusted(&s).await);
+    let kh = known_hosts(&s);
+    let target = Target {
+        host: "127.0.0.1".into(),
+        port: s.port,
+        user: s.user.clone(),
+    };
+    match SshSession::connect_via(
+        jump,
+        &target,
+        &key_auth(&s),
+        &opts(kh, Arc::new(RejectUnknown)),
+    )
+    .await
+    {
+        Err(SshError::Connect(msg)) => assert!(msg.contains("tunnel"), "{msg}"),
+        other => panic!("expected a tunnel error, got {:?}", other.err()),
+    }
+}

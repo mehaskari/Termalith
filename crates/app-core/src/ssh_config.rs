@@ -317,8 +317,14 @@ Match host foo
     User ignored
 "#;
 
+    /// An absolute home directory on the OS running the tests (a Unix path
+    /// is not absolute on Windows).
     fn home() -> PathBuf {
-        PathBuf::from("/home/me")
+        if cfg!(windows) {
+            PathBuf::from(r"C:\Users\me")
+        } else {
+            PathBuf::from("/home/me")
+        }
     }
 
     fn by_alias(c: &[ImportCandidate], a: &str) -> ImportCandidate {
@@ -346,7 +352,7 @@ Match host foo
         assert_eq!(
             web.input.auth,
             AuthMethod::KeyFile {
-                path: "/home/me/.ssh/id_default".into()
+                path: home().join(".ssh/id_default")
             }
         );
         assert_eq!(web.input.folder.as_deref(), Some(IMPORT_FOLDER));
@@ -357,7 +363,7 @@ Match host foo
         assert_eq!(
             db.input.auth,
             AuthMethod::KeyFile {
-                path: "/home/me/.ssh/id_db".into()
+                path: home().join(".ssh/id_db")
             }
         );
     }

@@ -67,7 +67,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
             libayatana-appindicator3-dev libssl-dev build-essential \
-            xvfb openssh-server
+            xvfb openssh-server gnome-keyring dbus
 
       # A real root-run sshd and a throwaway account so password
       # authentication can be tested (an unprivileged sshd cannot verify
@@ -114,9 +114,19 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Rust tests
+        shell: bash
         env:
           TERMALITH_REQUIRE_SSHD: ${{ matrix.require_sshd }}
-        run: cargo test --workspace -- --nocapture
+          TERMALITH_REQUIRE_NATIVE_SECRETS: "1"
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            # Secret Service needs a D-Bus session and an unlocked keyring.
+            dbus-run-session -- bash -c '
+              printf "ci-keyring-password" | gnome-keyring-daemon --unlock --components=secrets >/dev/null
+              cargo test --workspace -- --nocapture'
+          else
+            cargo test --workspace -- --nocapture
+          fi
 
       - name: TypeScript typecheck
         run: corepack pnpm typecheck

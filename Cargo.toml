@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/terminal-pty", "crates/protocol-ssh", "apps/desktop/src-tauri"]
+members = ["crates/terminal-pty", "crates/protocol-ssh", "crates/credential-store", "apps/desktop/src-tauri"]
 
 [workspace.package]
 version = "0.0.0"

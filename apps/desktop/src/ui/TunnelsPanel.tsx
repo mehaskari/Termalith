@@ -18,7 +18,7 @@ const REFRESH_MS = 2000;
 
 export function TunnelsPanel({ terminalId, onClose }: Props) {
   const [tunnels, setTunnels] = useState<TunnelInfo[]>([]);
-  const [kind, setKind] = useState<"local" | "socks">("local");
+  const [kind, setKind] = useState<"local" | "socks" | "remote">("local");
   const [localPort, setLocalPort] = useState("");
   const [remoteHost, setRemoteHost] = useState("localhost");
   const [remotePort, setRemotePort] = useState("");
@@ -42,7 +42,12 @@ export function TunnelsPanel({ terminalId, onClose }: Props) {
     const lp = localPort.trim() === "" ? 0 : Number(localPort);
     if (!Number.isInteger(lp) || lp < 0 || lp > 65535) return setError("Local port must be 0-65535 (0 = any free port)");
     let spec: TunnelSpec;
-    if (kind === "local") {
+    if (kind === "remote") {
+      const rp = Number(remotePort);
+      if (!remoteHost.trim()) return setError("Target host is required");
+      if (!Number.isInteger(rp) || rp < 1 || rp > 65535) return setError("Target port must be 1-65535");
+      spec = { kind: "remote", targetHost: remoteHost.trim(), targetPort: rp, localPort: lp, allowRemoteClients: expose };
+    } else if (kind === "local") {
       const rp = Number(remotePort);
       if (!remoteHost.trim()) return setError("Remote host is required");
       if (!Number.isInteger(rp) || rp < 1 || rp > 65535) return setError("Remote port must be 1-65535");
@@ -86,8 +91,9 @@ export function TunnelsPanel({ terminalId, onClose }: Props) {
               </button>
             </div>
             <span className="transfer-detail">
-              {t.kind === "local" ? `→ ${t.remoteHost}:${t.remotePort} (via server)` : "SOCKS5 proxy"} ·{" "}
-              {t.activeConnections} open / {t.totalConnections} total
+              {t.kind === "local" && `→ ${t.remoteHost}:${t.remotePort} (via server) · ${t.activeConnections} open / ${t.totalConnections} total`}
+              {t.kind === "socks" && `SOCKS5 proxy · ${t.activeConnections} open / ${t.totalConnections} total`}
+              {t.kind === "remote" && `→ ${t.targetHost}:${t.targetPort} on this machine`}
             </span>
             {t.exposed && <span className="tunnel-exposed">Reachable from other machines</span>}
           </li>
@@ -100,12 +106,25 @@ export function TunnelsPanel({ terminalId, onClose }: Props) {
           <select value={kind} onChange={(e) => setKind(e.target.value as "local" | "socks")}>
             <option value="local">Local forward (-L)</option>
             <option value="socks">SOCKS proxy (-D)</option>
+            <option value="remote">Remote forward (-R)</option>
           </select>
         </label>
         <label>
-          Local port
+          {kind === "remote" ? "Port on the server" : "Local port"}
           <input value={localPort} inputMode="numeric" placeholder="auto" onChange={(e) => setLocalPort(e.target.value)} />
         </label>
+        {kind === "remote" && (
+          <>
+            <label>
+              Target host (from this machine)
+              <input value={remoteHost} spellCheck={false} onChange={(e) => setRemoteHost(e.target.value)} />
+            </label>
+            <label>
+              Target port
+              <input value={remotePort} inputMode="numeric" onChange={(e) => setRemotePort(e.target.value)} />
+            </label>
+          </>
+        )}
         {kind === "local" && (
           <>
             <label>
@@ -120,11 +139,13 @@ export function TunnelsPanel({ terminalId, onClose }: Props) {
         )}
         <label className="checkbox">
           <input type="checkbox" checked={expose} onChange={(e) => setExpose(e.target.checked)} />
-          Allow other machines to connect
+          {kind === "remote" ? "Listen on all server interfaces" : "Allow other machines to connect"}
         </label>
         {expose && (
           <p className="tunnel-warning">
-            The port will listen on all network interfaces. Anyone who can reach this computer can use the tunnel.
+            {kind === "remote"
+              ? "The server will listen on all its interfaces (if its GatewayPorts setting allows). Anyone who can reach the server can reach the target through it."
+              : "The port will listen on all network interfaces. Anyone who can reach this computer can use the tunnel."}
           </p>
         )}
         {error && <p className="form-error" role="alert">{error}</p>}

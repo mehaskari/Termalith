@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use russh::client::{self, Handle, Msg};
 use russh::keys::{HashAlg, PrivateKeyWithHashAlg, PublicKeyOrCertificate, load_secret_key};
-use russh::{ChannelMsg, ChannelReadHalf, ChannelWriteHalf, Disconnect};
+use russh::{Channel, ChannelMsg, ChannelReadHalf, ChannelWriteHalf, Disconnect};
 use russh_sftp::client::SftpSession;
 use zeroize::Zeroizing;
 
@@ -88,7 +88,11 @@ struct ClientHandler {
     /// Why the host key was refused, so `connect` can return a typed error
     /// instead of russh's generic one.
     refusal: Arc<Mutex<Option<SshError>>>,
+    remote_forwards: RemoteForwards,
 }
+
+/// Server port -> local `host:port` for active remote (`-R`) forwards.
+type RemoteForwards = Arc<Mutex<std::collections::HashMap<u32, (String, u16)>>>;
 
 impl ClientHandler {
     fn refuse(&self, e: SshError) -> Result<bool, russh::Error> {
@@ -99,6 +103,47 @@ impl ClientHandler {
 
 impl client::Handler for ClientHandler {
     type Error = russh::Error;
+
+    /// A connection arrived on a port the server listens on for us. Only
+    /// ports we asked for are accepted; the local side connects on a task
+    /// so the SSH loop is never blocked.
+    async fn server_channel_open_forwarded_tcpip(
+        &mut self,
+        channel: Channel<Msg>,
+        _connected_address: &str,
+        connected_port: u32,
+        _originator_address: &str,
+        _originator_port: u32,
+        reply: russh::client::ChannelOpenHandle,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        let target = self
+            .remote_forwards
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .get(&connected_port)
+            .cloned();
+        let Some((host, port)) = target else {
+            reply
+                .reject(russh::ChannelOpenFailure::AdministrativelyProhibited)
+                .await;
+            return Ok(());
+        };
+        reply.accept().await;
+        tokio::spawn(async move {
+            let mut remote = channel.into_stream();
+            match tokio::net::TcpStream::connect((host.as_str(), port)).await {
+                Ok(mut local) => {
+                    let _ = local.set_nodelay(true);
+                    let _ = tokio::io::copy_bidirectional(&mut local, &mut remote).await;
+                }
+                Err(_) => {
+                    let _ = tokio::io::AsyncWriteExt::shutdown(&mut remote).await;
+                }
+            }
+        });
+        Ok(())
+    }
 
     async fn check_server_key(
         &mut self,
@@ -145,6 +190,7 @@ pub struct SshSession {
     /// Jump host this connection is tunnelled through, kept alive for as
     /// long as this session exists.
     _via: Option<Arc<SshSession>>,
+    remote_forwards: RemoteForwards,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -204,12 +250,14 @@ impl SshSession {
             ..Default::default()
         });
         let refusal = Arc::new(Mutex::new(None));
+        let remote_forwards: RemoteForwards = Arc::default();
         let handler = ClientHandler {
             host: target.host.clone(),
             port: target.port,
             known_hosts: Arc::clone(&opts.known_hosts),
             decider: Arc::clone(&opts.decider),
             refusal: Arc::clone(&refusal),
+            remote_forwards: Arc::clone(&remote_forwards),
         };
         let connected = match &via {
             None => client::connect(config, (target.host.as_str(), target.port), handler).await,
@@ -273,7 +321,55 @@ impl SshSession {
         if !result.success() {
             return Err(SshError::AuthFailed);
         }
-        Ok(Self { handle, _via: via })
+        Ok(Self {
+            handle,
+            _via: via,
+            remote_forwards,
+        })
+    }
+
+    /// Asks the server to listen on `bind_address:port` (0 = any free port)
+    /// and forward connections to `local_host:local_port` on this machine
+    /// (`ssh -R`). Returns the port the server listens on.
+    pub async fn forward_remote(
+        &self,
+        bind_address: &str,
+        port: u16,
+        local_host: &str,
+        local_port: u16,
+    ) -> Result<u16, SshError> {
+        let assigned = self
+            .handle
+            .tcpip_forward(bind_address, u32::from(port))
+            .await
+            .map_err(|e| {
+                SshError::Connect(format!(
+                    "the server refused to listen on {bind_address}:{port}: {e}"
+                ))
+            })?;
+        let server_port = if port == 0 { assigned } else { u32::from(port) };
+        self.remote_forwards
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .insert(server_port, (local_host.to_owned(), local_port));
+        u16::try_from(server_port)
+            .map_err(|_| SshError::Protocol("server returned an invalid port".into()))
+    }
+
+    /// Stops a remote forward started with [`forward_remote`](Self::forward_remote).
+    pub async fn cancel_remote_forward(
+        &self,
+        bind_address: &str,
+        port: u16,
+    ) -> Result<(), SshError> {
+        self.remote_forwards
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .remove(&u32::from(port));
+        self.handle
+            .cancel_tcpip_forward(bind_address, u32::from(port))
+            .await?;
+        Ok(())
     }
 
     /// Runs a command and collects its output (bounded).

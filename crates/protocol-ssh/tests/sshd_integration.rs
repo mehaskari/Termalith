@@ -1053,8 +1053,25 @@ async fn socks5_dynamic_forward() {
     let closed = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let dead_port = closed.local_addr().unwrap().port();
     drop(closed);
-    let (_c, code) = socks_connect(fwd.local_addr(), &[1, 127, 0, 0, 1], dead_port).await;
-    assert_eq!(code, 0x05);
+    let (mut c, code) = socks_connect(fwd.local_addr(), &[1, 127, 0, 0, 1], dead_port).await;
+    if cfg!(windows) {
+        // Windows OpenSSH confirms the direct-tcpip channel before its own
+        // connect fails, then closes it; Unix OpenSSH connects first and
+        // rejects the open. Either way the client must not get data.
+        assert!(
+            code == 0x05 || code == 0x00,
+            "unexpected SOCKS reply {code}"
+        );
+        if code == 0x00 {
+            let mut b = [0u8; 1];
+            let n = tokio::time::timeout(Duration::from_secs(5), c.read(&mut b))
+                .await
+                .expect("closed");
+            assert!(matches!(n, Ok(0) | Err(_)), "expected the tunnel to close");
+        }
+    } else {
+        assert_eq!(code, 0x05);
+    }
 
     // A client that insists on authentication is turned away.
     let mut c = tokio::net::TcpStream::connect(fwd.local_addr())

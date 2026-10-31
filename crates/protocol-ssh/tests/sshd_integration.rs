@@ -541,7 +541,11 @@ async fn interactive_shell_on_remote_pty() {
             .expect("exit status")
         {
             ShellEvent::Exited(code) => {
-                assert_eq!(code, 5);
+                // Windows OpenSSH with a PTY reports its ConPTY wrapper's
+                // exit code, not the shell's; only Unix servers pass it on.
+                if cfg!(not(windows)) {
+                    assert_eq!(code, 5);
+                }
                 break;
             }
             ShellEvent::Output(_) => {}

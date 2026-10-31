@@ -1,6 +1,6 @@
 //! Integration tests against a real OpenSSH server (see `common`).
 
-mod common;
+use test_sshd as common;
 
 use std::future::Future;
 use std::path::Path;
@@ -10,6 +10,18 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use common::{SshdConfig, TestSshd};
+
+fn target(s: &TestSshd) -> Target {
+    Target {
+        host: "127.0.0.1".into(),
+        port: s.port,
+        user: s.user.clone(),
+    }
+}
+
+fn host_key(s: &TestSshd) -> russh::keys::PublicKey {
+    russh::keys::PublicKey::from_openssh(s.host_pub.trim()).expect("host key")
+}
 use protocol_ssh::{
     Auth, CancellationToken, ConnectOptions, FileKnownHosts, HostKeyDecider, HostKeyDecision,
     HostKeyInfo, KnownHostsStore, RejectUnknown, ShellEvent, SshError, SshSession, Target,
@@ -73,14 +85,10 @@ fn fp(key: &russh::keys::PublicKey) -> String {
 /// Connects trusting the server's real host key (pre-recorded).
 async fn connect_trusted(s: &TestSshd) -> SshSession {
     let kh = known_hosts(s);
-    kh.add("127.0.0.1", s.port, &s.host_key()).unwrap();
-    SshSession::connect(
-        &s.target(),
-        &key_auth(s),
-        &opts(kh, Arc::new(RejectUnknown)),
-    )
-    .await
-    .unwrap_or_else(|e| panic!("connect failed: {e}\nsshd log:\n{}", s.log()))
+    kh.add("127.0.0.1", s.port, &host_key(s)).unwrap();
+    SshSession::connect(&target(s), &key_auth(s), &opts(kh, Arc::new(RejectUnknown)))
+        .await
+        .unwrap_or_else(|e| panic!("connect failed: {e}\nsshd log:\n{}", s.log()))
 }
 
 macro_rules! sshd_or_skip {
@@ -99,7 +107,7 @@ async fn unknown_host_key_is_rejected_by_default() {
     let s = sshd_or_skip!(SshdConfig::default());
     let kh = known_hosts(&s);
     let err = SshSession::connect(
-        &s.target(),
+        &target(&s),
         &key_auth(&s),
         &opts(kh.clone(), Arc::new(RejectUnknown)),
     )
@@ -107,7 +115,7 @@ async fn unknown_host_key_is_rejected_by_default() {
     .err()
     .expect("must not connect");
     match err {
-        SshError::HostKeyRejected { fingerprint, .. } => assert_eq!(fingerprint, fp(&s.host_key())),
+        SshError::HostKeyRejected { fingerprint, .. } => assert_eq!(fingerprint, fp(&host_key(&s))),
         other => panic!("expected HostKeyRejected, got {other:?}"),
     }
     assert!(!kh.path().exists(), "nothing may be recorded on rejection");
@@ -119,7 +127,7 @@ async fn accept_and_save_persists_and_is_trusted_next_time() {
     let kh = known_hosts(&s);
     let decider = Fixed::new(HostKeyDecision::AcceptAndSave);
     let sess = SshSession::connect(
-        &s.target(),
+        &target(&s),
         &key_auth(&s),
         &opts(kh.clone(), decider.clone()),
     )
@@ -128,14 +136,14 @@ async fn accept_and_save_persists_and_is_trusted_next_time() {
     assert_eq!(decider.calls(), 1);
     assert_eq!(
         decider.last_fingerprint.lock().unwrap().as_deref(),
-        Some(fp(&s.host_key()).as_str()),
+        Some(fp(&host_key(&s)).as_str()),
         "user must be shown the server's real fingerprint"
     );
     sess.disconnect().await.unwrap();
 
     // Second connection: trusted from the file, decider not consulted.
     let strict = Fixed::new(HostKeyDecision::Reject);
-    let sess = SshSession::connect(&s.target(), &key_auth(&s), &opts(kh, strict.clone()))
+    let sess = SshSession::connect(&target(&s), &key_auth(&s), &opts(kh, strict.clone()))
         .await
         .expect("trusted reconnect");
     assert_eq!(strict.calls(), 0);
@@ -147,7 +155,7 @@ async fn accept_once_does_not_persist() {
     let s = sshd_or_skip!(SshdConfig::default());
     let kh = known_hosts(&s);
     let sess = SshSession::connect(
-        &s.target(),
+        &target(&s),
         &key_auth(&s),
         &opts(kh.clone(), Fixed::new(HostKeyDecision::AcceptOnce)),
     )
@@ -156,7 +164,7 @@ async fn accept_once_does_not_persist() {
     sess.disconnect().await.unwrap();
     assert!(!kh.path().exists());
     let again = SshSession::connect(
-        &s.target(),
+        &target(&s),
         &key_auth(&s),
         &opts(kh, Arc::new(RejectUnknown)),
     )
@@ -176,7 +184,7 @@ async fn changed_host_key_is_refused_without_asking() {
     kh.add("127.0.0.1", s.port, &impostor).unwrap();
     let decider = Fixed::new(HostKeyDecision::AcceptAndSave);
     let err = SshSession::connect(
-        &s.target(),
+        &target(&s),
         &key_auth(&s),
         &opts(kh.clone(), decider.clone()),
     )
@@ -187,7 +195,7 @@ async fn changed_host_key_is_refused_without_asking() {
         SshError::HostKeyChanged {
             presented, known, ..
         } => {
-            assert_eq!(presented, fp(&s.host_key()));
+            assert_eq!(presented, fp(&host_key(&s)));
             assert_eq!(known, vec![fp(&impostor)]);
         }
         other => panic!("expected HostKeyChanged, got {other:?}"),
@@ -215,7 +223,7 @@ async fn changed_host_key_of_other_algorithm_is_also_refused() {
     .clone();
     kh.add("127.0.0.1", s.port, &ecdsa).unwrap();
     let decider = Fixed::new(HostKeyDecision::AcceptAndSave);
-    let r = SshSession::connect(&s.target(), &key_auth(&s), &opts(kh, decider.clone())).await;
+    let r = SshSession::connect(&target(&s), &key_auth(&s), &opts(kh, decider.clone())).await;
     assert!(
         matches!(r, Err(SshError::HostKeyChanged { .. })),
         "got {:?}",
@@ -241,9 +249,9 @@ async fn sha1_rsa_host_key_algorithm_is_not_accepted() {
         extra: vec!["HostKeyAlgorithms ssh-rsa".into()],
     });
     let kh = known_hosts(&s);
-    kh.add("127.0.0.1", s.port, &s.host_key()).unwrap();
+    kh.add("127.0.0.1", s.port, &host_key(&s)).unwrap();
     let r = SshSession::connect(
-        &s.target(),
+        &target(&s),
         &key_auth(&s),
         &opts(kh, Arc::new(RejectUnknown)),
     )
@@ -268,9 +276,9 @@ async fn unauthorized_key_fails_authentication() {
     let other = s.path("other_key");
     common::keygen(&other, "ed25519", "").unwrap();
     let kh = known_hosts(&s);
-    kh.add("127.0.0.1", s.port, &s.host_key()).unwrap();
+    kh.add("127.0.0.1", s.port, &host_key(&s)).unwrap();
     let r = SshSession::connect(
-        &s.target(),
+        &target(&s),
         &Auth::KeyFile {
             path: other,
             passphrase: None,
@@ -288,7 +296,7 @@ async fn passphrase_protected_key() {
     common::keygen(&key, "ed25519", "correct horse").unwrap();
     s.authorize(&s.path("enc_key.pub"));
     let kh = known_hosts(&s);
-    kh.add("127.0.0.1", s.port, &s.host_key()).unwrap();
+    kh.add("127.0.0.1", s.port, &host_key(&s)).unwrap();
     let o = opts(kh, Arc::new(RejectUnknown));
 
     let wrong = Auth::KeyFile {
@@ -296,7 +304,7 @@ async fn passphrase_protected_key() {
         passphrase: Some(Zeroizing::new("wrong".into())),
     };
     assert!(matches!(
-        SshSession::connect(&s.target(), &wrong, &o).await,
+        SshSession::connect(&target(&s), &wrong, &o).await,
         Err(SshError::Key(_))
     ));
 
@@ -304,7 +312,7 @@ async fn passphrase_protected_key() {
         path: key,
         passphrase: Some(Zeroizing::new("correct horse".into())),
     };
-    SshSession::connect(&s.target(), &right, &o)
+    SshSession::connect(&target(&s), &right, &o)
         .await
         .expect("connect with passphrase")
         .disconnect()
@@ -323,9 +331,9 @@ async fn rsa_user_key_signs_with_sha2() {
     common::keygen(&key, "rsa", "").unwrap();
     s.authorize(&s.path("rsa_user.pub"));
     let kh = known_hosts(&s);
-    kh.add("127.0.0.1", s.port, &s.host_key()).unwrap();
+    kh.add("127.0.0.1", s.port, &host_key(&s)).unwrap();
     SshSession::connect(
-        &s.target(),
+        &target(&s),
         &Auth::KeyFile {
             path: key,
             passphrase: None,

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window: core runtime plus the terminal commands only. No shell, filesystem or process plugins.",
+  "description": "Main window: core runtime plus terminal, SSH and saved-session commands. No shell, filesystem or process plugins.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -9,6 +9,14 @@
     "allow-terminal-write",
     "allow-terminal-resize",
     "allow-terminal-ack",
-    "allow-terminal-close"
+    "allow-terminal-close",
+    "allow-ssh-open",
+    "allow-host-key-respond",
+    "allow-app-info",
+    "allow-sessions-list",
+    "allow-session-create",
+    "allow-session-update",
+    "allow-session-delete",
+    "allow-session-forget-secret"
   ]
 }

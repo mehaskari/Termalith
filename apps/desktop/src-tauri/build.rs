@@ -8,6 +8,14 @@ fn main() {
             "terminal_resize",
             "terminal_ack",
             "terminal_close",
+            "ssh_open",
+            "host_key_respond",
+            "app_info",
+            "sessions_list",
+            "session_create",
+            "session_update",
+            "session_delete",
+            "session_forget_secret",
         ]),
     ))
     .expect("failed to run tauri-build");

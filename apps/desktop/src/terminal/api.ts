@@ -1,4 +1,4 @@
-// Typed wrappers around the terminal IPC commands. The backend validates all
+// Typed wrappers around the IPC commands. The backend validates all
 // arguments; nothing here is a security boundary.
 import { Channel, invoke } from "@tauri-apps/api/core";
 
@@ -11,6 +11,7 @@ export interface ExitPayload {
 export interface IpcError {
   code: string;
   message: string;
+  detail?: unknown;
 }
 
 export function isIpcError(e: unknown): e is IpcError {
@@ -22,18 +23,24 @@ export function isIpcError(e: unknown): e is IpcError {
   );
 }
 
-export function openTerminal(
+/** Opens a terminal of the given size and wires its output/exit streams. */
+export type Opener = (
   cols: number,
   rows: number,
   onOutput: (data: Uint8Array) => void,
   onExit: (payload: ExitPayload) => void,
-): Promise<TerminalId> {
+) => Promise<TerminalId>;
+
+function channels(onOutput: (data: Uint8Array) => void, onExit: (p: ExitPayload) => void) {
   const output = new Channel<ArrayBuffer>();
   output.onmessage = (buf) => onOutput(new Uint8Array(buf));
   const exit = new Channel<ExitPayload>();
   exit.onmessage = onExit;
-  return invoke<TerminalId>("terminal_open", { cols, rows, onOutput: output, onExit: exit });
+  return { onOutput: output, onExit: exit };
 }
+
+export const openLocalTerminal: Opener = (cols, rows, onOutput, onExit) =>
+  invoke<TerminalId>("terminal_open", { cols, rows, ...channels(onOutput, onExit) });
 
 export function writeTerminal(id: TerminalId, data: string): Promise<void> {
   return invoke("terminal_write", { id, data });
@@ -50,3 +57,78 @@ export function ackTerminal(id: TerminalId, bytes: number): Promise<void> {
 export function closeTerminal(id: TerminalId): Promise<void> {
   return invoke("terminal_close", { id });
 }
+
+// ---------------------------------------------------------------- sessions
+
+export type AuthMethod = { kind: "password" } | { kind: "keyFile"; path: string };
+
+export interface SessionInput {
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  auth: AuthMethod;
+  folder: string | null;
+}
+
+export interface SessionRecord extends SessionInput {
+  id: string;
+  hasSavedSecret: boolean;
+  updatedAt: number;
+}
+
+export interface AppInfo {
+  version: string;
+  secretsAvailable: boolean;
+}
+
+export const appInfo = () => invoke<AppInfo>("app_info");
+export const listSessions = () => invoke<SessionRecord[]>("sessions_list");
+export const createSession = (input: SessionInput) =>
+  invoke<SessionRecord>("session_create", { input });
+export const updateSession = (id: string, input: SessionInput) =>
+  invoke<SessionRecord>("session_update", { id, input });
+export const deleteSession = (id: string) => invoke<void>("session_delete", { id });
+export const forgetSessionSecret = (id: string) => invoke<void>("session_forget_secret", { id });
+
+// ---------------------------------------------------------------- SSH
+
+export interface QuickTarget {
+  host: string;
+  port: number;
+  username: string;
+  auth: AuthMethod;
+}
+
+export type SshTarget = { sessionId: string } | { quick: QuickTarget };
+
+export interface SshOpenRequest {
+  sessionId?: string;
+  quick?: QuickTarget;
+  /** Sent once for this connection attempt; never stored in the UI. */
+  password?: string;
+  savePassword?: boolean;
+}
+
+export async function openSsh(
+  request: SshOpenRequest,
+  cols: number,
+  rows: number,
+  onOutput: (data: Uint8Array) => void,
+  onExit: (payload: ExitPayload) => void,
+): Promise<{ id: TerminalId; label: string }> {
+  return invoke("ssh_open", { request, cols, rows, ...channels(onOutput, onExit) });
+}
+
+export interface HostKeyPrompt {
+  requestId: number;
+  host: string;
+  port: number;
+  algorithm: string;
+  fingerprint: string;
+}
+
+export type HostKeyAnswer = "reject" | "acceptOnce" | "acceptAndSave";
+
+export const respondHostKey = (requestId: number, answer: HostKeyAnswer) =>
+  invoke<boolean>("host_key_respond", { requestId, answer });

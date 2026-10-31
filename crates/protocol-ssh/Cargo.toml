@@ -16,6 +16,7 @@ tokio-util = { version = "0.7.20", default-features = false }
 zeroize = { version = "1.9", features = ["zeroize_derive"] }
 
 [dev-dependencies]
+test-sshd = { path = "../test-sshd" }
 # Same version and feature russh 0.65 uses; only for generating test keys.
 rand = { version = "0.10", features = ["thread_rng"] }
 sha2 = "0.11"

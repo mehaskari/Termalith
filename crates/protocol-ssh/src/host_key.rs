@@ -17,7 +17,7 @@ pub struct HostKeyInfo {
 }
 
 impl HostKeyInfo {
-    pub(crate) fn new(host: &str, port: u16, key: &PublicKey) -> Self {
+    pub fn new(host: &str, port: u16, key: &PublicKey) -> Self {
         Self {
             host: host.to_owned(),
             port,

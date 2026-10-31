@@ -436,20 +436,87 @@ async fn password_auth_against_system_sshd() {
 async fn exec_returns_output_and_exit_status() {
     let s = sshd_or_skip!(SshdConfig::default());
     let sess = connect_trusted(&s).await;
-    let out = sess
-        .exec("printf hello; printf oops >&2; exit 3")
-        .await
-        .unwrap();
-    assert_eq!(out.stdout, b"hello");
-    assert_eq!(out.stderr, b"oops");
+    let out = sess.exec(SH.exec).await.unwrap();
+    // cmd.exe appends CRLF (and a space before redirection); compare trimmed.
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "hello");
+    assert_eq!(String::from_utf8_lossy(&out.stderr).trim(), "oops");
     assert_eq!(out.exit_status, Some(3));
     assert!(!out.truncated);
     sess.disconnect().await.unwrap();
 }
 
+/// Commands for the test server's default shell: POSIX sh on macOS/Linux,
+/// cmd.exe under Windows OpenSSH (which also renders through ConPTY).
+struct ShellDialect {
+    exec: &'static str,
+    marker_cmd: &'static [u8],
+    marker: &'static str,
+    size_cmd: &'static [u8],
+    size_80x24: &'static str,
+    size_132x43: &'static str,
+    exit_cmd: &'static [u8],
+}
+
+#[cfg(not(windows))]
+const SH: ShellDialect = ShellDialect {
+    exec: "printf hello; printf oops >&2; exit 3",
+    marker_cmd: b"echo marker-$((6 * 7))\n",
+    marker: "marker-42",
+    size_cmd: b"stty size\n",
+    size_80x24: "24 80",
+    size_132x43: "43 132",
+    exit_cmd: b"exit 5\n",
+};
+
+#[cfg(windows)]
+const SH: ShellDialect = ShellDialect {
+    exec: "echo hello& echo oops 1>&2& exit /b 3",
+    marker_cmd: b"set /a 6*7+1000\r",
+    marker: "1042",
+    size_cmd: b"mode con\r",
+    // Matched after removing escapes and whitespace (ConPTY repaints).
+    size_80x24: "Columns:80",
+    size_132x43: "Columns:132",
+    exit_cmd: b"exit 5\r",
+};
+
+/// ConPTY output is compared without escape sequences and whitespace.
+fn shell_matches(buf: &str, needle: &str) -> bool {
+    if cfg!(windows) {
+        let mut plain = String::new();
+        let mut chars = buf.chars().peekable();
+        while let Some(c) = chars.next() {
+            match c {
+                '\x1b' => match chars.next() {
+                    Some('[') => {
+                        for c in chars.by_ref() {
+                            if ('\x40'..='\x7e').contains(&c) {
+                                break;
+                            }
+                        }
+                    }
+                    Some(']') => {
+                        for c in chars.by_ref() {
+                            if c == '\x07' {
+                                break;
+                            }
+                        }
+                    }
+                    _ => {}
+                },
+                c if c.is_whitespace() => {}
+                c => plain.push(c),
+            }
+        }
+        plain.contains(needle)
+    } else {
+        buf.contains(needle)
+    }
+}
+
 async fn read_until(shell: &mut protocol_ssh::ShellChannel, buf: &mut String, needle: &str) {
     let deadline = Instant::now() + Duration::from_secs(10);
-    while !buf.contains(needle) {
+    while !shell_matches(buf, needle) {
         let left = deadline.saturating_duration_since(Instant::now());
         match tokio::time::timeout(left, shell.next_event()).await {
             Ok(ShellEvent::Output(b)) => buf.push_str(&String::from_utf8_lossy(&b)),
@@ -465,14 +532,15 @@ async fn interactive_shell_on_remote_pty() {
     let sess = connect_trusted(&s).await;
     let mut shell = sess.open_shell(80, 24).await.unwrap();
     let mut out = String::new();
-    shell.write(b"echo marker-$((6 * 7))\n").await.unwrap();
-    read_until(&mut shell, &mut out, "marker-42").await;
-    shell.write(b"stty size\n").await.unwrap();
-    read_until(&mut shell, &mut out, "24 80").await;
+    shell.write(SH.marker_cmd).await.unwrap();
+    read_until(&mut shell, &mut out, SH.marker).await;
+    shell.write(SH.size_cmd).await.unwrap();
+    read_until(&mut shell, &mut out, SH.size_80x24).await;
     shell.resize(132, 43).await.unwrap();
-    shell.write(b"stty size\n").await.unwrap();
-    read_until(&mut shell, &mut out, "43 132").await;
-    shell.write(b"exit 5\n").await.unwrap();
+    out.clear();
+    shell.write(SH.size_cmd).await.unwrap();
+    read_until(&mut shell, &mut out, SH.size_132x43).await;
+    shell.write(SH.exit_cmd).await.unwrap();
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         let left = deadline.saturating_duration_since(Instant::now());
@@ -481,7 +549,11 @@ async fn interactive_shell_on_remote_pty() {
             .expect("exit status")
         {
             ShellEvent::Exited(code) => {
-                assert_eq!(code, 5);
+                // Windows OpenSSH with a PTY reports its ConPTY wrapper's
+                // exit code, not the shell's; only Unix servers pass it on.
+                if cfg!(not(windows)) {
+                    assert_eq!(code, 5);
+                }
                 break;
             }
             ShellEvent::Output(_) => {}

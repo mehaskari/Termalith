@@ -87,21 +87,23 @@ jobs:
       - name: Frontend tests
         run: corepack pnpm test
 
+      # Build and smoke-test even if earlier checks failed, for more signal per run.
       - name: Build desktop app (debug, embedded frontend)
+        if: ${{ !cancelled() }}
         run: corepack pnpm --filter @termalith/desktop tauri build --debug --no-bundle
 
       - name: Smoke test (macOS)
-        if: runner.os == 'macOS'
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
         run: bash scripts/smoke-test.sh ${{ matrix.bin }}
 
       - name: Smoke test (Linux, Xvfb)
-        if: runner.os == 'Linux'
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
         env:
           WEBKIT_DISABLE_DMABUF_RENDERER: "1"
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: xvfb-run -a bash scripts/smoke-test.sh ${{ matrix.bin }}
 
       - name: Smoke test (Windows)
-        if: runner.os == 'Windows'
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
         shell: pwsh
         run: ./scripts/smoke-test.ps1 -Bin ${{ matrix.bin }}

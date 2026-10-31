@@ -18,7 +18,11 @@ echo "app pid $APP"
 cleanup() { kill -9 "$APP" 2>/dev/null || true; }
 trap cleanup EXIT
 
-shells() { pgrep -P "$APP" || true; }
+# Children of the app that own a terminal. Excludes helpers such as
+# WebKitGTK's network/web processes, which have no controlling tty.
+shells() {
+  ps -A -o pid=,ppid=,tty= | awk -v app="$APP" '$2 == app && $3 != "?" && $3 != "??" { print $1 }'
+}
 
 for ((i = 0; i < START_TIMEOUT * 2; i++)); do
   if ! kill -0 "$APP" 2>/dev/null; then

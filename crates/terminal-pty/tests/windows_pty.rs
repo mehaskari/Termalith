@@ -2,6 +2,7 @@
 #![cfg(windows)]
 
 use std::process::Command;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, channel};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -14,12 +15,35 @@ use terminal_pty::{
 
 const TIMEOUT: Duration = Duration::from_secs(20);
 
+/// Cursor position request. portable-pty creates the ConPTY with
+/// `PSEUDOCONSOLE_INHERIT_CURSOR`, so ConPTY sends this first and produces no
+/// further output until it gets a reply. xterm.js answers it in the app; a
+/// headless consumer such as this test must answer it itself.
+const DSR_QUERY: &[u8] = b"\x1b[6n";
+const DSR_REPLY: &[u8] = b"\x1b[1;1R";
+
 struct Collector {
     output: Arc<Mutex<Vec<u8>>>,
     exit: Receiver<Option<ExitInfo>>,
+    answered: AtomicUsize,
 }
 
 impl Collector {
+    /// Replies to any cursor position requests not answered yet.
+    fn answer_queries(&self, m: &TerminalManager, id: TerminalId) {
+        let queries = {
+            let out = self.output.lock().unwrap();
+            out.windows(DSR_QUERY.len())
+                .filter(|w| *w == DSR_QUERY)
+                .count()
+        };
+        while self.answered.load(Ordering::Relaxed) < queries {
+            // The session may already have exited; that is fine.
+            let _ = m.write(id, DSR_REPLY);
+            self.answered.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
     /// Output with escape sequences and all whitespace removed. ConPTY
     /// repaints the screen and may replace runs of spaces with cursor moves,
     /// so assertions compare this normalised form.
@@ -35,9 +59,13 @@ impl Collector {
         self.output.lock().unwrap().len()
     }
 
-    fn wait_for(&self, needle: &str) {
+    fn wait_for(&self, m: &TerminalManager, id: TerminalId, needle: &str) {
         let start = Instant::now();
-        while !self.plain().contains(needle) {
+        loop {
+            self.answer_queries(m, id);
+            if self.plain().contains(needle) {
+                break;
+            }
             assert!(
                 start.elapsed() < TIMEOUT,
                 "timed out waiting for {needle:?}; got {:?}",
@@ -112,7 +140,14 @@ fn open(m: &TerminalManager, shell: &ShellSpec) -> (TerminalId, Collector) {
             true
         })
         .expect("open");
-    (id, Collector { output, exit })
+    (
+        id,
+        Collector {
+            output,
+            exit,
+            answered: AtomicUsize::new(0),
+        },
+    )
 }
 
 fn size(cols: u16, rows: u16) -> TerminalSize {
@@ -144,8 +179,8 @@ fn wait_gone(pid: u32) {
 fn non_interactive_output_and_exit_code() {
     let m = manager(unthrottled());
     let spec = cmd().arg("/C").arg("echo hello-termalith& exit /b 7");
-    let (_id, c) = open(&m, &spec);
-    c.wait_for("hello-termalith");
+    let (id, c) = open(&m, &spec);
+    c.wait_for(&m, id, "hello-termalith");
     // Requires the forwarder to release the ConPTY after the child exits;
     // otherwise the output pipe never reports EOF.
     assert_eq!(c.wait_exit().map(|e| e.code), Some(7));
@@ -156,7 +191,7 @@ fn interactive_input_reaches_shell() {
     let m = manager(unthrottled());
     let (id, c) = open(&m, &cmd());
     m.write(id, b"set /a 40+2\r").unwrap();
-    c.wait_for("42");
+    c.wait_for(&m, id, "42");
     m.write(id, b"exit 3\r").unwrap();
     assert_eq!(c.wait_exit().map(|e| e.code), Some(3));
     let start = Instant::now();
@@ -171,10 +206,10 @@ fn resize_is_visible_to_child() {
     let m = manager(unthrottled());
     let (id, c) = open(&m, &cmd());
     m.write(id, b"mode con\r").unwrap();
-    c.wait_for("Columns:80");
+    c.wait_for(&m, id, "Columns:80");
     m.resize(id, size(132, 43)).unwrap();
     m.write(id, b"mode con\r").unwrap();
-    c.wait_for("Columns:132");
+    c.wait_for(&m, id, "Columns:132");
     m.close(id).unwrap();
 }
 
@@ -182,7 +217,7 @@ fn resize_is_visible_to_child() {
 fn close_terminates_child() {
     let m = manager(unthrottled());
     let (id, c) = open(&m, &cmd());
-    c.wait_for(">"); // prompt
+    c.wait_for(&m, id, ">"); // prompt
     let pid = m.pid(id).unwrap().expect("pid");
     assert!(!process_gone(pid));
     m.close(id).unwrap();
@@ -219,6 +254,7 @@ fn unacknowledged_output_is_bounded() {
 
     let start = Instant::now();
     while c.len() < flow.high_watermark {
+        c.answer_queries(&m, id);
         assert!(
             start.elapsed() < TIMEOUT,
             "output never reached the watermark"
@@ -266,7 +302,7 @@ fn default_shell_starts_on_this_host() {
     assert!(spec.program.is_absolute());
     let (id, c) = open(&m, &spec);
     m.write(id, b"set /a 6*7+1000\r").unwrap();
-    c.wait_for("1042");
+    c.wait_for(&m, id, "1042");
     m.write(id, b"exit\r").unwrap();
     let _ = c.wait_exit();
 }

@@ -920,3 +920,143 @@ async fn proxy_jump_refused_by_server_policy() {
         other => panic!("expected a tunnel error, got {:?}", other.err()),
     }
 }
+
+/// TCP echo server on loopback; returns its port.
+async fn echo_server() -> u16 {
+    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = l.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        while let Ok((mut s, _)) = l.accept().await {
+            tokio::spawn(async move {
+                let (mut r, mut w) = s.split();
+                let _ = tokio::io::copy(&mut r, &mut w).await;
+            });
+        }
+    });
+    port
+}
+
+async fn round_trip(stream: &mut tokio::net::TcpStream, msg: &[u8]) -> Vec<u8> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    stream.write_all(msg).await.unwrap();
+    let mut buf = vec![0u8; msg.len()];
+    tokio::time::timeout(Duration::from_secs(5), stream.read_exact(&mut buf))
+        .await
+        .expect("echo timed out")
+        .unwrap();
+    buf
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn local_forward_tunnels_to_a_service_behind_the_server() {
+    use protocol_ssh::{ForwardKind, start_forward};
+    let s = sshd_or_skip!(SshdConfig::default());
+    let sess = Arc::new(connect_trusted(&s).await);
+    let echo = echo_server().await;
+    let fwd = start_forward(
+        sess.clone(),
+        "127.0.0.1:0".parse().unwrap(),
+        ForwardKind::Local {
+            host: "127.0.0.1".into(),
+            port: echo,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(fwd.local_addr().ip().is_loopback());
+
+    // Two concurrent clients through the same forward.
+    let mut a = tokio::net::TcpStream::connect(fwd.local_addr())
+        .await
+        .unwrap();
+    let mut b = tokio::net::TcpStream::connect(fwd.local_addr())
+        .await
+        .unwrap();
+    assert_eq!(
+        round_trip(&mut a, b"hello through -L").await,
+        b"hello through -L"
+    );
+    assert_eq!(
+        round_trip(&mut b, &[7u8; 100_000]).await,
+        vec![7u8; 100_000]
+    );
+    assert_eq!(fwd.total_connections(), 2);
+
+    // Stopping closes the listener.
+    let addr = fwd.local_addr();
+    fwd.stop();
+    drop(fwd);
+    let start = Instant::now();
+    while tokio::net::TcpStream::connect(addr).await.is_ok() {
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "listener still open"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn socks5_dynamic_forward() {
+    use protocol_ssh::{ForwardKind, start_forward};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let s = sshd_or_skip!(SshdConfig::default());
+    let sess = Arc::new(connect_trusted(&s).await);
+    let echo = echo_server().await;
+    let fwd = start_forward(sess, "127.0.0.1:0".parse().unwrap(), ForwardKind::Socks)
+        .await
+        .unwrap();
+
+    async fn socks_connect(
+        proxy: std::net::SocketAddr,
+        addr: &[u8],
+        port: u16,
+    ) -> (tokio::net::TcpStream, u8) {
+        let mut c = tokio::net::TcpStream::connect(proxy).await.unwrap();
+        c.write_all(&[5, 1, 0]).await.unwrap();
+        let mut m = [0u8; 2];
+        c.read_exact(&mut m).await.unwrap();
+        assert_eq!(m, [5, 0]);
+        let mut req = vec![5, 1, 0];
+        req.extend_from_slice(addr);
+        req.extend_from_slice(&port.to_be_bytes());
+        c.write_all(&req).await.unwrap();
+        let mut rep = [0u8; 10];
+        c.read_exact(&mut rep).await.unwrap();
+        (c, rep[1])
+    }
+
+    // IPv4 target.
+    let (mut c, code) = socks_connect(fwd.local_addr(), &[1, 127, 0, 0, 1], echo).await;
+    assert_eq!(code, 0);
+    assert_eq!(
+        round_trip(&mut c, b"via socks ipv4").await,
+        b"via socks ipv4"
+    );
+
+    // Domain-name target, resolved on the server.
+    let mut domain = vec![3, 9];
+    domain.extend_from_slice(b"localhost");
+    let (mut c, code) = socks_connect(fwd.local_addr(), &domain, echo).await;
+    assert_eq!(code, 0);
+    assert_eq!(
+        round_trip(&mut c, b"via socks name").await,
+        b"via socks name"
+    );
+
+    // Nothing listening there: "connection refused" reply.
+    let closed = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let dead_port = closed.local_addr().unwrap().port();
+    drop(closed);
+    let (_c, code) = socks_connect(fwd.local_addr(), &[1, 127, 0, 0, 1], dead_port).await;
+    assert_eq!(code, 0x05);
+
+    // A client that insists on authentication is turned away.
+    let mut c = tokio::net::TcpStream::connect(fwd.local_addr())
+        .await
+        .unwrap();
+    c.write_all(&[5, 1, 2]).await.unwrap();
+    let mut m = [0u8; 2];
+    c.read_exact(&mut m).await.unwrap();
+    assert_eq!(m, [5, 0xFF]);
+}

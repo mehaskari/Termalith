@@ -307,6 +307,29 @@ impl SshSession {
         })
     }
 
+    /// Opens a `direct-tcpip` channel from the server to `host:port` and
+    /// returns it as a byte stream (used for port forwarding).
+    pub async fn open_direct_tcpip(
+        &self,
+        host: &str,
+        port: u16,
+        originator: std::net::SocketAddr,
+    ) -> Result<russh::ChannelStream<Msg>, SshError> {
+        let ch = self
+            .handle
+            .channel_open_direct_tcpip(
+                host,
+                u32::from(port),
+                originator.ip().to_string(),
+                u32::from(originator.port()),
+            )
+            .await
+            .map_err(|e| {
+                SshError::Connect(format!("server refused a connection to {host}:{port}: {e}"))
+            })?;
+        Ok(ch.into_stream())
+    }
+
     /// Starts the SFTP subsystem on a new channel of this connection.
     pub async fn sftp(&self) -> Result<SftpClient, SshError> {
         let ch = self.handle.channel_open_session().await?;

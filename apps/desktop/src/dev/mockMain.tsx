@@ -146,6 +146,25 @@ mockIPC(
       case "snippet_delete":
         mockSnippets.splice(mockSnippets.findIndex((s) => s.id === a.id), 1);
         return null;
+      case "net_tcp_check":
+        return { open: a.port === 22, address: a.port === 22 ? `${a.host}:22` : null, millis: 12, error: a.port === 22 ? null : "Connection refused" };
+      case "net_dns_lookup":
+        return ["93.184.216.34", "2606:2800:220:1::248"];
+      case "net_probe_start": {
+        const ch = a.onLine as ChannelLike;
+        const done = a.onDone as ChannelLike;
+        let i = 0;
+        const tick = () => {
+          window.__TAURI_INTERNALS__.runCallback(ch.id, { index: i, message: `64 bytes from ${a.host}: icmp_seq=${i} ttl=56 time=1${i}.2 ms` });
+          i++;
+          if (i < 4) setTimeout(tick, 300);
+          else window.__TAURI_INTERNALS__.runCallback(done.id, { index: 0, message: 0 });
+        };
+        setTimeout(tick, 100);
+        return 1;
+      }
+      case "net_probe_cancel":
+        return true;
       case "serial_ports":
         return [{ path: "/dev/cu.usbserial-A10K", description: "USB (FTDI FT232R USB UART)" }, { path: "/dev/cu.Bluetooth-Incoming-Port", description: "" }];
       case "serial_open": {

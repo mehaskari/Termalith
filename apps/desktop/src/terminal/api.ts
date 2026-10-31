@@ -303,3 +303,30 @@ export const listSnippets = () => invoke<Snippet[]>("snippets_list");
 export const createSnippet = (input: SnippetInput) => invoke<Snippet>("snippet_create", { input });
 export const updateSnippet = (id: string, input: SnippetInput) => invoke<Snippet>("snippet_update", { id, input });
 export const deleteSnippet = (id: string) => invoke<void>("snippet_delete", { id });
+
+// ---------------------------------------------------------------- network tools
+
+export interface TcpCheck {
+  open: boolean;
+  address: string | null;
+  millis: number;
+  error: string | null;
+}
+
+export const tcpCheck = (host: string, port: number) => invoke<TcpCheck>("net_tcp_check", { host, port });
+export const dnsLookup = (name: string) => invoke<string[]>("net_dns_lookup", { name });
+
+export function startProbe(
+  kind: "ping" | "traceroute",
+  host: string,
+  onLine: (line: string) => void,
+  onDone: (code: number | null) => void,
+): Promise<number> {
+  const line = new Channel<string>();
+  line.onmessage = onLine;
+  const done = new Channel<number | null>();
+  done.onmessage = onDone;
+  return invoke<number>("net_probe_start", { kind, host, onLine: line, onDone: done });
+}
+
+export const cancelProbe = (id: number) => invoke<boolean>("net_probe_cancel", { id });

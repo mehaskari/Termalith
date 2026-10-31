@@ -2843,6 +2843,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "network-tools"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "new_debug_unreachable"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5147,6 +5157,7 @@ version = "0.0.0"
 dependencies = [
  "app-core",
  "credential-store",
+ "network-tools",
  "protocol-ssh",
  "serde",
  "serde_json",
@@ -5155,6 +5166,7 @@ dependencies = [
  "tauri-build",
  "terminal-pty",
  "thiserror 2.0.21",
+ "tokio-util",
  "zeroize",
 ]
 

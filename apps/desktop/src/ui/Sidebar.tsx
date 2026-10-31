@@ -18,6 +18,7 @@ interface Props {
   onImportSessions: () => void;
   onSettings: () => void;
   onSerial: () => void;
+  onTools: () => void;
 }
 
 export function Sidebar(p: Props) {
@@ -132,6 +133,9 @@ export function Sidebar(p: Props) {
         </button>
         <button type="button" className="link" onClick={p.onExport}>
           Export…
+        </button>
+        <button type="button" className="link" onClick={p.onTools}>
+          Network tools
         </button>
         <button type="button" className="icon" onClick={p.onSettings} aria-label="Settings" title="Settings">
           ⚙

@@ -741,3 +741,27 @@ async fn sftp_cancelled_download_leaves_nothing() {
     no_partials(local_dir.path());
     sess.disconnect().await.unwrap();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sftp_lists_directories_first_and_resolves_home() {
+    let s = sshd_or_skip!(SshdConfig::default());
+    let root = s.path("listing");
+    std::fs::create_dir_all(root.join("zeta-dir")).unwrap();
+    std::fs::create_dir_all(root.join("Alpha-dir")).unwrap();
+    std::fs::write(root.join("b.txt"), b"12345").unwrap();
+    std::fs::write(root.join("A.log"), b"").unwrap();
+    let sess = connect_trusted(&s).await;
+    let sftp = sess.sftp().await.unwrap();
+
+    let entries = sftp.list(&s.remote("listing")).await.unwrap();
+    let names: Vec<_> = entries.iter().map(|e| e.name.as_str()).collect();
+    assert_eq!(names, ["Alpha-dir", "zeta-dir", "A.log", "b.txt"]);
+    assert_eq!(entries[0].kind, protocol_ssh::RemoteKind::Dir);
+    let b = entries.iter().find(|e| e.name == "b.txt").unwrap();
+    assert_eq!((b.kind, b.size), (protocol_ssh::RemoteKind::File, Some(5)));
+    assert!(b.modified.is_some());
+
+    let home = sftp.canonicalize(".").await.unwrap();
+    assert!(home.starts_with('/'), "home should be absolute: {home}");
+    sess.disconnect().await.unwrap();
+}

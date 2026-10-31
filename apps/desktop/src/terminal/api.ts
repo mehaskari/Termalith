@@ -132,3 +132,62 @@ export type HostKeyAnswer = "reject" | "acceptOnce" | "acceptAndSave";
 
 export const respondHostKey = (requestId: number, answer: HostKeyAnswer) =>
   invoke<boolean>("host_key_respond", { requestId, answer });
+
+// ---------------------------------------------------------------- files
+
+export interface RemoteEntry {
+  name: string;
+  kind: "dir" | "file" | "symlink" | "other";
+  size: number | null;
+  modified: number | null;
+  permissions: number | null;
+}
+
+export type TransferEvent =
+  | { kind: "progress"; transferred: number; total: number | null }
+  | { kind: "done"; destination: string }
+  | { kind: "failed"; message: string }
+  | { kind: "cancelled" };
+
+export interface DroppedFile {
+  token: number;
+  name: string;
+  size: number;
+}
+
+export const sftpHome = (terminalId: TerminalId) => invoke<string>("sftp_home", { terminalId });
+export const sftpList = (terminalId: TerminalId, path: string) =>
+  invoke<RemoteEntry[]>("sftp_list", { terminalId, path });
+
+function transferChannel(onEvent: (e: TransferEvent) => void) {
+  const ch = new Channel<TransferEvent>();
+  ch.onmessage = onEvent;
+  return ch;
+}
+
+export const sftpDownload = (
+  terminalId: TerminalId,
+  dir: string,
+  name: string,
+  size: number | null,
+  onEvent: (e: TransferEvent) => void,
+) =>
+  invoke<{ id: number; downloadsDir: string }>("sftp_download", {
+    terminalId,
+    dir,
+    name,
+    size,
+    onEvent: transferChannel(onEvent),
+  });
+
+export const sftpUpload = (
+  terminalId: TerminalId,
+  token: number,
+  dir: string,
+  onEvent: (e: TransferEvent) => void,
+) => invoke<number>("sftp_upload", { terminalId, token, dir, onEvent: transferChannel(onEvent) });
+
+export const cancelTransfer = (id: number) => invoke<boolean>("transfer_cancel", { id });
+
+export const forgetHostKey = (host: string, port: number) =>
+  invoke<{ removed: number; remainingInUserFile: number }>("known_host_forget", { host, port });

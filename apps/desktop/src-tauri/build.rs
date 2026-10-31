@@ -16,6 +16,12 @@ fn main() {
             "session_update",
             "session_delete",
             "session_forget_secret",
+            "sftp_home",
+            "sftp_list",
+            "sftp_download",
+            "sftp_upload",
+            "transfer_cancel",
+            "known_host_forget",
         ]),
     ))
     .expect("failed to run tauri-build");

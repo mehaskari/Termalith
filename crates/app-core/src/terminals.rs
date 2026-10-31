@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use protocol_ssh::{ShellEvent, ShellWriter, SshSession};
+use protocol_ssh::{SftpClient, ShellEvent, ShellWriter, SshSession};
 use terminal_pty::{
     ExitInfo, FlowConfig, MAX_INPUT_CHUNK, PtyError, ShellSpec, TerminalEvent, TerminalEventSink,
     TerminalId, TerminalManager, TerminalSize,
@@ -30,6 +30,8 @@ struct SshTerminal {
     gate: Arc<AsyncGate>,
     cancel: CancellationToken,
     session: Arc<SshSession>,
+    /// Created on first use, shared by the file browser and transfers.
+    sftp: tokio::sync::Mutex<Option<Arc<SftpClient>>>,
 }
 
 pub struct TerminalHub {
@@ -106,6 +108,7 @@ impl TerminalHub {
             gate: Arc::clone(&gate),
             cancel: cancel.clone(),
             session: Arc::clone(&session),
+            sftp: tokio::sync::Mutex::new(None),
         });
         self.lock().insert(id, Entry::Ssh(term));
 
@@ -172,6 +175,22 @@ impl TerminalHub {
                 .resize(u32::from(size.cols()), u32::from(size.rows()))
                 .await?),
         }
+    }
+
+    /// SFTP on the connection behind an SSH terminal (opened once, then
+    /// reused).
+    pub async fn sftp(&self, id: u64) -> Result<Arc<SftpClient>, AppError> {
+        let t = match self.target(id)? {
+            Target::Ssh(t) => t,
+            Target::Local(_) => return Err(AppError::invalid("terminal", "not an SSH terminal")),
+        };
+        let mut slot = t.sftp.lock().await;
+        if let Some(c) = slot.as_ref() {
+            return Ok(Arc::clone(c));
+        }
+        let client = Arc::new(t.session.sftp().await?);
+        *slot = Some(Arc::clone(&client));
+        Ok(client)
     }
 
     pub fn ack(&self, id: u64, bytes: usize) -> Result<(), AppError> {

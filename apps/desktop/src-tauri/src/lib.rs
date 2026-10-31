@@ -2,13 +2,14 @@
 //! no domain logic of its own.
 
 mod error;
+mod files;
 mod sessions;
 mod ssh;
 mod state;
 mod terminal;
 
 use tauri::webview::PageLoadEvent;
-use tauri::{Manager, RunEvent};
+use tauri::{DragDropEvent, Emitter, Manager, RunEvent, WindowEvent};
 
 use crate::state::AppState;
 
@@ -16,7 +17,21 @@ pub fn run() {
     let app = tauri::Builder::default()
         .setup(|app| {
             let state = AppState::init(app.handle())?;
+            let dropped = state.dropped.clone();
             app.manage(state);
+            // Dropped paths stay in the backend; the UI only gets tokens,
+            // names and sizes, so it can never name a local file itself.
+            if let Some(window) = app.get_webview_window("main") {
+                let handle = app.handle().clone();
+                window.on_window_event(move |event| {
+                    if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) = event {
+                        let files = dropped.register(paths);
+                        if !files.is_empty() {
+                            let _ = handle.emit("files-dropped", files);
+                        }
+                    }
+                });
+            }
             Ok(())
         })
         .on_page_load(|webview, payload| {
@@ -43,6 +58,12 @@ pub fn run() {
             sessions::session_update,
             sessions::session_delete,
             sessions::session_forget_secret,
+            files::sftp_home,
+            files::sftp_list,
+            files::sftp_download,
+            files::sftp_upload,
+            files::transfer_cancel,
+            ssh::known_host_forget,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Tauri application");

@@ -194,6 +194,16 @@ impl Connector {
         Ok(())
     }
 
+    /// Removes the recorded host key(s) for `host:port` from the app's
+    /// known-hosts file, after the user verified a changed key out of band.
+    pub fn forget_host_key(
+        &self,
+        host: &str,
+        port: u16,
+    ) -> Result<protocol_ssh::RemovedHostKeys, AppError> {
+        Ok(self.known_hosts.remove(host.trim(), port)?)
+    }
+
     /// Forgets the saved secret of a session.
     pub async fn forget_secret(&self, id: &SessionId) -> Result<(), AppError> {
         let rec = self.sessions.get(id)?;

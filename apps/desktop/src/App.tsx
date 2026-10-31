@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { TerminalView } from "./terminal/TerminalView";
 import {
   type AppInfo,
+  type DroppedFile,
+  type IpcError,
+  type TerminalId,
   type HostKeyAnswer,
   type HostKeyPrompt,
   type Opener,
@@ -12,6 +15,7 @@ import {
   appInfo,
   createSession,
   deleteSession,
+  forgetHostKey,
   forgetSessionSecret,
   isIpcError,
   listSessions,
@@ -21,6 +25,7 @@ import {
   updateSession,
 } from "./terminal/api";
 import { Dialog } from "./ui/Dialog";
+import { FilesPanel } from "./ui/FilesPanel";
 import { HostKeyDialog } from "./ui/HostKeyDialog";
 import { type PasswordAnswer, PasswordDialog } from "./ui/PasswordDialog";
 import { SessionDialog } from "./ui/SessionDialog";
@@ -32,6 +37,13 @@ interface Tab {
   title: string;
   kind: "local" | "ssh";
   open: Opener;
+  terminalId?: TerminalId;
+  /** Connection over (failed, or the remote shell exited). */
+  ended?: boolean;
+  filesOpen?: boolean;
+  /** Set when the connection was refused because the host key changed. */
+  changedKey?: { host: string; port: number; presented: string; known: string[] };
+  reconnect?: () => void;
 }
 
 type SessionDialogState =
@@ -59,6 +71,9 @@ export function App() {
   const [hostKeyPrompts, setHostKeyPrompts] = useState<HostKeyPrompt[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<SessionRecord | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [dropped, setDropped] = useState<DroppedFile[] | null>(null);
+  const [confirmForget, setConfirmForget] = useState<Tab | null>(null);
+  const activeRef = useRef<Tab | undefined>(undefined);
   const nextKey = useRef(1);
 
   const refresh = useCallback(() => {
@@ -74,6 +89,10 @@ export function App() {
 
   const renameTab = useCallback((key: number, title: string) => {
     setTabs((t) => t.map((x) => (x.key === key ? { ...x, title } : x)));
+  }, []);
+
+  const patchTab = useCallback((key: number, patch: Partial<Tab>) => {
+    setTabs((t) => t.map((x) => (x.key === key ? { ...x, ...patch } : x)));
   }, []);
 
   const closeTab = useCallback((key: number) => {
@@ -137,8 +156,9 @@ export function App() {
         }
       };
       tabKey = addTab(label, "ssh", open);
+      patchTab(tabKey, { reconnect: () => connect(target, label, opts) });
     },
-    [addTab, askPassword, refresh, renameTab],
+    [addTab, askPassword, refresh, renameTab, patchTab],
   );
 
   const connectSaved = useCallback(
@@ -163,8 +183,14 @@ export function App() {
     const unlisten = listen<HostKeyPrompt>("host-key-prompt", (e) =>
       setHostKeyPrompts((q) => [...q, e.payload]),
     );
+    const unlistenDrop = listen<DroppedFile[]>("files-dropped", (e) => {
+      const tab = activeRef.current;
+      if (tab?.filesOpen && tab.terminalId !== undefined) setDropped(e.payload);
+      else setNotice("To upload, open Files on a connected SSH tab and drop the files again.");
+    });
     return () => {
       void unlisten.then((f) => f());
+      void unlistenDrop.then((f) => f());
     };
   }, [refresh, openLocal]);
 
@@ -192,6 +218,30 @@ export function App() {
   }
 
   const currentPrompt = hostKeyPrompts[0];
+  const activeTab = tabs.find((t) => t.key === active);
+  activeRef.current = activeTab;
+
+  function onTabFailed(tab: Tab, e: unknown) {
+    if (!isIpcError(e) || e.code !== "host_key_changed") return;
+    const d = (e as IpcError).detail as Tab["changedKey"] | undefined;
+    if (d && typeof d.host === "string") patchTab(tab.key, { changedKey: d });
+  }
+
+  async function forget(tab: Tab) {
+    setConfirmForget(null);
+    if (!tab.changedKey) return;
+    try {
+      const r = await forgetHostKey(tab.changedKey.host, tab.changedKey.port);
+      patchTab(tab.key, { changedKey: undefined });
+      setNotice(
+        r.remainingInUserFile > 0
+          ? `Removed ${r.removed} key(s) from Termalith. The old key is also in your OpenSSH known_hosts; remove it there with: ssh-keygen -R ${tab.changedKey.host}`
+          : `Removed ${r.removed} recorded key(s). Reconnect to review the new key.`,
+      );
+    } catch (err) {
+      setNotice(`Could not remove the key: ${String((err as IpcError)?.message ?? err)}`);
+    }
+  }
 
   return (
     <div className="app">
@@ -247,7 +297,57 @@ export function App() {
           )}
           {tabs.map((t) => (
             <div key={t.key} className="pane" hidden={t.key !== active} role="tabpanel">
-              <TerminalView open={t.open} active={t.key === active} />
+              {t.kind === "ssh" && (
+                <div className="pane-toolbar">
+                  {t.changedKey ? (
+                    <span className="pane-warning">
+                      Host key changed for {t.changedKey.host}.
+                      <button type="button" className="danger" onClick={() => setConfirmForget(t)}>
+                        Remove recorded key…
+                      </button>
+                    </span>
+                  ) : (
+                    <span />
+                  )}
+                  <span className="pane-actions">
+                    {t.reconnect && t.ended && (
+                      <button type="button" onClick={() => { closeTab(t.key); t.reconnect?.(); }}>
+                        Reconnect
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      aria-pressed={!!t.filesOpen}
+                      disabled={t.terminalId === undefined || t.ended}
+                      onClick={() => patchTab(t.key, { filesOpen: !t.filesOpen })}
+                    >
+                      Files
+                    </button>
+                  </span>
+                </div>
+              )}
+              <div className="pane-body">
+                <div className="pane-terminal">
+                  <TerminalView
+                    open={t.open}
+                    active={t.key === active}
+                    onReady={(id) => patchTab(t.key, { terminalId: id })}
+                    onFailed={(e) => {
+                      patchTab(t.key, { ended: true });
+                      onTabFailed(t, e);
+                    }}
+                    onExited={() => patchTab(t.key, { ended: true, filesOpen: false })}
+                  />
+                </div>
+                {t.filesOpen && t.terminalId !== undefined && (
+                  <FilesPanel
+                    terminalId={t.terminalId}
+                    dropped={t.key === active ? dropped : null}
+                    onDroppedHandled={() => setDropped(null)}
+                    onClose={() => patchTab(t.key, { filesOpen: false })}
+                  />
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -283,6 +383,39 @@ export function App() {
           prompt={currentPrompt}
           onAnswer={(a) => answerHostKey(currentPrompt, a)}
         />
+      )}
+      {confirmForget?.changedKey && (
+        <Dialog
+          title="Remove the recorded host key?"
+          tone="warning"
+          onCancel={() => setConfirmForget(null)}
+          actions={
+            <>
+              <button type="button" onClick={() => setConfirmForget(null)}>
+                Cancel
+              </button>
+              <button type="button" className="danger" onClick={() => void forget(confirmForget)}>
+                Remove key
+              </button>
+            </>
+          }
+        >
+          <p>
+            Only do this if you have confirmed with the administrator of{" "}
+            <strong>{confirmForget.changedKey.host}</strong> that its key was replaced.
+          </p>
+          <dl className="fingerprint">
+            <dt>Presented</dt>
+            <dd><code>{confirmForget.changedKey.presented}</code></dd>
+            {confirmForget.changedKey.known.map((k) => (
+              <Fragment key={k}>
+                <dt>Recorded</dt>
+                <dd><code>{k}</code></dd>
+              </Fragment>
+            ))}
+          </dl>
+          <p className="hint">After removing it, reconnect: you will be asked to verify the new key.</p>
+        </Dialog>
       )}
       {confirmDelete && (
         <Dialog

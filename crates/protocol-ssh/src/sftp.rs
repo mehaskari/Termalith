@@ -35,6 +35,26 @@ pub struct SftpClient {
     inner: SftpSession,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemoteKind {
+    Dir,
+    File,
+    Symlink,
+    Other,
+}
+
+/// One directory entry. Names come from the server and are untrusted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteEntry {
+    pub name: String,
+    pub kind: RemoteKind,
+    pub size: Option<u64>,
+    /// Seconds since the Unix epoch.
+    pub modified: Option<u32>,
+    /// Unix mode bits, if reported.
+    pub permissions: Option<u32>,
+}
+
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn temp_suffix() -> String {
@@ -71,6 +91,43 @@ impl SftpClient {
             .await?
             .map(|e| e.file_name())
             .collect())
+    }
+
+    /// Lists a directory: directories first, then by name; `.`/`..` omitted.
+    pub async fn list(&self, remote_dir: &str) -> Result<Vec<RemoteEntry>, SshError> {
+        use russh_sftp::protocol::FileType;
+        let mut out: Vec<RemoteEntry> = self
+            .inner
+            .read_dir(remote_dir)
+            .await?
+            .filter(|e| e.file_name() != "." && e.file_name() != "..")
+            .map(|e| {
+                let m = e.metadata();
+                RemoteEntry {
+                    name: e.file_name(),
+                    kind: match e.file_type() {
+                        FileType::Dir => RemoteKind::Dir,
+                        FileType::File => RemoteKind::File,
+                        FileType::Symlink => RemoteKind::Symlink,
+                        FileType::Other => RemoteKind::Other,
+                    },
+                    size: m.size,
+                    modified: m.mtime,
+                    permissions: m.permissions,
+                }
+            })
+            .collect();
+        out.sort_by(|a, b| {
+            (a.kind != RemoteKind::Dir)
+                .cmp(&(b.kind != RemoteKind::Dir))
+                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+        });
+        Ok(out)
+    }
+
+    /// Resolves a path on the server (e.g. `"."` to the home directory).
+    pub async fn canonicalize(&self, path: &str) -> Result<String, SshError> {
+        Ok(self.inner.canonicalize(path).await?)
     }
 
     /// Uploads `local` to `remote`. Returns bytes transferred.

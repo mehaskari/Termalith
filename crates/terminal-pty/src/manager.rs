@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::io::{ErrorKind, Read};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::{Receiver, SyncSender, TryRecvError, sync_channel};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TryRecvError, sync_channel};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -19,6 +19,11 @@ use crate::{
 const TERMINATE_GRACE: Duration = Duration::from_millis(500);
 /// How long to wait for an exit status after the PTY reports EOF.
 const EXIT_STATUS_WAIT: Duration = Duration::from_secs(1);
+/// How often an idle forwarder checks whether the child has exited.
+const EXIT_POLL: Duration = Duration::from_millis(100);
+/// After the child exits, stop waiting for PTY EOF once output has been idle
+/// this long. Covers descendants that keep the PTY open (e.g. `cmd &`).
+const DRAIN_AFTER_EXIT: Duration = Duration::from_secs(1);
 
 /// Receives events for one terminal. Returning `false` means the receiver is
 /// gone; the session is then closed.
@@ -200,7 +205,23 @@ struct Forwarder {
 impl Forwarder {
     fn run(mut self) {
         let mut receiver_alive = true;
-        while let Ok(mut batch) = self.rx.recv() {
+        let mut exited_at: Option<Instant> = None;
+        loop {
+            let mut batch = match self.rx.recv_timeout(EXIT_POLL) {
+                Ok(chunk) => chunk,
+                Err(RecvTimeoutError::Disconnected) => break,
+                Err(RecvTimeoutError::Timeout) => {
+                    match exited_at {
+                        None if child_exited(&self.control) => {
+                            exited_at = Some(Instant::now());
+                            release_pty_async(&self.control);
+                        }
+                        Some(t) if t.elapsed() >= DRAIN_AFTER_EXIT => break,
+                        _ => {}
+                    }
+                    continue;
+                }
+            };
             // Coalesce whatever is already queued to cut per-event IPC cost.
             while batch.len() < self.flow.max_batch {
                 match self.rx.try_recv() {
@@ -231,6 +252,19 @@ impl Forwarder {
             }
         }
     }
+}
+
+fn child_exited(control: &Control) -> bool {
+    matches!(lock(control).try_wait(), Ok(Some(_)))
+}
+
+/// Releases the PTY on a helper thread: closing a ConPTY can block until its
+/// output is drained, and the forwarder must keep draining meanwhile.
+fn release_pty_async(control: &Control) {
+    let control = Arc::clone(control);
+    let _ = thread::Builder::new()
+        .name("pty-release".into())
+        .spawn(move || lock(&control).release_pty());
 }
 
 fn wait_for_exit(control: &Control, timeout: Duration) -> Option<ExitInfo> {

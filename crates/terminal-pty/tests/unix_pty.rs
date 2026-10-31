@@ -174,6 +174,23 @@ fn close_escalates_when_sighup_is_ignored() {
 }
 
 #[test]
+fn exit_is_reported_while_background_job_holds_pty() {
+    let m = manager(unthrottled());
+    // The shell exits at once; `sleep` inherits the PTY slave and keeps it
+    // open. On Linux EOF on the master would not arrive for 30 s. (macOS
+    // revokes the tty when the session leader exits, so this passes there
+    // regardless; it is a regression test for Linux.)
+    let spec = ShellSpec::new("/bin/sh")
+        .arg("-c")
+        .arg("sleep 30 & echo started; exit 4");
+    let (_id, c) = open(&m, &spec);
+    c.wait_for("started");
+    let start = Instant::now();
+    assert_eq!(c.wait_exit().map(|e| e.code), Some(4));
+    assert!(start.elapsed() < Duration::from_secs(5));
+}
+
+#[test]
 fn drop_closes_all_sessions() {
     let m = manager(unthrottled());
     let (a, _ca) = open(&m, &sh());

@@ -4,12 +4,16 @@
 
 mod connect;
 mod error;
+mod files;
 mod host_keys;
 mod sessions;
 mod terminals;
+mod transfers;
 
 pub use connect::{ConnectRequest, Connected, Connector, PasswordInput};
 pub use error::AppError;
+pub use files::{DroppedFile, DroppedFiles, safe_file_name, unique_destination};
 pub use host_keys::{HostKeyPrompt, PromptBroker};
 pub use sessions::{AuthMethod, SessionId, SessionInput, SessionRecord, SessionStore};
 pub use terminals::{FLOW_HIGH_WATERMARK, TerminalHub};
+pub use transfers::{TransferEvent, Transfers, remote_join};

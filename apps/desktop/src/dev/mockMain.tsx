@@ -18,6 +18,29 @@ const sessions = new Map<string, SessionRecord>();
 const outputs = new Map<number, { ch: ChannelLike; index: number }>();
 const hostKeyWaiters = new Map<number, (a: HostKeyAnswer) => void>();
 const trustedHosts = new Set<string>();
+const forgotten = new Set<string>();
+const remoteFiles: Record<string, Array<{ name: string; kind: string; size: number | null }>> = {
+  "/home/deploy": [
+    { name: "releases", kind: "dir", size: null },
+    { name: "logs", kind: "dir", size: null },
+    { name: "app.env", kind: "file", size: 312 },
+    { name: "backup-2026-10-30.tar.gz", kind: "file", size: 48_234_112 },
+  ],
+  "/home/deploy/logs": [{ name: "app.log", kind: "file", size: 1_204_331 }],
+  "/home/deploy/releases": [],
+};
+let nextTransfer = 1;
+function progressThen(ch: ChannelLike, total: number, done: unknown) {
+  let index = 0;
+  let sent = 0;
+  const step = () => {
+    sent = Math.min(total, sent + total / 8);
+    window.__TAURI_INTERNALS__.runCallback(ch.id, { index: index++, message: { kind: "progress", transferred: sent, total } });
+    if (sent < total) setTimeout(step, 150);
+    else window.__TAURI_INTERNALS__.runCallback(ch.id, { index: index++, message: done });
+  };
+  setTimeout(step, 100);
+}
 let nextTerm = 1;
 let nextPrompt = 1;
 let nextSession = 1;
@@ -83,6 +106,13 @@ mockIPC(
         const target = req.sessionId ? sessions.get(req.sessionId) : (req.quick as SessionRecord | undefined);
         if (!target) throw { code: "not_found", message: "not found" };
         const hostKey = `${target.host}:${target.port}`;
+        if (target.host === "192.168.1.1" && !forgotten.has(hostKey)) {
+          throw {
+            code: "host_key_changed",
+            message: "HOST KEY CHANGED",
+            detail: { host: target.host, port: target.port, presented: "SHA256:NEWkeyNEWkeyNEWkey", known: ["SHA256:OLDkeyOLDkeyOLDkey"] },
+          };
+        }
         if (!trustedHosts.has(hostKey)) {
           const requestId = nextPrompt++;
           const answer = await new Promise<HostKeyAnswer>((resolve) => {
@@ -118,6 +148,31 @@ mockIPC(
         w?.(a.answer as HostKeyAnswer);
         return w !== undefined;
       }
+      case "sftp_home":
+        return "/home/deploy";
+      case "sftp_list": {
+        const list = remoteFiles[a.path as string];
+        if (!list) throw { code: "sftp_error", message: `No such directory: ${a.path}` };
+        return list.map((e) => ({ ...e, modified: 1_790_000_000, permissions: 0o644 }));
+      }
+      case "sftp_download": {
+        const size = (a.size as number | null) ?? 1000;
+        progressThen(a.onEvent as ChannelLike, size, { kind: "done", destination: `/Users/me/Downloads/${a.name}` });
+        return { id: nextTransfer++, downloadsDir: "/Users/me/Downloads" };
+      }
+      case "sftp_upload": {
+        const dir = a.dir as string;
+        const f = dropTokens.get(a.token as number);
+        if (!f) throw { code: "not_found", message: "not found" };
+        progressThen(a.onEvent as ChannelLike, f.size, { kind: "done", destination: `${dir}/${f.name}` });
+        setTimeout(() => remoteFiles[dir]?.push({ name: f.name, kind: "file", size: f.size }), 1500);
+        return nextTransfer++;
+      }
+      case "transfer_cancel":
+        return true;
+      case "known_host_forget":
+        forgotten.add(`${a.host}:${a.port}`);
+        return { removed: 1, remainingInUserFile: 0 };
       case "terminal_write":
         send(a.id as number, String(a.data).replace(/\r/g, "\r\n$ "));
         return null;
@@ -131,6 +186,18 @@ mockIPC(
   },
   { shouldMockEvents: true },
 );
+
+const dropTokens = new Map<number, { name: string; size: number }>();
+let nextToken = 1;
+// Simulates dropping a file onto the window (real drag-drop is native).
+(window as unknown as { __mockDrop: (name?: string, size?: number) => void }).__mockDrop = (
+  name = "notes.txt",
+  size = 4096,
+) => {
+  const token = nextToken++;
+  dropTokens.set(token, { name, size });
+  void emit("files-dropped", [{ token, name, size }]);
+};
 
 const root = document.getElementById("root");
 if (!root) throw new Error("missing #root");

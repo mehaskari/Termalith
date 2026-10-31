@@ -20,14 +20,19 @@ interface Props {
   open: Opener;
   /** Visible tab: refit and focus when it becomes active. */
   active: boolean;
+  onReady?: (id: TerminalId) => void;
+  onFailed?: (error: unknown) => void;
+  onExited?: () => void;
 }
 
-export function TerminalView({ open, active }: Props) {
+export function TerminalView({ open, active, onReady, onFailed, onExited }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   // `open` must not re-run the effect; keep the first one.
   const openRef = useRef(open);
+  const callbacks = useRef({ onReady, onFailed, onExited });
+  callbacks.current = { onReady, onFailed, onExited };
 
   useEffect(() => {
     const host = hostRef.current;
@@ -79,6 +84,7 @@ export function TerminalView({ open, active }: Props) {
             (payload) => {
               exited = true;
               term.write(`\r\n\x1b[2m[${describeExit(payload)}]\x1b[0m\r\n`);
+              callbacks.current.onExited?.();
             },
           )
           .then(resolve, reject);
@@ -92,12 +98,14 @@ export function TerminalView({ open, active }: Props) {
         }
         id = tid;
         acks.setId(tid);
+        callbacks.current.onReady?.(tid);
         // The window may have been resized while the shell was starting.
         if (term.cols && term.rows) void resizeTerminal(tid, term.cols, term.rows).catch(() => {});
       },
       (e) => {
         startFailed = true;
         if (disposed) return;
+        callbacks.current.onFailed?.(e);
         const lines = connectFailureLines(e);
         term.write(`\r\n\x1b[31m${lines.join("\r\n")}\x1b[0m\r\n`);
       },

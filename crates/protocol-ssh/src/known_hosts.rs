@@ -14,6 +14,9 @@ pub trait KnownHostsStore: Send + Sync {
     fn keys_for(&self, host: &str, port: u16) -> Result<Vec<PublicKey>, SshError>;
     /// Record a key in the writable store.
     fn add(&self, host: &str, port: u16, key: &PublicKey) -> Result<(), SshError>;
+    /// Remove every key recorded for `host:port` from the writable store.
+    /// Read-only sources are never modified.
+    fn remove(&self, host: &str, port: u16) -> Result<RemovedHostKeys, SshError>;
 
     fn status(&self, host: &str, port: u16, key: &PublicKey) -> Result<HostKeyStatus, SshError> {
         let known = self.keys_for(host, port)?;
@@ -29,6 +32,23 @@ pub trait KnownHostsStore: Send + Sync {
                 known_fingerprints: known.iter().map(fingerprint).collect(),
             })
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RemovedHostKeys {
+    pub removed: usize,
+    /// Keys for this host that remain in read-only sources (e.g. the user's
+    /// OpenSSH known_hosts), which this app does not edit.
+    pub remaining_read_only: usize,
+}
+
+/// The host field as OpenSSH writes it.
+fn host_pattern(host: &str, port: u16) -> String {
+    if port == 22 {
+        host.to_owned()
+    } else {
+        format!("[{host}]:{port}")
     }
 }
 
@@ -83,6 +103,48 @@ impl KnownHostsStore for FileKnownHosts {
         let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         learn_known_hosts_path(host, port, key, &self.path)
             .map_err(|e| SshError::KnownHosts(e.to_string()))
+    }
+
+    fn remove(&self, host: &str, port: u16) -> Result<RemovedHostKeys, SshError> {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
+        let mut remaining_read_only = 0;
+        for p in &self.read_only {
+            remaining_read_only += read(p, host, port)?.len();
+        }
+        let content = match std::fs::read_to_string(&self.path) {
+            Ok(c) => c,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(RemovedHostKeys {
+                    removed: 0,
+                    remaining_read_only,
+                });
+            }
+            Err(e) => return Err(SshError::KnownHosts(e.to_string())),
+        };
+        let pattern = host_pattern(host, port);
+        let mut removed = 0;
+        let mut kept = String::with_capacity(content.len());
+        for line in content.lines() {
+            let hosts = line.split_whitespace().next().unwrap_or("");
+            let matches =
+                !line.trim_start().starts_with('#') && hosts.split(',').any(|h| h == pattern);
+            if matches {
+                removed += 1;
+            } else {
+                kept.push_str(line);
+                kept.push('\n');
+            }
+        }
+        if removed > 0 {
+            // Write-then-rename so a crash never leaves a truncated file.
+            let tmp = self.path.with_extension("tmp");
+            std::fs::write(&tmp, kept).map_err(|e| SshError::KnownHosts(e.to_string()))?;
+            std::fs::rename(&tmp, &self.path).map_err(|e| SshError::KnownHosts(e.to_string()))?;
+        }
+        Ok(RemovedHostKeys {
+            removed,
+            remaining_read_only,
+        })
     }
 }
 
@@ -148,6 +210,57 @@ mod tests {
             }
             other => panic!("expected Changed, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn remove_deletes_only_that_host_and_port() {
+        let (_d, s) = store();
+        let (a, b, c) = (ed25519(), ed25519(), ed25519());
+        s.add("example.test", 22, &a).unwrap();
+        s.add("example.test", 2222, &b).unwrap();
+        s.add("other.test", 22, &c).unwrap();
+        let r = s.remove("example.test", 22).unwrap();
+        assert_eq!(
+            r,
+            RemovedHostKeys {
+                removed: 1,
+                remaining_read_only: 0
+            }
+        );
+        assert_eq!(
+            s.status("example.test", 22, &a).unwrap(),
+            HostKeyStatus::Unknown
+        );
+        assert_eq!(
+            s.status("example.test", 2222, &b).unwrap(),
+            HostKeyStatus::Trusted
+        );
+        assert_eq!(
+            s.status("other.test", 22, &c).unwrap(),
+            HostKeyStatus::Trusted
+        );
+        // Removing again is a no-op; a missing file is fine too.
+        assert_eq!(s.remove("example.test", 22).unwrap().removed, 0);
+        assert_eq!(store().1.remove("x", 22).unwrap().removed, 0);
+    }
+
+    #[test]
+    fn remove_reports_but_never_edits_read_only_sources() {
+        let dir = tempfile::tempdir().unwrap();
+        let user_file = dir.path().join("user_known_hosts");
+        learn_known_hosts_path("example.test", 22, &ed25519(), &user_file).unwrap();
+        let before = std::fs::read(&user_file).unwrap();
+        let s = FileKnownHosts::new(dir.path().join("app")).with_read_only(&user_file);
+        s.add("example.test", 22, &ed25519()).unwrap();
+        let r = s.remove("example.test", 22).unwrap();
+        assert_eq!(
+            r,
+            RemovedHostKeys {
+                removed: 1,
+                remaining_read_only: 1
+            }
+        );
+        assert_eq!(std::fs::read(&user_file).unwrap(), before);
     }
 
     #[test]

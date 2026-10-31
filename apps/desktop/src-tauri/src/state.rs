@@ -1,7 +1,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use app_core::{Connector, PromptBroker, SessionStore, TerminalHub};
+use std::path::PathBuf;
+
+use app_core::{Connector, DroppedFiles, PromptBroker, SessionStore, TerminalHub, Transfers};
 use credential_store::{MemorySecretStore, NativeSecretStore, SecretStore};
 use protocol_ssh::FileKnownHosts;
 use tauri::{AppHandle, Emitter, Manager};
@@ -19,6 +21,11 @@ pub struct AppState {
     /// False when the OS credential store is unavailable; passwords are
     /// then never persisted.
     pub secrets_available: bool,
+    pub transfers: Arc<Transfers>,
+    /// Files dropped onto the window; uploads refer to them by token.
+    pub dropped: Arc<DroppedFiles>,
+    /// Where downloads are saved (chosen by the backend, not the UI).
+    pub downloads_dir: PathBuf,
 }
 
 impl AppState {
@@ -56,11 +63,20 @@ impl AppState {
             timeout: CONNECT_TIMEOUT + HOST_KEY_PROMPT_TIMEOUT,
         });
 
+        let downloads_dir = app
+            .path()
+            .download_dir()
+            .or_else(|_| app.path().home_dir())
+            .unwrap_or_else(|_| data_dir.clone());
+
         Ok(Self {
             hub: Arc::new(TerminalHub::with_default_flow()),
             connector,
             broker,
             secrets_available,
+            transfers: Arc::new(Transfers::default()),
+            dropped: Arc::new(DroppedFiles::default()),
+            downloads_dir,
         })
     }
 }

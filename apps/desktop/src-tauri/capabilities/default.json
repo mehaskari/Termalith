@@ -17,6 +17,12 @@
     "allow-session-create",
     "allow-session-update",
     "allow-session-delete",
-    "allow-session-forget-secret"
+    "allow-session-forget-secret",
+    "allow-sftp-home",
+    "allow-sftp-list",
+    "allow-sftp-download",
+    "allow-sftp-upload",
+    "allow-transfer-cancel",
+    "allow-known-host-forget"
   ]
 }

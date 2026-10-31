@@ -410,3 +410,222 @@ async fn secret_is_saved_only_after_a_successful_connection() {
     r.connector.delete_session(&rec.id).await.unwrap();
     assert!(r.connector.secrets.get(&cred).unwrap().is_none());
 }
+
+async fn wait_event(
+    rx: &mut mpsc::UnboundedReceiver<app_core::TransferEvent>,
+) -> app_core::TransferEvent {
+    loop {
+        let ev = tokio::time::timeout(Duration::from_secs(20), rx.recv())
+            .await
+            .expect("transfer event")
+            .expect("channel open");
+        if !matches!(ev, app_core::TransferEvent::Progress { .. }) {
+            return ev;
+        }
+    }
+}
+
+fn event_sink() -> (
+    impl FnMut(app_core::TransferEvent) + Send + 'static,
+    mpsc::UnboundedReceiver<app_core::TransferEvent>,
+) {
+    let (tx, rx) = mpsc::unbounded_channel();
+    (
+        move |e| {
+            let _ = tx.send(e);
+        },
+        rx,
+    )
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn file_browser_transfers_over_the_terminal_connection() {
+    use app_core::{TransferEvent, Transfers};
+    let Some(r) = rig() else { return };
+    let session = trusted_connection(&r).await;
+    let (sink, _c) = collector();
+    let id = r
+        .hub
+        .open_ssh(session, TerminalSize::new(80, 24).unwrap(), sink)
+        .await
+        .unwrap();
+    let remote_dir = r.sshd.remote("files");
+    std::fs::create_dir_all(r.sshd.path("files")).unwrap();
+    std::fs::write(r.sshd.path("files").join("remote.txt"), b"from the server").unwrap();
+
+    let sftp = r.hub.sftp(id).await.unwrap();
+    // Same client is reused for the same terminal.
+    assert!(Arc::ptr_eq(&sftp, &r.hub.sftp(id).await.unwrap()));
+    let listing = sftp.list(&remote_dir).await.unwrap();
+    assert_eq!(
+        listing.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(),
+        ["remote.txt"]
+    );
+
+    let transfers = Arc::new(Transfers::default());
+    let local = tempfile::tempdir().unwrap();
+
+    // Download into a backend-chosen directory; a second download gets a
+    // unique name instead of overwriting.
+    for expected in ["remote.txt", "remote (1).txt"] {
+        let (sink, mut rx) = event_sink();
+        transfers
+            .start_download(
+                sftp.clone(),
+                &remote_dir,
+                "remote.txt",
+                Some(15),
+                local.path().into(),
+                sink,
+            )
+            .unwrap();
+        match wait_event(&mut rx).await {
+            TransferEvent::Done { destination } => {
+                assert_eq!(destination, local.path().join(expected).to_string_lossy());
+                assert_eq!(std::fs::read(&destination).unwrap(), b"from the server");
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    // Untrusted remote names cannot escape the destination directory.
+    let (sink, _rx) = event_sink();
+    assert!(
+        transfers
+            .start_download(
+                sftp.clone(),
+                &remote_dir,
+                "../escape.txt",
+                None,
+                local.path().into(),
+                sink
+            )
+            .is_err()
+    );
+
+    // Upload keeps the name and refuses to overwrite.
+    let up = local.path().join("upload.bin");
+    std::fs::write(&up, vec![7u8; 300_000]).unwrap();
+    let (sink, mut rx) = event_sink();
+    transfers
+        .start_upload(sftp.clone(), up.clone(), &remote_dir, sink)
+        .unwrap();
+    assert!(matches!(
+        wait_event(&mut rx).await,
+        TransferEvent::Done { .. }
+    ));
+    assert_eq!(
+        std::fs::read(r.sshd.path("files").join("upload.bin"))
+            .unwrap()
+            .len(),
+        300_000
+    );
+    let (sink, mut rx) = event_sink();
+    transfers
+        .start_upload(sftp.clone(), up, &remote_dir, sink)
+        .unwrap();
+    match wait_event(&mut rx).await {
+        TransferEvent::Failed { message } => {
+            assert!(message.contains("already exists"), "{message}")
+        }
+        other => panic!("{other:?}"),
+    }
+
+    // Cancelling a large download leaves nothing behind.
+    std::fs::write(
+        r.sshd.path("files").join("big.bin"),
+        vec![1u8; 20 * 1024 * 1024],
+    )
+    .unwrap();
+    let (sink, mut rx) = event_sink();
+    let tid = transfers
+        .start_download(
+            sftp.clone(),
+            &remote_dir,
+            "big.bin",
+            None,
+            local.path().into(),
+            sink,
+        )
+        .unwrap();
+    assert!(transfers.cancel(tid));
+    assert_eq!(wait_event(&mut rx).await, TransferEvent::Cancelled);
+    assert!(!local.path().join("big.bin").exists());
+    assert!(std::fs::read_dir(local.path()).unwrap().all(|e| {
+        !e.unwrap()
+            .file_name()
+            .to_string_lossy()
+            .contains("termalith-part")
+    }));
+    let start = Instant::now();
+    while transfers.active_count() > 0 {
+        assert!(start.elapsed() < Duration::from_secs(5));
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    // SFTP is not available on local terminals.
+    let local_term = r
+        .hub
+        .open_local(
+            &terminal_pty::default_shell().unwrap(),
+            TerminalSize::new(80, 24).unwrap(),
+            |_| true,
+        )
+        .unwrap();
+    assert!(matches!(
+        r.hub.sftp(local_term).await,
+        Err(AppError::Invalid { .. })
+    ));
+    r.hub.close_all();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn forgetting_a_changed_key_allows_a_fresh_prompt() {
+    let Some(mut r) = rig() else { return };
+    let impostor = protocol_ssh::PublicKey::from_openssh(
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM2lES7/sb57Bd3YUeuSm4Hzfn0koMxFvyrAdqlrzQwa old",
+    )
+    .unwrap();
+    r.known_hosts
+        .add("127.0.0.1", r.sshd.port, &impostor)
+        .unwrap();
+    let rec = key_session(&r);
+    let changed = r
+        .connector
+        .connect(ConnectRequest::Saved {
+            id: rec.id.clone(),
+            secret: PasswordInput::None,
+        })
+        .await;
+    assert!(matches!(
+        changed,
+        Err(AppError::Ssh(protocol_ssh::SshError::HostKeyChanged { .. }))
+    ));
+
+    let removed = r
+        .connector
+        .forget_host_key("127.0.0.1", r.sshd.port)
+        .unwrap();
+    assert_eq!(removed.removed, 1);
+
+    let c = r.connector.clone();
+    let connecting = tokio::spawn(async move {
+        c.connect(ConnectRequest::Saved {
+            id: rec.id,
+            secret: PasswordInput::None,
+        })
+        .await
+    });
+    let prompt = r.prompts.recv().await.unwrap();
+    assert_eq!(prompt.fingerprint, host_fp(&r));
+    r.broker
+        .respond(prompt.request_id, HostKeyDecision::AcceptAndSave);
+    connecting
+        .await
+        .unwrap()
+        .expect("connect after re-trust")
+        .session
+        .disconnect()
+        .await
+        .unwrap();
+}

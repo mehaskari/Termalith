@@ -108,3 +108,27 @@ pub fn host_key_respond(
     };
     state.broker.respond(request_id, decision)
 }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForgetResult {
+    removed: usize,
+    /// Keys still recorded in the user's own OpenSSH known_hosts, which
+    /// Termalith does not edit.
+    remaining_in_user_file: usize,
+}
+
+/// Removes recorded keys for a host after the user verified a changed key.
+/// Only the app's own known_hosts file is modified.
+#[tauri::command]
+pub fn known_host_forget(
+    state: State<'_, AppState>,
+    host: String,
+    port: u16,
+) -> Result<ForgetResult, IpcError> {
+    let r = state.connector.forget_host_key(&host, port)?;
+    Ok(ForgetResult {
+        removed: r.removed,
+        remaining_in_user_file: r.remaining_read_only,
+    })
+}

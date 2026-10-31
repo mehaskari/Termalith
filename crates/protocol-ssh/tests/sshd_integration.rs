@@ -921,18 +921,23 @@ async fn proxy_jump_refused_by_server_policy() {
     }
 }
 
-/// TCP echo server on loopback; returns its port.
+/// TCP echo server on loopback (IPv4 and, where available, IPv6 on the
+/// same port, since "localhost" may resolve to ::1 first, e.g. on
+/// Windows); returns its port.
 async fn echo_server() -> u16 {
-    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let port = l.local_addr().unwrap().port();
-    tokio::spawn(async move {
-        while let Ok((mut s, _)) = l.accept().await {
-            tokio::spawn(async move {
-                let (mut r, mut w) = s.split();
-                let _ = tokio::io::copy(&mut r, &mut w).await;
-            });
-        }
-    });
+    let v4 = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = v4.local_addr().unwrap().port();
+    let v6 = tokio::net::TcpListener::bind(("::1", port)).await.ok();
+    for l in std::iter::once(v4).chain(v6) {
+        tokio::spawn(async move {
+            while let Ok((mut s, _)) = l.accept().await {
+                tokio::spawn(async move {
+                    let (mut r, mut w) = s.split();
+                    let _ = tokio::io::copy(&mut r, &mut w).await;
+                });
+            }
+        });
+    }
     port
 }
 

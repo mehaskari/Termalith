@@ -36,6 +36,10 @@
     "allow-settings-save",
     "allow-session-set-favorite",
     "allow-sessions-export",
-    "allow-sessions-import"
+    "allow-sessions-import",
+    "allow-snippets-list",
+    "allow-snippet-create",
+    "allow-snippet-update",
+    "allow-snippet-delete"
   ]
 }

@@ -35,6 +35,10 @@ fn main() {
             "session_set_favorite",
             "sessions_export",
             "sessions_import",
+            "snippets_list",
+            "snippet_create",
+            "snippet_update",
+            "snippet_delete",
         ]),
     ))
     .expect("failed to run tauri-build");

@@ -172,6 +172,15 @@ const MIGRATIONS: &[&str] = &[
     // v4: favorites and application settings.
     "ALTER TABLE sessions ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;
     CREATE TABLE settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);",
+    // v5: command snippets.
+    "CREATE TABLE snippets (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        command TEXT NOT NULL,
+        folder TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+    );",
 ];
 
 pub struct SessionStore {

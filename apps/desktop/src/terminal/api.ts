@@ -286,3 +286,20 @@ export const openSerial =
 export function serialSummary(c: SerialConfig): string {
   return `${c.baudRate} ${c.dataBits}${c.parity[0]?.toUpperCase() ?? "N"}${c.stopBits}`;
 }
+
+// ---------------------------------------------------------------- snippets
+
+export interface SnippetInput {
+  name: string;
+  command: string;
+  folder: string | null;
+}
+
+export interface Snippet extends SnippetInput {
+  id: string;
+}
+
+export const listSnippets = () => invoke<Snippet[]>("snippets_list");
+export const createSnippet = (input: SnippetInput) => invoke<Snippet>("snippet_create", { input });
+export const updateSnippet = (id: string, input: SnippetInput) => invoke<Snippet>("snippet_update", { id, input });
+export const deleteSnippet = (id: string) => invoke<void>("snippet_delete", { id });

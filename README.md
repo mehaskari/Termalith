@@ -77,6 +77,7 @@ corepack pnpm test
 - Serial consoles (COM / tty): port discovery, baud, data bits, parity, stop bits, flow control.
 - Command snippets with `{{variables}}`, a preview of exactly what will be typed, and an explicit "press Enter" choice.
 - Network tools tab: ping, traceroute, TCP port check, DNS lookup, IPv4 subnet calculator.
+- Find in terminal output; shortcuts for tabs, copy/paste and font zoom (Cmd on macOS, Ctrl+Shift elsewhere).
 - SFTP side panel per SSH tab: browse, download to the Downloads folder, upload by dropping files on the window, progress and cancel.
 
 Not yet: remote forwards (-R), RDP/VNC, tags/favorites, transfer retry.

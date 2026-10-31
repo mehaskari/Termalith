@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { SearchAddon } from "@xterm/addon-search";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -26,6 +27,8 @@ interface Props {
   onExited?: () => void;
   settings?: Settings;
   theme?: ResolvedTheme;
+  /** One-shot command from a keyboard shortcut; `seq` changes per request. */
+  command?: { seq: number; action: "find" | "copy" | "paste" };
 }
 
 export function TerminalView({
@@ -36,7 +39,13 @@ export function TerminalView({
   onExited,
   settings = DEFAULT_SETTINGS,
   theme = "dark",
+  command,
 }: Props) {
+  const searchRef = useRef<SearchAddon | null>(null);
+  const findInput = useRef<HTMLInputElement>(null);
+  const [findOpen, setFindOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [caseSensitive, setCaseSensitive] = useState(false);
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -58,9 +67,14 @@ export function TerminalView({
       fontSize: s.fontSize,
       scrollback: s.scrollback,
       theme: TERMINAL_THEMES[initial.current.theme],
+      // Needed by the search addon's match decorations.
+      allowProposedApi: true,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
+    const search = new SearchAddon();
+    term.loadAddon(search);
+    searchRef.current = search;
     term.open(host);
     try {
       const webgl = new WebglAddon();
@@ -160,8 +174,44 @@ export function TerminalView({
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
+      searchRef.current = null;
     };
   }, []);
+
+  // Shortcut commands (find / copy / paste) for this terminal.
+  useEffect(() => {
+    if (!command) return;
+    const term = termRef.current;
+    if (!term) return;
+    if (command.action === "find") {
+      setFindOpen(true);
+      requestAnimationFrame(() => findInput.current?.select());
+    } else if (command.action === "copy") {
+      const sel = term.getSelection();
+      if (sel) void navigator.clipboard.writeText(sel).catch(() => {});
+    } else {
+      void navigator.clipboard.readText().then((t) => t && term.paste(t), () => {});
+    }
+    // Only react to new requests.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [command?.seq]);
+
+  const find = (backwards: boolean) => {
+    const s = searchRef.current;
+    if (!s || !query) return;
+    const opts = {
+      caseSensitive,
+      decorations: { matchOverviewRuler: "#e6b45c", activeMatchColorOverviewRuler: "#7fd1b9", matchBackground: "#5c4a1f", activeMatchBackground: "#1f5c4a" },
+    };
+    if (backwards) s.findPrevious(query, opts);
+    else s.findNext(query, opts);
+  };
+
+  const closeFind = () => {
+    setFindOpen(false);
+    searchRef.current?.clearDecorations();
+    termRef.current?.focus();
+  };
 
   // Apply setting and theme changes to the live terminal.
   useEffect(() => {
@@ -185,5 +235,48 @@ export function TerminalView({
     return () => cancelAnimationFrame(frame);
   }, [active]);
 
-  return <div ref={hostRef} className="terminal-host" />;
+  return (
+    <div className="terminal-wrap">
+      <div ref={hostRef} className="terminal-host" />
+      {findOpen && (
+        <form
+          className="find-bar"
+          role="search"
+          onSubmit={(e) => {
+            e.preventDefault();
+            find(false);
+          }}
+        >
+          <input
+            ref={findInput}
+            autoFocus
+            value={query}
+            placeholder="Find"
+            aria-label="Find in terminal"
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") closeFind();
+              if (e.key === "Enter" && e.shiftKey) {
+                e.preventDefault();
+                find(true);
+              }
+            }}
+          />
+          <button type="button" className="icon" aria-pressed={caseSensitive} title="Match case" aria-label="Match case"
+            onClick={() => setCaseSensitive((c) => !c)}>
+            Aa
+          </button>
+          <button type="button" className="icon" title="Previous (Shift+Enter)" aria-label="Previous match" onClick={() => find(true)}>
+            ↑
+          </button>
+          <button type="submit" className="icon" title="Next (Enter)" aria-label="Next match">
+            ↓
+          </button>
+          <button type="button" className="icon" title="Close (Esc)" aria-label="Close find" onClick={closeFind}>
+            ×
+          </button>
+        </form>
+      )}
+    </div>
+  );
 }

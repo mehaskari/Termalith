@@ -45,6 +45,7 @@ import { SettingsDialog } from "./ui/SettingsDialog";
 import { SerialDialog } from "./ui/SerialDialog";
 import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
 import { resolveTheme } from "./ui/theme";
+import { isMacPlatform, matchShortcut } from "./ui/shortcuts";
 import { Sidebar } from "./ui/Sidebar";
 import { targetLabel } from "./ui/sessionList";
 
@@ -57,6 +58,8 @@ interface Tab {
   /** Connection over (failed, or the remote shell exited). */
   ended?: boolean;
   filesOpen?: boolean;
+  /** Latest shortcut command for the main terminal of this tab. */
+  command?: { seq: number; action: "find" | "copy" | "paste" };
   tunnelsOpen?: boolean;
   snippetsOpen?: boolean;
   /** Set when the connection was refused because the host key changed. */
@@ -279,6 +282,50 @@ export function App() {
     void respondHostKey(prompt.requestId, answer);
   }
 
+  // Keyboard shortcuts (captured before the terminal sees the key).
+  const shortcutState = useRef({ tabs, active, settings });
+  shortcutState.current = { tabs, active, settings };
+  useEffect(() => {
+    const mac = isMacPlatform();
+    const onKey = (e: KeyboardEvent) => {
+      const action = matchShortcut(e, mac);
+      if (!action) return;
+      if (document.querySelector("dialog[open]")) return; // dialogs keep their keys
+      e.preventDefault();
+      e.stopPropagation();
+      const { tabs: ts, active: a, settings: s } = shortcutState.current;
+      const i = ts.findIndex((t) => t.key === a);
+      switch (action) {
+        case "newTab":
+          openLocal();
+          break;
+        case "closeTab":
+          if (a !== null) closeTab(a);
+          break;
+        case "nextTab":
+        case "prevTab":
+          if (ts.length) {
+            const n = (i + (action === "nextTab" ? 1 : -1) + ts.length) % ts.length;
+            setActive(ts[n]?.key ?? null);
+          }
+          break;
+        case "zoomIn":
+        case "zoomOut":
+        case "zoomReset": {
+          const size = action === "zoomReset" ? 13 : Math.min(32, Math.max(8, s.fontSize + (action === "zoomIn" ? 1 : -1)));
+          const next = { ...s, fontSize: size };
+          setSettings(next);
+          void saveSettings(next).catch(() => {});
+          break;
+        }
+        default:
+          if (a !== null) patchTab(a, { command: { seq: performance.now(), action } });
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [openLocal, closeTab, patchTab]);
+
   const currentPrompt = hostKeyPrompts[0];
   const activeTab = tabs.find((t) => t.key === active);
   activeRef.current = activeTab;
@@ -457,6 +504,7 @@ export function App() {
                       onExited={() => patchTab(t.key, { ended: true, filesOpen: false, tunnelsOpen: false, snippetsOpen: false })}
                       settings={settings}
                       theme={theme}
+                      command={t.command}
                     />
                   </div>
                   {t.splits.map((s) => (

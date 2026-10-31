@@ -825,3 +825,31 @@ button.icon.starred {
 .tab-kind.tools {
   background: #9aa8ff;
 }
+
+.terminal-wrap {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+.find-bar {
+  position: absolute;
+  top: 6px;
+  right: 16px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.3);
+}
+.find-bar input {
+  width: 200px;
+  padding: 3px 6px;
+}
+.find-bar button[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}

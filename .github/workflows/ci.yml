@@ -18,6 +18,16 @@ env:
   COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
 
 jobs:
+  deny:
+    name: cargo-deny (advisories, licenses, sources)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check
+
   build-test:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -29,12 +39,16 @@ jobs:
           - name: macOS arm64
             os: macos-latest
             bin: target/debug/termalith-desktop
+            require_sshd: "1"
           - name: Windows x64
             os: windows-latest
             bin: target/debug/termalith-desktop.exe
+            # sshd-based tests are attempted but may skip on Windows.
+            require_sshd: "0"
           - name: Linux x64
             os: ubuntu-latest
             bin: target/debug/termalith-desktop
+            require_sshd: "1"
 
     steps:
       # Third-party actions are pinned to full commit SHAs.
@@ -53,7 +67,28 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
             libayatana-appindicator3-dev libssl-dev build-essential \
-            xvfb
+            xvfb openssh-server
+
+      # A real root-run sshd and a throwaway account so password
+      # authentication can be tested (an unprivileged sshd cannot verify
+      # passwords). Localhost only, random password, ephemeral runner.
+      - name: Set up system sshd for password-auth test (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          PW="$(openssl rand -hex 16)"
+          echo "::add-mask::$PW"
+          sudo useradd -m -s /bin/bash termalith-test
+          echo "termalith-test:$PW" | sudo chpasswd
+          printf 'Match User termalith-test Address 127.0.0.1\n  PasswordAuthentication yes\n' \
+            | sudo tee /etc/ssh/sshd_config.d/00-termalith-test.conf >/dev/null
+          sudo sshd -t
+          sudo systemctl restart ssh || sudo service ssh restart
+          {
+            echo "TERMALITH_TEST_SSH_HOST=127.0.0.1"
+            echo "TERMALITH_TEST_SSH_PORT=22"
+            echo "TERMALITH_TEST_SSH_USER=termalith-test"
+            echo "TERMALITH_TEST_SSH_PASSWORD=$PW"
+          } >> "$GITHUB_ENV"
 
       - name: Install Rust toolchain (from rust-toolchain.toml)
         shell: bash
@@ -79,7 +114,9 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Rust tests
-        run: cargo test --workspace
+        env:
+          TERMALITH_REQUIRE_SSHD: ${{ matrix.require_sshd }}
+        run: cargo test --workspace -- --nocapture
 
       - name: TypeScript typecheck
         run: corepack pnpm typecheck

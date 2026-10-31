@@ -40,17 +40,6 @@ It should combine terminal access, remote file management, remote desktop connec
 - Command snippets and macros
 - Multi-tab and split-pane interface
 
-## Documentation
-
-- `MASTER_SPEC.md` — Product requirements and functional specification.
-- `ARCHITECTURE.md` — Proposed technical architecture.
-- `ROADMAP.md` — Development phases.
-- `TASKS.md` — Initial implementation backlog.
-- `SECURITY.md` — Security requirements and threat considerations.
-- `DECISIONS.md` — Architecture decision records.
-- `AGENTS.md` — Instructions for AI coding agents.
-- `MACOS_DEVELOPMENT.md` — macOS-first development setup and workflow.
-
 ## Naming notice
 
 Termalith is the selected working name. It is not yet claimed or legally cleared.
@@ -75,7 +64,6 @@ cargo test --workspace
 corepack pnpm test
 ```
 
-See `docs/phase0/macos-terminal-spike.md` for scope, verification status, and findings.
 
 ## What works today (first usable version)
 
@@ -87,6 +75,6 @@ See `docs/phase0/macos-terminal-spike.md` for scope, verification status, and fi
 - Host-key verification: dialog for unknown keys; changed keys are refused with an explicit warning and a deliberate "remove recorded key" step.
 - SFTP side panel per SSH tab: browse, download to the Downloads folder, upload by dropping files on the window, progress and cancel.
 
-Not yet: port forwarding/tunnels, serial, RDP/VNC, tags/favorites, transfer retry. See `TASKS.md`.
+Not yet: port forwarding/tunnels, serial, RDP/VNC, tags/favorites, transfer retry.
 
 UI preview without a backend (development only): run `corepack pnpm --filter @termalith/desktop dev` and open `http://localhost:1420/mock.html`.

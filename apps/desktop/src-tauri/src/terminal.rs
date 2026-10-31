@@ -145,3 +145,23 @@ pub fn tunnel_list(
 pub fn tunnel_stop(state: State<'_, AppState>, id: u64) -> bool {
     state.tunnels.stop(id)
 }
+
+#[tauri::command]
+pub fn serial_ports() -> Result<Vec<serial_console::PortInfo>, IpcError> {
+    serial_console::list_ports().map_err(|e| app_core::AppError::from(e).into())
+}
+
+#[tauri::command]
+pub async fn serial_open(
+    state: State<'_, AppState>,
+    config: serial_console::SerialConfig,
+    on_output: Channel<InvokeResponseBody>,
+    on_exit: Channel<ExitPayload>,
+) -> Result<u64, IpcError> {
+    let hub = state.hub.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(hub.open_serial(&config, channel_sink(on_output, on_exit))?)
+    })
+    .await
+    .map_err(|_| IpcError::internal("serial task failed"))?
+}

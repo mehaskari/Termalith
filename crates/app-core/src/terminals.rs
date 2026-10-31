@@ -3,6 +3,7 @@
 //! the same events, ack-based flow control and lifecycle.
 
 use std::collections::HashMap;
+use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -23,6 +24,13 @@ pub const FLOW_HIGH_WATERMARK: usize = 512 * 1024;
 enum Entry {
     Local(TerminalId),
     Ssh(Arc<SshTerminal>),
+    Serial(Arc<SerialTerminal>),
+}
+
+struct SerialTerminal {
+    writer: Mutex<serial_console::SerialWriter>,
+    gate: Arc<AsyncGate>,
+    cancel: CancellationToken,
 }
 
 /// One SSH connection, shared by every terminal (split pane) opened on it.
@@ -135,7 +143,9 @@ impl TerminalHub {
     ) -> Result<u64, AppError> {
         let conn = match self.target(id)? {
             Target::Ssh(t) => Arc::clone(&t.conn),
-            Target::Local(_) => return Err(AppError::invalid("terminal", "not an SSH terminal")),
+            Target::Local(_) | Target::Serial(_) => {
+                return Err(AppError::invalid("terminal", "not an SSH terminal"));
+            }
         };
         self.open_shell_on(conn, size, sink).await
     }
@@ -214,8 +224,70 @@ impl TerminalHub {
     pub fn ssh_session(&self, id: u64) -> Result<Arc<SshSession>, AppError> {
         match self.target(id)? {
             Target::Ssh(t) => Ok(Arc::clone(&t.conn.session)),
-            Target::Local(_) => Err(AppError::invalid("terminal", "not an SSH terminal")),
+            Target::Local(_) | Target::Serial(_) => {
+                Err(AppError::invalid("terminal", "not an SSH terminal"))
+            }
         }
+    }
+
+    /// Opens a serial console. Blocking (opens the device); call off the UI
+    /// thread. The terminal ends when closed or when the device goes away.
+    pub fn open_serial(
+        &self,
+        cfg: &serial_console::SerialConfig,
+        mut sink: impl TerminalEventSink,
+    ) -> Result<u64, AppError> {
+        let (mut reader, writer) = serial_console::open(cfg)?;
+        let id = self.alloc();
+        let gate = Arc::new(AsyncGate::default());
+        let cancel = CancellationToken::new();
+        self.lock().insert(
+            id,
+            Entry::Serial(Arc::new(SerialTerminal {
+                writer: Mutex::new(writer),
+                gate: Arc::clone(&gate),
+                cancel: cancel.clone(),
+            })),
+        );
+        let entries = Arc::downgrade(&self.entries);
+        std::thread::Builder::new()
+            .name(format!("serial-{id}"))
+            .spawn(move || {
+                let mut buf = vec![0u8; 16 * 1024];
+                let mut receiver_alive = true;
+                while !cancel.is_cancelled() {
+                    if gate.in_flight() >= FLOW_HIGH_WATERMARK {
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                        continue;
+                    }
+                    match reader.read(&mut buf) {
+                        Ok(0) => {}
+                        Ok(n) => {
+                            gate.add(n);
+                            if !sink.emit(TerminalEvent::Output(buf[..n].to_vec())) {
+                                receiver_alive = false;
+                                break;
+                            }
+                        }
+                        Err(e)
+                            if matches!(
+                                e.kind(),
+                                std::io::ErrorKind::TimedOut
+                                    | std::io::ErrorKind::WouldBlock
+                                    | std::io::ErrorKind::Interrupted
+                            ) => {}
+                        Err(_) => break, // device unplugged or failed
+                    }
+                }
+                if receiver_alive {
+                    let _ = sink.emit(TerminalEvent::Exited(None));
+                }
+                if let Some(e) = entries.upgrade() {
+                    e.lock().unwrap_or_else(|p| p.into_inner()).remove(&id);
+                }
+            })
+            .map_err(|e| AppError::Serial(e.to_string()))?;
+        Ok(id)
     }
 
     /// Whether `id` is an SSH terminal (as opposed to a local one).
@@ -227,7 +299,9 @@ impl TerminalHub {
     pub fn connection_users(&self, id: u64) -> Result<usize, AppError> {
         match self.target(id)? {
             Target::Ssh(t) => Ok(t.conn.users.load(Ordering::SeqCst)),
-            Target::Local(_) => Err(AppError::invalid("terminal", "not an SSH terminal")),
+            Target::Local(_) | Target::Serial(_) => {
+                Err(AppError::invalid("terminal", "not an SSH terminal"))
+            }
         }
     }
 
@@ -246,6 +320,16 @@ impl TerminalHub {
                 blocking(move || local.write(lid, &data).map_err(AppError::from)).await
             }
             Target::Ssh(t) => Ok(t.writer.write(data).await?),
+            Target::Serial(t) => {
+                let data = data.to_vec();
+                blocking(move || {
+                    let mut w = t.writer.lock().unwrap_or_else(|e| e.into_inner());
+                    w.write_all(&data)
+                        .and_then(|()| w.flush())
+                        .map_err(|e| AppError::Serial(e.to_string()))
+                })
+                .await
+            }
         }
     }
 
@@ -256,6 +340,8 @@ impl TerminalHub {
                 .writer
                 .resize(u32::from(size.cols()), u32::from(size.rows()))
                 .await?),
+            // A serial line has no window size.
+            Target::Serial(_) => Ok(()),
         }
     }
 
@@ -264,7 +350,9 @@ impl TerminalHub {
     pub async fn sftp(&self, id: u64) -> Result<Arc<SftpClient>, AppError> {
         let t = match self.target(id)? {
             Target::Ssh(t) => t,
-            Target::Local(_) => return Err(AppError::invalid("terminal", "not an SSH terminal")),
+            Target::Local(_) | Target::Serial(_) => {
+                return Err(AppError::invalid("terminal", "not an SSH terminal"));
+            }
         };
         let mut slot = t.conn.sftp.lock().await;
         if let Some(c) = slot.as_ref() {
@@ -279,6 +367,10 @@ impl TerminalHub {
         match self.target(id)? {
             Target::Local(lid) => Ok(self.local.ack(lid, bytes)?),
             Target::Ssh(t) => {
+                t.gate.ack(bytes);
+                Ok(())
+            }
+            Target::Serial(t) => {
                 t.gate.ack(bytes);
                 Ok(())
             }
@@ -303,6 +395,11 @@ impl TerminalHub {
                 t.release().await;
                 Ok(())
             }
+            Entry::Serial(t) => {
+                t.cancel.cancel();
+                t.gate.close();
+                Ok(())
+            }
         }
     }
 
@@ -310,9 +407,16 @@ impl TerminalHub {
     pub fn close_all(&self) {
         let drained: Vec<Entry> = self.lock().drain().map(|(_, e)| e).collect();
         for e in drained {
-            if let Entry::Ssh(t) = e {
-                t.cancel.cancel();
-                t.gate.close();
+            match e {
+                Entry::Ssh(t) => {
+                    t.cancel.cancel();
+                    t.gate.close();
+                }
+                Entry::Serial(t) => {
+                    t.cancel.cancel();
+                    t.gate.close();
+                }
+                Entry::Local(_) => {}
             }
         }
         self.local.close_all();
@@ -330,6 +434,7 @@ impl TerminalHub {
         match self.lock().get(&id) {
             Some(Entry::Local(l)) => Ok(Target::Local(*l)),
             Some(Entry::Ssh(t)) => Ok(Target::Ssh(Arc::clone(t))),
+            Some(Entry::Serial(t)) => Ok(Target::Serial(Arc::clone(t))),
             None => Err(AppError::NotFound),
         }
     }
@@ -338,6 +443,7 @@ impl TerminalHub {
 enum Target {
     Local(TerminalId),
     Ssh(Arc<SshTerminal>),
+    Serial(Arc<SerialTerminal>),
 }
 
 async fn blocking<T: Send + 'static>(
@@ -356,6 +462,10 @@ struct AsyncGate {
 }
 
 impl AsyncGate {
+    fn in_flight(&self) -> usize {
+        self.state.lock().unwrap_or_else(|e| e.into_inner()).0
+    }
+
     fn add(&self, n: usize) {
         self.state.lock().unwrap_or_else(|e| e.into_inner()).0 += n;
     }

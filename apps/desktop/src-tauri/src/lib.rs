@@ -54,6 +54,8 @@ pub fn run() {
             terminal::tunnel_start,
             terminal::tunnel_list,
             terminal::tunnel_stop,
+            terminal::serial_ports,
+            terminal::serial_open,
             ssh::ssh_open,
             ssh::host_key_respond,
             sessions::app_info,

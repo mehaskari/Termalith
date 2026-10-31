@@ -26,7 +26,9 @@ import {
   listSessions,
   openLocalTerminal,
   openSsh,
+  openSerial,
   respondHostKey,
+  serialSummary,
   splitTerminal,
   updateSession,
 } from "./terminal/api";
@@ -38,6 +40,7 @@ import { type PasswordAnswer, PasswordDialog } from "./ui/PasswordDialog";
 import { SessionDialog } from "./ui/SessionDialog";
 import { TunnelsPanel } from "./ui/TunnelsPanel";
 import { SettingsDialog } from "./ui/SettingsDialog";
+import { SerialDialog } from "./ui/SerialDialog";
 import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
 import { resolveTheme } from "./ui/theme";
 import { Sidebar } from "./ui/Sidebar";
@@ -46,7 +49,7 @@ import { targetLabel } from "./ui/sessionList";
 interface Tab {
   key: number;
   title: string;
-  kind: "local" | "ssh";
+  kind: "local" | "ssh" | "serial";
   open: Opener;
   terminalId?: TerminalId;
   /** Connection over (failed, or the remote shell exited). */
@@ -96,6 +99,7 @@ export function App() {
   const [importing, setImporting] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [serialOpen, setSerialOpen] = useState(false);
   const [transferMode, setTransferMode] = useState<"export" | "import" | null>(null);
   const [systemDark, setSystemDark] = useState(
     () => typeof window.matchMedia !== "function" || window.matchMedia("(prefers-color-scheme: dark)").matches,
@@ -320,6 +324,7 @@ export function App() {
         onExport={() => setTransferMode("export")}
         onImportSessions={() => setTransferMode("import")}
         onSettings={() => setSettingsOpen(true)}
+        onSerial={() => setSerialOpen(true)}
       />
       <main className="workspace">
         <div className="tabbar" role="tablist">
@@ -377,7 +382,7 @@ export function App() {
                       type="button"
                       title="Split side by side"
                       aria-label="Split side by side"
-                      disabled={t.terminalId === undefined || t.ended}
+                      disabled={t.terminalId === undefined || t.ended || t.kind === "serial"}
                       onClick={() => splitTab(t, "row")}
                     >
                       ◫
@@ -386,7 +391,7 @@ export function App() {
                       type="button"
                       title="Split top and bottom"
                       aria-label="Split top and bottom"
-                      disabled={t.terminalId === undefined || t.ended}
+                      disabled={t.terminalId === undefined || t.ended || t.kind === "serial"}
                       onClick={() => splitTab(t, "column")}
                     >
                       ⊟
@@ -497,6 +502,15 @@ export function App() {
           key={currentPrompt.requestId}
           prompt={currentPrompt}
           onAnswer={(a) => answerHostKey(currentPrompt, a)}
+        />
+      )}
+      {serialOpen && (
+        <SerialDialog
+          onCancel={() => setSerialOpen(false)}
+          onOpen={(config) => {
+            setSerialOpen(false);
+            addTab(`${config.path.split("/").pop()} ${serialSummary(config)}`, "serial", openSerial(config));
+          }}
         />
       )}
       {settingsOpen && (

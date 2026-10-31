@@ -19,6 +19,13 @@ ignore = [
     # Unmaintained (not a vulnerability): build-time proc macro used by the
     # gtk-rs 0.18 stack under Tauri on Linux. No safe upgrade available.
     { id = "RUSTSEC-2024-0370", reason = "build-time only, via gtk-rs/Tauri" },
+    # zvariant, zvariant_derive, zbus_names were merged into zbus 6 and are
+    # flagged "unmaintained" (not vulnerabilities). Linux-only, pulled in by
+    # secret-service (Secret Service backend of credential-store), which is
+    # still on zbus 5. Drop these once it moves to zbus 6.
+    { id = "RUSTSEC-2026-0370", reason = "merged into zbus 6; via secret-service" },
+    { id = "RUSTSEC-2026-0371", reason = "merged into zbus 6; via secret-service" },
+    { id = "RUSTSEC-2026-0372", reason = "merged into zbus 6; via secret-service" },
 ]
 
 [licenses]

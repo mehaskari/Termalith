@@ -210,6 +210,14 @@ impl TerminalHub {
         Ok(id)
     }
 
+    /// The SSH connection behind terminal `id` (for tunnels).
+    pub fn ssh_session(&self, id: u64) -> Result<Arc<SshSession>, AppError> {
+        match self.target(id)? {
+            Target::Ssh(t) => Ok(Arc::clone(&t.conn.session)),
+            Target::Local(_) => Err(AppError::invalid("terminal", "not an SSH terminal")),
+        }
+    }
+
     /// Whether `id` is an SSH terminal (as opposed to a local one).
     pub fn is_ssh(&self, id: u64) -> Result<bool, AppError> {
         Ok(matches!(self.target(id)?, Target::Ssh(_)))

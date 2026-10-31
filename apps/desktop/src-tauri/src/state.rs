@@ -3,7 +3,9 @@ use std::time::Duration;
 
 use std::path::PathBuf;
 
-use app_core::{Connector, DroppedFiles, PromptBroker, SessionStore, TerminalHub, Transfers};
+use app_core::{
+    Connector, DroppedFiles, PromptBroker, SessionStore, TerminalHub, Transfers, Tunnels,
+};
 use credential_store::{MemorySecretStore, NativeSecretStore, SecretStore};
 use protocol_ssh::FileKnownHosts;
 use tauri::{AppHandle, Emitter, Manager};
@@ -22,6 +24,7 @@ pub struct AppState {
     /// then never persisted.
     pub secrets_available: bool,
     pub transfers: Arc<Transfers>,
+    pub tunnels: Arc<Tunnels>,
     /// Files dropped onto the window; uploads refer to them by token.
     pub dropped: Arc<DroppedFiles>,
     /// Where downloads are saved (chosen by the backend, not the UI).
@@ -96,6 +99,7 @@ impl AppState {
             broker,
             secrets_available,
             transfers: Arc::new(Transfers::default()),
+            tunnels: Arc::new(Tunnels::default()),
             dropped: Arc::new(DroppedFiles::default()),
             downloads_dir,
             home_dir: app.path().home_dir().ok(),

@@ -30,6 +30,8 @@ const remoteFiles: Record<string, Array<{ name: string; kind: string; size: numb
   "/home/deploy/releases": [],
 };
 let nextTransfer = 1;
+let nextTunnel = 1;
+const tunnels: Array<Record<string, unknown> & { id: number; terminalId: number }> = [];
 function progressThen(ch: ChannelLike, total: number, done: unknown) {
   let index = 0;
   let sent = 0;
@@ -188,6 +190,19 @@ mockIPC(
         progressThen(a.onEvent as ChannelLike, f.size, { kind: "done", destination: `${dir}/${f.name}` });
         setTimeout(() => remoteFiles[dir]?.push({ name: f.name, kind: "file", size: f.size }), 1500);
         return nextTransfer++;
+      }
+      case "tunnel_start": {
+        const spec = a.spec as { kind: string; localPort: number; allowRemoteClients: boolean; remoteHost?: string; remotePort?: number };
+        const id = nextTunnel++;
+        tunnels.push({ ...spec, id, terminalId: a.terminalId as number, localAddress: `${spec.allowRemoteClients ? "0.0.0.0" : "127.0.0.1"}:${spec.localPort || 50000 + id}`, exposed: spec.allowRemoteClients, activeConnections: 0, totalConnections: 0 });
+        return tunnels.at(-1);
+      }
+      case "tunnel_list":
+        return tunnels.filter((t) => t.terminalId === a.terminalId);
+      case "tunnel_stop": {
+        const i = tunnels.findIndex((t) => t.id === a.id);
+        if (i >= 0) tunnels.splice(i, 1);
+        return i >= 0;
       }
       case "transfer_cancel":
         return true;

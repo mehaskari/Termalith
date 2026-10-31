@@ -629,3 +629,43 @@ code {
   z-index: 2;
   background: var(--panel) !important;
 }
+
+.panel-title {
+  flex: 1;
+  padding-left: 4px;
+}
+.tunnel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.tunnel-exposed {
+  color: var(--warning);
+  font-size: 11px;
+}
+.tunnel-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--line);
+}
+.tunnel-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tunnel-form label.checkbox {
+  flex-direction: row;
+  align-items: center;
+  color: var(--text);
+}
+.tunnel-warning {
+  margin: 0;
+  font-size: 11px;
+  color: var(--warning);
+}

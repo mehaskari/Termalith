@@ -794,3 +794,114 @@ async fn split_panes_share_one_connection() {
     }
     assert!(r.hub.is_empty());
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn tunnels_on_a_terminal_connection() {
+    use app_core::{TunnelKind, TunnelSpec, Tunnels};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let Some(r) = rig() else { return };
+    let session = trusted_connection(&r).await;
+    let (sink, _c) = collector();
+    let term = r
+        .hub
+        .open_ssh(session, TerminalSize::new(80, 24).unwrap(), sink)
+        .await
+        .unwrap();
+
+    let echo = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let echo_port = echo.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        while let Ok((mut s, _)) = echo.accept().await {
+            tokio::spawn(async move {
+                let (mut rd, mut wr) = s.split();
+                let _ = tokio::io::copy(&mut rd, &mut wr).await;
+            });
+        }
+    });
+
+    let tunnels = Tunnels::default();
+    let info = tunnels
+        .start(
+            &r.hub,
+            term,
+            TunnelSpec {
+                kind: TunnelKind::Local {
+                    remote_host: "127.0.0.1".into(),
+                    remote_port: echo_port,
+                },
+                local_port: 0,
+                allow_remote_clients: false,
+            },
+        )
+        .await
+        .unwrap();
+    assert!(!info.exposed);
+    let mut c = tokio::net::TcpStream::connect(&info.local_address)
+        .await
+        .unwrap();
+    c.write_all(b"tunnel ok").await.unwrap();
+    let mut buf = [0u8; 9];
+    c.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"tunnel ok");
+    assert_eq!(tunnels.list(Some(term)).len(), 1);
+    assert_eq!(tunnels.list(Some(term + 999)).len(), 0);
+
+    // Same local port twice is reported clearly.
+    let port = info
+        .local_address
+        .rsplit(':')
+        .next()
+        .unwrap()
+        .parse::<u16>()
+        .unwrap();
+    let dup = tunnels
+        .start(
+            &r.hub,
+            term,
+            TunnelSpec {
+                kind: TunnelKind::Socks,
+                local_port: port,
+                allow_remote_clients: false,
+            },
+        )
+        .await;
+    assert!(
+        matches!(
+            dup,
+            Err(AppError::Invalid {
+                field: "local port",
+                ..
+            })
+        ),
+        "got {:?}",
+        dup.err()
+    );
+
+    // Tunnels need an SSH terminal.
+    let local = r
+        .hub
+        .open_local(
+            &terminal_pty::default_shell().unwrap(),
+            TerminalSize::new(80, 24).unwrap(),
+            |_| true,
+        )
+        .unwrap();
+    assert!(
+        tunnels
+            .start(
+                &r.hub,
+                local,
+                TunnelSpec {
+                    kind: TunnelKind::Socks,
+                    local_port: 0,
+                    allow_remote_clients: false
+                }
+            )
+            .await
+            .is_err()
+    );
+
+    assert_eq!(tunnels.stop_for_terminal(term), 1);
+    assert!(tunnels.list(None).is_empty());
+    r.hub.close_all();
+}

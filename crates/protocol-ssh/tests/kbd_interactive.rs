@@ -4,7 +4,7 @@
 use std::borrow::Cow;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
 use protocol_ssh::{
@@ -14,6 +14,16 @@ use protocol_ssh::{
 use russh::server::{self, Auth as ServerAuth, Response};
 use russh::{MethodKind, MethodSet};
 use zeroize::Zeroizing;
+
+/// Test-only credentials, random per run (nothing is hard-coded).
+static PASSWORD: LazyLock<String> = LazyLock::new(random_token);
+static CODE: LazyLock<String> = LazyLock::new(random_token);
+
+fn random_token() -> String {
+    use rand::RngExt;
+    let bytes: [u8; 8] = rand::rng().random();
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
@@ -45,7 +55,7 @@ impl server::Handler for Server {
         _user: &str,
         password: &str,
     ) -> Result<ServerAuth, Self::Error> {
-        self.password_ok = password == "pw";
+        self.password_ok = password == PASSWORD.as_str();
         Ok(if self.mode == Mode::PasswordThenCode && self.password_ok {
             ServerAuth::Reject {
                 proceed_with_methods: Some(MethodSet::from(&[MethodKind::KeyboardInteractive][..])),
@@ -76,9 +86,9 @@ impl server::Handler for Server {
                 instructions: Cow::Borrowed(""),
                 prompts: Cow::Owned(vec![(Cow::Borrowed("Password: "), false)]),
             },
-            (Mode::KbdOnly, 1) if answers == ["pw"] => code_prompt(),
+            (Mode::KbdOnly, 1) if answers == [PASSWORD.as_str()] => code_prompt(),
             (Mode::PasswordThenCode, 0) if self.password_ok => code_prompt(),
-            (Mode::KbdOnly, 2) | (Mode::PasswordThenCode, 1) if answers == ["123456"] => {
+            (Mode::KbdOnly, 2) | (Mode::PasswordThenCode, 1) if answers == [CODE.as_str()] => {
                 ServerAuth::Accept
             }
             _ => ServerAuth::reject(),
@@ -133,7 +143,7 @@ async fn start(mode: Mode) -> TestServer {
 
 /// Answers every request with fixed answers and records what it was asked.
 struct Answers {
-    answers: Option<Vec<&'static str>>,
+    answers: Option<Vec<String>>,
     asked: Mutex<Vec<KbdRequest>>,
 }
 
@@ -146,7 +156,7 @@ impl KbdInteractive for Answers {
         let a = self
             .answers
             .as_ref()
-            .map(|v| v.iter().map(|s| Zeroizing::new((*s).to_owned())).collect());
+            .map(|v| v.iter().map(|s| Zeroizing::new(s.clone())).collect());
         Box::pin(async move { a })
     }
 }
@@ -154,7 +164,7 @@ impl KbdInteractive for Answers {
 async fn connect(
     s: &TestServer,
     password: &str,
-    answers: Option<Vec<&'static str>>,
+    answers: Option<Vec<String>>,
 ) -> (Result<SshSession, SshError>, Vec<KbdRequest>) {
     let dir = tempfile::tempdir().unwrap();
     let kh = FileKnownHosts::new(dir.path().join("known_hosts"));
@@ -187,7 +197,7 @@ async fn connect(
 #[tokio::test]
 async fn kbd_only_server_gets_the_password_and_asks_the_user_for_the_code() {
     let s = start(Mode::KbdOnly).await;
-    let (r, asked) = connect(&s, "pw", Some(vec!["123456"])).await;
+    let (r, asked) = connect(&s, &PASSWORD, Some(vec![CODE.clone()])).await;
     let session = r.expect("authenticated");
     // The password prompt was answered automatically; only the code was asked.
     assert_eq!(asked.len(), 1);
@@ -202,18 +212,23 @@ async fn kbd_only_server_gets_the_password_and_asks_the_user_for_the_code() {
 #[tokio::test]
 async fn password_then_one_time_code() {
     let s = start(Mode::PasswordThenCode).await;
-    let (r, asked) = connect(&s, "pw", Some(vec!["123456"])).await;
+    let (r, asked) = connect(&s, &PASSWORD, Some(vec![CODE.clone()])).await;
     r.expect("authenticated").disconnect().await.unwrap();
     assert_eq!(asked.len(), 1);
 
-    let (wrong_code, _) = connect(&s, "pw", Some(vec!["000000"])).await;
+    let (wrong_code, _) = connect(&s, &PASSWORD, Some(vec![format!("{}-wrong", *CODE)])).await;
     assert!(matches!(wrong_code, Err(SshError::AuthFailed)));
 }
 
 #[tokio::test]
 async fn wrong_password_is_not_retried_through_keyboard_interactive() {
     let s = start(Mode::PasswordThenCode).await;
-    let (r, asked) = connect(&s, "nope", Some(vec!["123456"])).await;
+    let (r, asked) = connect(
+        &s,
+        &format!("{}-wrong", *PASSWORD),
+        Some(vec![CODE.clone()]),
+    )
+    .await;
     assert!(matches!(r, Err(SshError::AuthFailed)));
     assert!(
         asked.is_empty(),
@@ -224,7 +239,7 @@ async fn wrong_password_is_not_retried_through_keyboard_interactive() {
 #[tokio::test]
 async fn cancelling_the_prompt_cancels_the_login() {
     let s = start(Mode::KbdOnly).await;
-    let (r, asked) = connect(&s, "pw", None).await;
+    let (r, asked) = connect(&s, &PASSWORD, None).await;
     assert!(matches!(r, Err(SshError::Cancelled)), "{:?}", r.err());
     assert_eq!(asked.len(), 1);
 }

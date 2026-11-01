@@ -103,6 +103,8 @@ export interface SessionInput {
   forwardAgent?: boolean;
   /** Forward X11 to the local X server (SSH only). */
   x11Forward?: boolean;
+  /** Typed into the shell once after login (SSH only). */
+  startupCommand?: string | null;
 }
 
 export interface SessionRecord extends SessionInput {

@@ -160,6 +160,8 @@ struct ExportedSession {
     forward_agent: bool,
     #[serde(default)]
     x11_forward: bool,
+    #[serde(default)]
+    startup_command: Option<String>,
 }
 
 /// Serializes every session as versioned JSON. Never includes secrets.
@@ -189,6 +191,7 @@ pub fn export_sessions(store: &SessionStore) -> Result<String, AppError> {
                 tags: s.input.tags.clone(),
                 forward_agent: s.input.forward_agent,
                 x11_forward: s.input.x11_forward,
+                startup_command: s.input.startup_command.clone(),
             })
             .collect(),
     };
@@ -279,6 +282,7 @@ fn to_input(s: &ExportedSession) -> SessionInput {
         tags: s.tags.clone(),
         forward_agent: s.forward_agent,
         x11_forward: s.x11_forward,
+        startup_command: s.startup_command.clone(),
     }
 }
 
@@ -322,6 +326,7 @@ mod tests {
             tags: Vec::new(),
             forward_agent: false,
             x11_forward: false,
+            startup_command: None,
         }
     }
 
@@ -334,6 +339,7 @@ mod tests {
         src.set_favorite(&bastion.id, true).unwrap();
         let mut tagged = bastion.input.clone();
         tagged.tags = vec!["edge".into()];
+        tagged.startup_command = Some("cd /srv".into());
         src.update(&bastion.id, &tagged).unwrap();
         let mut app = input("app");
         app.jump_via = Some(bastion.id.clone());
@@ -352,6 +358,7 @@ mod tests {
         let a = all.iter().find(|s| s.input.name == "app").unwrap();
         assert!(b.favorite);
         assert_eq!(b.input.tags, ["edge"]);
+        assert_eq!(b.input.startup_command.as_deref(), Some("cd /srv"));
         assert!(!b.has_saved_secret, "secrets are never imported");
         assert_eq!(a.input.jump_via.as_ref(), Some(&b.id));
 

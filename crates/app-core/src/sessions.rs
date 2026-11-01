@@ -113,6 +113,9 @@ pub struct SessionInput {
     /// Forward X11 to the local X server (`ssh -X`). Final host only.
     #[serde(default)]
     pub x11_forward: bool,
+    /// Typed into the shell once after login (SSH only).
+    #[serde(default)]
+    pub startup_command: Option<String>,
 }
 
 pub const MAX_TAGS: usize = 20;
@@ -208,6 +211,21 @@ impl SessionInput {
                 "only for SSH sessions",
             ));
         }
+        if let Some(c) = &self.startup_command {
+            if self.protocol != SessionProtocol::Ssh {
+                return Err(AppError::invalid(
+                    "startup command",
+                    "only for SSH sessions",
+                ));
+            }
+            // One line, no control characters: it is typed, then Enter.
+            if c.trim().is_empty() || c.chars().count() > 1000 || c.chars().any(char::is_control) {
+                return Err(AppError::invalid(
+                    "startup command",
+                    "must be one line of at most 1000 characters",
+                ));
+            }
+        }
         if self.x11_forward && self.protocol != SessionProtocol::Ssh {
             return Err(AppError::invalid("X11 forwarding", "only for SSH sessions"));
         }
@@ -299,6 +317,8 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE sessions ADD COLUMN forward_agent INTEGER NOT NULL DEFAULT 0;",
     // v9: X11 forwarding.
     "ALTER TABLE sessions ADD COLUMN x11_forward INTEGER NOT NULL DEFAULT 0;",
+    // v10: startup command.
+    "ALTER TABLE sessions ADD COLUMN startup_command TEXT;",
 ];
 
 pub struct SessionStore {
@@ -358,7 +378,7 @@ impl SessionStore {
     pub fn list(&self) -> Result<Vec<SessionRecord>, AppError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command
              FROM sessions ORDER BY folder IS NOT NULL, folder COLLATE NOCASE, name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], row_to_record)?;
@@ -369,7 +389,7 @@ impl SessionStore {
     pub fn get(&self, id: &SessionId) -> Result<SessionRecord, AppError> {
         let conn = self.conn();
         conn.query_row(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command
              FROM sessions WHERE id = ?1",
             [id.as_str()],
             row_to_record,
@@ -385,8 +405,8 @@ impl SessionStore {
         let (kind, key) = auth_columns(&input.auth);
         let t = now();
         self.conn().execute(
-            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
             params![
                 id.as_str(),
                 input.name.trim(),
@@ -402,7 +422,8 @@ impl SessionStore {
                 input.domain,
                 tags_json(&input.tags),
                 input.forward_agent,
-                input.x11_forward
+                input.x11_forward,
+                input.startup_command
             ],
         )?;
         self.get(&id)
@@ -465,7 +486,7 @@ impl SessionStore {
             "UPDATE sessions SET name = ?2, host = ?3, port = ?4, username = ?5, auth_kind = ?6,
              key_path = ?7, folder = ?8, credential_ref = ?9, updated_at = ?10, jump_session_id = ?11,
              protocol = ?12, domain = ?13, tags = ?14, forward_agent = ?15,
-             x11_forward = ?16
+             x11_forward = ?16, startup_command = ?17
              WHERE id = ?1",
             params![
                 id.as_str(),
@@ -483,7 +504,8 @@ impl SessionStore {
                 input.domain,
                 tags_json(&input.tags),
                 input.forward_agent,
-                input.x11_forward
+                input.x11_forward,
+                input.startup_command
             ],
         )?;
         Ok((self.get(id)?, stale))
@@ -579,6 +601,7 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
             tags: serde_json::from_str(&r.get::<_, String>(14)?).unwrap_or_default(),
             forward_agent: r.get::<_, i64>(15)? != 0,
             x11_forward: r.get::<_, i64>(16)? != 0,
+            startup_command: r.get(17)?,
         },
         updated_at: r.get(9)?,
     }))
@@ -602,6 +625,7 @@ mod tests {
             tags: Vec::new(),
             forward_agent: false,
             x11_forward: false,
+            startup_command: None,
         }
     }
 
@@ -790,6 +814,7 @@ mod tests {
             tags: vec!["windows".into()],
             forward_agent: false,
             x11_forward: false,
+            startup_command: None,
         };
         let rec = store.create(&rdp).unwrap();
         assert_eq!(store.get(&rec.id).unwrap().input, rdp);
@@ -859,6 +884,16 @@ mod tests {
         let rec = store.create(&s).unwrap();
         assert!(store.get(&rec.id).unwrap().input.forward_agent);
         assert!(store.get(&rec.id).unwrap().input.x11_forward);
+        let mut c = input();
+        c.name = "with-cmd".into();
+        c.startup_command = Some("tmux attach || tmux".into());
+        let rec = store.create(&c).unwrap();
+        assert_eq!(
+            store.get(&rec.id).unwrap().input.startup_command.as_deref(),
+            Some("tmux attach || tmux")
+        );
+        c.startup_command = Some("rm -rf /tmp/x\nreboot".into());
+        assert!(c.validate().is_err(), "one line only");
         s.protocol = SessionProtocol::Vnc;
         assert!(s.validate().is_err());
     }

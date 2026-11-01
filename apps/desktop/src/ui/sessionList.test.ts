@@ -56,7 +56,7 @@ describe("parseForm", () => {
     const r = parseForm(base, { requireName: true });
     expect(r).toEqual({
       ok: true,
-      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false },
+      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null },
     });
   });
 
@@ -93,7 +93,7 @@ describe("parseForm", () => {
     const rec = s("web", "prod");
     const r = parseForm(formFromSession(rec), { requireName: true });
     expect(r.ok && r.value).toEqual({
-      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false,
+      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null,
     });
   });
 });
@@ -175,5 +175,15 @@ describe("agent forwarding", () => {
     expect(r.ok && r.value.forwardAgent).toBe(true);
     const rdp = parseForm({ ...withProtocol(f, "rdp"), username: "" }, { requireName: true });
     expect(rdp.ok && rdp.value.forwardAgent).toBe(false);
+  });
+});
+
+describe("startup command", () => {
+  it("is trimmed, optional and one line", () => {
+    const f = { ...emptyForm(), name: "n", host: "h", username: "u", startupCommand: "  cd /srv  " };
+    const r = parseForm(f, { requireName: true });
+    expect(r.ok && r.value.startupCommand).toBe("cd /srv");
+    expect(parseForm({ ...f, startupCommand: "" }, { requireName: true })).toMatchObject({ ok: true, value: { startupCommand: null } });
+    expect(parseForm({ ...f, startupCommand: "a\nb" }, { requireName: true })).toMatchObject({ ok: false, field: "startupCommand" });
   });
 });

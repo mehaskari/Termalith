@@ -102,6 +102,8 @@ interface Tab {
   reconnectAt?: number;
   /** Local tabs: the shell id they were opened with (null = default). */
   shellId?: string | null;
+  /** Command typed into the shell once it is ready (saved session option). */
+  startup?: string;
 }
 
 const RECONNECT_DELAY_MS = 5000;
@@ -265,7 +267,11 @@ export function App() {
   );
 
   const connect = useCallback(
-    (target: SshTarget, label: string, opts: { canSave: boolean; keyAuth: boolean; savedSecret: boolean }) => {
+    (
+      target: SshTarget,
+      label: string,
+      opts: { canSave: boolean; keyAuth: boolean; savedSecret: boolean; startup?: string | null },
+    ) => {
       let tabKey = 0;
       const open: Opener = async (cols, rows, onOutput, onExit) => {
         let secret: string | undefined;
@@ -308,7 +314,7 @@ export function App() {
         }
       };
       tabKey = addTab(label, "ssh", open);
-      patchTab(tabKey, { reconnect: () => connect(target, label, opts) });
+      patchTab(tabKey, { reconnect: () => connect(target, label, opts), startup: opts.startup ?? undefined });
     },
     [addTab, askPassword, refresh, renameTab, patchTab],
   );
@@ -354,6 +360,7 @@ export function App() {
         canSave: info?.secretsAvailable ?? false,
         keyAuth: s.auth.kind === "keyFile",
         savedSecret: s.hasSavedSecret,
+        startup: s.startupCommand,
       });
     },
     [addTab, connect, info, patchTab, runDesktop],
@@ -871,7 +878,8 @@ export function App() {
                       open={t.open}
                       active={t.key === active}
                       onReady={(id) => {
-                        patchTab(t.key, { terminalId: id });
+                        patchTab(t.key, { terminalId: id, startup: undefined });
+                        if (t.startup) void writeTerminal(id, `${t.startup}\r`).catch(() => {});
                         if (settings.logSessions)
                           startLog(id, t.title).then(
                             (log) => patchTab(t.key, { log }),

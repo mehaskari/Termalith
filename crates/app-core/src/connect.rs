@@ -87,6 +87,7 @@ impl Connector {
                     tags: Vec::new(),
                     forward_agent: false,
                     x11_forward: false,
+                    startup_command: None,
                 };
                 input.validate()?;
                 let typed = match secret {

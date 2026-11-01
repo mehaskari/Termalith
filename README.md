@@ -74,6 +74,7 @@ corepack pnpm test
 - Automatic reconnect when an SSH connection drops (not after `exit`), with a visible countdown and Cancel; can be turned off in Settings.
 - SSH keys: list the key pairs in ~/.ssh with fingerprints, generate Ed25519 keys (optionally passphrase-protected), copy a public key, and install it in authorized_keys on a connected server (folder 0700, file 0600, never duplicated).
 - X11 forwarding per session (graphical programs on the server open windows here; needs XQuartz on macOS or VcXsrv/Xming on Windows). The server only gets a random fake cookie; the real one stays local. Imported from `ForwardX11 yes`.
+- Per-session startup command, typed into the shell once after login (e.g. `cd /var/log` or `tmux attach`).
 - Optional SSH agent forwarding per session (off by default, never to jump hosts; imported from `ForwardAgent yes`).
 - Import sessions from a MobaXterm `.mxtsessions` export (SSH, RDP and VNC sessions with their folders; other types are listed as not imported).
 - Import sessions from `~/.ssh/config` (supported subset, including single-hop ProxyJump; unsupported options are listed per entry).

@@ -8,6 +8,7 @@ mod crash;
 mod desktops;
 mod error;
 mod files;
+mod folders;
 mod history;
 mod host_keys;
 mod keys;
@@ -29,6 +30,7 @@ pub use error::AppError;
 pub use files::{
     DroppedFile, DroppedFiles, MAX_EDIT_BYTES, decode_text, safe_file_name, unique_destination,
 };
+pub use folders::{MAX_FOLDER_DEPTH, MAX_FOLDER_LEN, normalize_folder};
 pub use history::{
     MAX_HISTORY, TransferDirection, TransferMeta, TransferOutcome, TransferRecord, history_recorder,
 };

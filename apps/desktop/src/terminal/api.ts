@@ -319,6 +319,18 @@ export const DEFAULT_SETTINGS: Settings = {
 export const getSettings = () => invoke<Settings>("settings_get");
 export const saveSettings = (settings: Settings) => invoke<void>("settings_save", { settings });
 export const setFavorite = (id: string, favorite: boolean) => invoke<void>("session_set_favorite", { id, favorite });
+
+// ---------------------------------------------------------------- folders
+
+/** Folders stored on their own; others exist only through their sessions. */
+export const listFolders = () => invoke<string[]>("folders_list");
+/** Returns the normalized path ("A / B" becomes "A/B"). */
+export const createFolder = (path: string) => invoke<string>("folder_create", { path });
+/** Renames or moves a folder with its subfolders and sessions. */
+export const renameFolder = (from: string, to: string) => invoke<string>("folder_rename", { from, to });
+/** Refused while sessions are inside. */
+export const deleteFolder = (path: string) => invoke<void>("folder_delete", { path });
+export const moveSession = (id: string, folder: string | null) => invoke<void>("session_move", { id, folder });
 export const exportSessions = () => invoke<{ json: string; savedTo: string | null }>("sessions_export");
 /** Accepts a Termalith export or a MobaXterm `.mxtsessions` file. */
 export const importSessions = (text: string) =>

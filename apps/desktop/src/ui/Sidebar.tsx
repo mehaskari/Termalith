@@ -1,8 +1,22 @@
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import type { SessionRecord, ShellChoice } from "../terminal/api";
-import { type FolderNode, allSessions, authLabel, buildTree, filterSessions, targetLabel } from "./sessionList";
+import { Icon, ProtocolBadge } from "./icons";
+import {
+  type FolderNode,
+  allSessions,
+  authLabel,
+  buildTree,
+  filterSessions,
+  folderDropPath,
+  folderPath,
+  joinFolder,
+  normalizeFolder,
+  parentFolder,
+  targetLabel,
+} from "./sessionList";
 
 const COLLAPSED_KEY = "termalith.collapsedFolders";
+const FAVORITES = "\u0000favorites";
 
 /** Closed folders are remembered per device (a convenience, not data). */
 function loadCollapsed(): Set<string> {
@@ -24,14 +38,22 @@ function saveCollapsed(paths: Set<string>) {
 
 interface Props {
   sessions: SessionRecord[];
+  /** Folders stored on their own (may be empty). */
+  folders: string[];
   onConnect: (s: SessionRecord) => void;
   /** SSH sessions: a file browser tab without a shell. */
   onOpenFiles: (s: SessionRecord) => void;
   onEdit: (s: SessionRecord) => void;
   onDelete: (s: SessionRecord) => void;
   onForgetSecret: (s: SessionRecord) => void;
-  onNew: () => void;
+  /** New session, optionally inside a folder. */
+  onNew: (folder?: string) => void;
   onQuickConnect: () => void;
+  /** Folder changes reject with an error message to keep the editor open. */
+  onCreateFolder: (path: string) => Promise<void>;
+  onRenameFolder: (from: string, to: string) => Promise<void>;
+  onDeleteFolder: (path: string) => void;
+  onMoveSession: (s: SessionRecord, folder: string | null) => void;
   /** Installed shells; `undefined` id = the preferred one. */
   shells: ShellChoice[];
   onLocalTerminal: (shellId?: string) => void;
@@ -47,124 +69,390 @@ interface Props {
   onAbout: () => void;
 }
 
+type MenuItem = { label: string; run: () => void; danger?: boolean; disabled?: string } | "sep";
+interface MenuState {
+  x: number;
+  y: number;
+  items: MenuItem[];
+}
+type Editing = { kind: "new"; parent: string } | { kind: "rename"; path: string };
+type DragItem = { kind: "session"; session: SessionRecord } | { kind: "folder"; path: string };
+interface DragState {
+  item: DragItem;
+  label: string;
+  x: number;
+  y: number;
+  /** Folder path under the pointer ("" = top level), or null for no valid target. */
+  target: string | null;
+}
+
+/** Closes a floating menu on outside click or Escape. */
+function useDismiss(open: boolean, ref: React.RefObject<HTMLElement | null>, close: () => void) {
+  useEffect(() => {
+    if (!open) return;
+    const down = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) close();
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && close();
+    window.addEventListener("mousedown", down);
+    window.addEventListener("keydown", esc);
+    window.addEventListener("blur", close);
+    return () => {
+      window.removeEventListener("mousedown", down);
+      window.removeEventListener("keydown", esc);
+      window.removeEventListener("blur", close);
+    };
+  }, [open, ref, close]);
+}
+
+/** Inline name field for a new or renamed folder. */
+function FolderNameInput({
+  initial,
+  onSubmit,
+  onCancel,
+}: {
+  initial: string;
+  onSubmit: (name: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  const [error, setError] = useState<string | null>(null);
+  const busy = useRef(false);
+  const submit = async () => {
+    if (busy.current) return;
+    if (!value.trim()) return onCancel();
+    busy.current = true;
+    try {
+      await onSubmit(value);
+    } catch (e) {
+      setError(String((e as { message?: string })?.message ?? e));
+      busy.current = false;
+    }
+  };
+  return (
+    <div className="folder-edit">
+      <Icon name="folder" className="folder-icon" />
+      <input
+        // biome-ignore lint/a11y/noAutofocus: the field appears because the user asked to name a folder
+        autoFocus
+        value={value}
+        aria-label="Folder name"
+        aria-invalid={error ? true : undefined}
+        title={error ?? "Enter to save, Esc to cancel. Use / for subfolders."}
+        onFocus={(e) => e.currentTarget.select()}
+        onChange={(e) => {
+          setValue(e.target.value);
+          setError(null);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void submit();
+          if (e.key === "Escape") onCancel();
+        }}
+        onBlur={() => (error ? onCancel() : void submit())}
+      />
+      {error && (
+        <span className="folder-edit-error" role="alert">
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function Sidebar(p: Props) {
   const [query, setQuery] = useState("");
   const [shellMenu, setShellMenu] = useState(false);
+  const [moreMenu, setMoreMenu] = useState(false);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const moreRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!shellMenu) return;
-    const close = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setShellMenu(false);
-    };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setShellMenu(false);
-    window.addEventListener("mousedown", close);
-    window.addEventListener("keydown", esc);
-    return () => {
-      window.removeEventListener("mousedown", close);
-      window.removeEventListener("keydown", esc);
-    };
-  }, [shellMenu]);
+  /** Set after a drag so the click that ends it does not also connect. */
+  const suppressClick = useRef(false);
+  useDismiss(shellMenu, shellRef, () => setShellMenu(false));
+  useDismiss(moreMenu, moreRef, () => setMoreMenu(false));
+  useDismiss(menu !== null, menuRef, () => setMenu(null));
+
+  const searching = query.trim() !== "";
   const filtered = useMemo(() => filterSessions(p.sessions, query), [p.sessions, query]);
-  const tree = useMemo(() => buildTree(filtered), [filtered]);
+  // Empty folders only make sense when not searching.
+  const tree = useMemo(() => buildTree(filtered, searching ? [] : p.folders), [filtered, searching, p.folders]);
   const favorites = useMemo(() => filtered.filter((s) => s.favorite), [filtered]);
   const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsed);
-  const searching = query.trim() !== "";
-  const toggle = (path: string) =>
+  const setOpen = (path: string, open: boolean) =>
     setCollapsed((c) => {
+      if (c.has(path) !== open) return c;
       const next = new Set(c);
-      if (!next.delete(path)) next.add(path);
+      if (open) next.delete(path);
+      else next.add(path);
       saveCollapsed(next);
       return next;
     });
+  const isOpen = (path: string) => searching || !collapsed.has(path);
 
-  const sessionRow = (s: SessionRecord) => (
-    <li key={s.id}>
-      <button type="button" className="session" onClick={() => p.onConnect(s)} title={`Connect to ${targetLabel(s)}`}>
-        <span className="session-name">{s.name}</span>
-        <span className="session-target">
-          {targetLabel(s)}
-          {authLabel(s) && ` · ${authLabel(s)}`}
-          {s.jumpVia && ` · via ${p.sessions.find((j) => j.id === s.jumpVia)?.name ?? "?"}`}
-          {s.forwardAgent && " · agent fwd"}
-          {s.x11Forward && " · X11"}
-        </span>
-      </button>
-      {(s.tags?.length ?? 0) > 0 && (
-        <span className="session-tags">
-          {s.tags?.map((t) => (
-            <button key={t} type="button" className="tag" title={`Show sessions tagged ${t}`} onClick={() => setQuery(`#${t}`)}>
-              #{t}
-            </button>
-          ))}
-        </span>
-      )}
-      <span className="row-actions">
+  const startNewFolder = (parent: string) => {
+    if (parent) setOpen(parent, true);
+    setEditing({ kind: "new", parent });
+  };
+
+  const openMenu = (e: React.MouseEvent, items: MenuItem[]) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const x = Math.min(e.clientX, window.innerWidth - 200);
+    const y = Math.min(e.clientY, window.innerHeight - 30 * items.length - 16);
+    setMenu({ x, y, items });
+  };
+
+  const sessionMenu = (s: SessionRecord): MenuItem[] => [
+    { label: "Connect", run: () => p.onConnect(s) },
+    ...((s.protocol ?? "ssh") === "ssh" ? [{ label: "Browse files (SFTP)", run: () => p.onOpenFiles(s) }] : []),
+    "sep",
+    { label: "Edit…", run: () => p.onEdit(s) },
+    { label: "Duplicate", run: () => p.onDuplicate(s) },
+    { label: s.favorite ? "Remove from favorites" : "Add to favorites", run: () => p.onToggleFavorite(s) },
+    ...(s.folder ? [{ label: "Move to top level", run: () => p.onMoveSession(s, null) }] : []),
+    ...(s.hasSavedSecret ? [{ label: "Forget saved password", run: () => p.onForgetSecret(s) }] : []),
+    "sep",
+    { label: "Delete…", run: () => p.onDelete(s), danger: true },
+  ];
+
+  const folderMenu = (node: FolderNode): MenuItem[] => {
+    const inside = allSessions(node);
+    return [
+      { label: "New session here…", run: () => p.onNew(node.path) },
+      { label: "New subfolder", run: () => startNewFolder(node.path) },
+      ...(inside.length > 0
+        ? [{ label: `Open all (${inside.length})`, run: () => inside.forEach((x) => p.onConnect(x)) }]
+        : []),
+      "sep",
+      { label: "Rename", run: () => setEditing({ kind: "rename", path: node.path }) },
+      ...(parentFolder(node.path) ? [{ label: "Move to top level", run: () => moveFolder(node.path, "") }] : []),
+      {
+        label: "Delete folder",
+        run: () => p.onDeleteFolder(node.path),
+        danger: true,
+        disabled: inside.length > 0 ? "Move or delete the sessions in it first" : undefined,
+      },
+    ];
+  };
+
+  const moveFolder = (from: string, target: string) => {
+    const to = folderDropPath(from, target);
+    if (to) void p.onRenameFolder(from, to).catch(() => {});
+  };
+
+  // ---- drag and drop (pointer-based: HTML5 DnD conflicts with the window's file drop)
+  const pending = useRef<{ item: DragItem; label: string; x: number; y: number } | null>(null);
+  const dropTarget = (x: number, y: number, item: DragItem): string | null => {
+    const el = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-drop]");
+    if (!el) return null;
+    const target = el.dataset.drop ?? "";
+    if (item.kind === "folder") return folderDropPath(item.path, target) ? target : null;
+    return normalizeFolder(item.session.folder).toLowerCase() === target.toLowerCase() ? null : target;
+  };
+  /** Mirrors `drag` so pointer handlers never see a stale value. */
+  const dragRef = useRef<DragState | null>(null);
+  const updateDrag = (d: DragState | null) => {
+    dragRef.current = d;
+    setDrag(d);
+  };
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const start = pending.current;
+      if (!start) return;
+      if (!dragRef.current && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6) return;
+      updateDrag({ ...start, x: e.clientX, y: e.clientY, target: dropTarget(e.clientX, e.clientY, start.item) });
+    };
+    const up = (e: PointerEvent) => {
+      pending.current = null;
+      const current = dragRef.current;
+      if (!current) return;
+      suppressClick.current = true;
+      setTimeout(() => {
+        suppressClick.current = false;
+      }, 0);
+      const target = dropTarget(e.clientX, e.clientY, current.item);
+      updateDrag(null);
+      if (target === null) return;
+      if (current.item.kind === "session") p.onMoveSession(current.item.session, target || null);
+      else moveFolder(current.item.path, target);
+    };
+    const cancel = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && pending.current) {
+        pending.current = null;
+        updateDrag(null);
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("keydown", cancel);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("keydown", cancel);
+    };
+  });
+  const dragStart = (e: React.PointerEvent, item: DragItem, label: string) => {
+    if (e.button !== 0 || searching) return;
+    pending.current = { item, label, x: e.clientX, y: e.clientY };
+  };
+  const guardClick = (run: () => void) => () => {
+    if (!suppressClick.current) run();
+  };
+
+  const sessionRow = (s: SessionRecord, inFavorites = false) => {
+    const protocol = s.protocol ?? "ssh";
+    const jump = s.jumpVia ? p.sessions.find((j) => j.id === s.jumpVia)?.name ?? "?" : null;
+    const extras = [authLabel(s) && authLabel(s) !== protocol.toUpperCase() ? authLabel(s) : "", jump ? `via ${jump}` : "", s.forwardAgent ? "agent fwd" : "", s.x11Forward ? "X11" : ""].filter(Boolean);
+    return (
+      <li
+        key={`${inFavorites ? "fav-" : ""}${s.id}`}
+        className={`session-item ${drag?.item.kind === "session" && drag.item.session.id === s.id ? "dragging" : ""}`}
+        onContextMenu={(e) => openMenu(e, sessionMenu(s))}
+      >
         <button
           type="button"
-          className={`icon ${s.favorite ? "starred" : ""}`}
-          onClick={() => p.onToggleFavorite(s)}
-          aria-label={s.favorite ? `Remove ${s.name} from favorites` : `Add ${s.name} to favorites`}
-          title={s.favorite ? "Remove from favorites" : "Add to favorites"}
+          className="session"
+          onClick={guardClick(() => p.onConnect(s))}
+          onPointerDown={inFavorites ? undefined : (e) => dragStart(e, { kind: "session", session: s }, s.name)}
+          title={`Connect to ${targetLabel(s)}`}
         >
-          {s.favorite ? "★" : "☆"}
+          <ProtocolBadge protocol={protocol} />
+          <span className="session-text">
+            <span className="session-name">
+              {s.name}
+              {s.favorite && !inFavorites && <Icon name="star" size={11} className="session-star" />}
+            </span>
+            <span className="session-target">
+              {targetLabel(s)}
+              {extras.length > 0 && <span className="session-extra">{extras.join(", ")}</span>}
+            </span>
+          </span>
         </button>
-        {(s.protocol ?? "ssh") === "ssh" && (
-          <button type="button" className="icon" onClick={() => p.onOpenFiles(s)} aria-label={`Browse files on ${s.name}`} title="Browse files (SFTP)">
-            ⇅
-          </button>
+        {(s.tags?.length ?? 0) > 0 && (
+          <span className="session-tags">
+            {s.tags?.map((t) => (
+              <button key={t} type="button" className="tag" title={`Show sessions tagged ${t}`} onClick={() => setQuery(`#${t}`)}>
+                #{t}
+              </button>
+            ))}
+          </span>
         )}
-        <button type="button" className="icon" onClick={() => p.onDuplicate(s)} aria-label={`Duplicate ${s.name}`} title="Duplicate">
-          ⧉
-        </button>
-        <button type="button" className="icon" onClick={() => p.onEdit(s)} aria-label={`Edit ${s.name}`} title="Edit">
-          ✎
-        </button>
-        {s.hasSavedSecret && (
-          <button type="button" className="icon" onClick={() => p.onForgetSecret(s)} aria-label={`Forget saved password for ${s.name}`} title="Forget saved password">
-            ⌫
-          </button>
-        )}
-        <button type="button" className="icon danger" onClick={() => p.onDelete(s)} aria-label={`Delete ${s.name}`} title="Delete">
-          ×
-        </button>
-      </span>
-    </li>
-  );
-
-  /** A folder header that opens and closes, then its subfolders and sessions. */
-  const folder = (node: FolderNode, label = node.name, sessions = allSessions(node)): ReactElement => {
-    const open = searching || !collapsed.has(node.path);
-    return (
-      <li key={node.path} className="folder">
-        <div className="folder-head">
+        <span className="row-actions">
           <button
             type="button"
-            className="folder-toggle"
-            aria-expanded={open}
-            onClick={() => toggle(node.path)}
-            title={open ? "Collapse" : "Expand"}
+            className={`icon ${s.favorite ? "starred" : ""}`}
+            onClick={() => p.onToggleFavorite(s)}
+            aria-label={s.favorite ? `Remove ${s.name} from favorites` : `Add ${s.name} to favorites`}
+            title={s.favorite ? "Remove from favorites" : "Add to favorites"}
           >
-            <span className="caret" aria-hidden="true">{open ? "▾" : "▸"}</span>
-            <span className="folder-icon" aria-hidden="true">{open ? "📂" : "📁"}</span>
-            <span className="folder-name">{label}</span>
-            <span className="folder-count">{node.total}</span>
+            <Icon name="star" size={14} />
           </button>
-          {sessions.length > 1 && (
-            <button
-              type="button"
-              className="link folder-open-all"
-              title={`Open all ${sessions.length} sessions`}
-              aria-label={`Open all sessions in ${label}`}
-              onClick={() => sessions.forEach((x) => p.onConnect(x))}
-            >
-              Open all
+          {protocol === "ssh" && (
+            <button type="button" className="icon" onClick={() => p.onOpenFiles(s)} aria-label={`Browse files on ${s.name}`} title="Browse files (SFTP)">
+              <Icon name="files" size={14} />
             </button>
           )}
-        </div>
+          <button type="button" className="icon" onClick={() => p.onEdit(s)} aria-label={`Edit ${s.name}`} title="Edit">
+            <Icon name="edit" size={14} />
+          </button>
+          <button
+            type="button"
+            className="icon"
+            aria-label={`More actions for ${s.name}`}
+            title="More"
+            onClick={(e) => openMenu(e, sessionMenu(s))}
+          >
+            <Icon name="more" size={14} />
+          </button>
+        </span>
+      </li>
+    );
+  };
+
+  const newFolderRow = (parent: string) =>
+    editing?.kind === "new" && editing.parent === parent ? (
+      <li key="\u0000new" className="folder">
+        <FolderNameInput
+          initial="New folder"
+          onCancel={() => setEditing(null)}
+          onSubmit={async (name) => {
+            await p.onCreateFolder(joinFolder(parent, name));
+            setEditing(null);
+          }}
+        />
+      </li>
+    ) : null;
+
+  /** A folder header that opens and closes, then its subfolders and sessions. */
+  const folder = (node: FolderNode, favorites = false): ReactElement => {
+    const open = isOpen(node.path);
+    const renaming = editing?.kind === "rename" && editing.path === node.path;
+    const isTarget = drag?.target === node.path;
+    return (
+      <li key={node.path} className={`folder ${isTarget ? "drop-target" : ""}`}>
+        {renaming ? (
+          <FolderNameInput
+            initial={node.name}
+            onCancel={() => setEditing(null)}
+            onSubmit={async (name) => {
+              const to = joinFolder(parentFolder(node.path), name);
+              if (to !== node.path) await p.onRenameFolder(node.path, to);
+              setEditing(null);
+            }}
+          />
+        ) : (
+          <div
+            className="folder-head"
+            data-drop={favorites ? undefined : node.path}
+            onContextMenu={favorites ? undefined : (e) => openMenu(e, folderMenu(node))}
+          >
+            <button
+              type="button"
+              className="folder-toggle"
+              aria-expanded={open}
+              onClick={guardClick(() => setOpen(node.path, !open))}
+              onPointerDown={favorites ? undefined : (e) => dragStart(e, { kind: "folder", path: node.path }, node.name)}
+              title={open ? "Collapse" : "Expand"}
+            >
+              <Icon name="chevron" size={12} className={`caret ${open ? "open" : ""}`} />
+              {favorites ? (
+                <Icon name="star" className="folder-icon fav" />
+              ) : (
+                <Icon name={open ? "folderOpen" : "folder"} className="folder-icon" />
+              )}
+              <span className="folder-name">{node.name}</span>
+              {node.total > 0 && <span className="folder-count">{node.total}</span>}
+            </button>
+            {!favorites && (
+              <button
+                type="button"
+                className="icon folder-more"
+                aria-label={`Actions for folder ${node.name}`}
+                title="Folder actions"
+                onClick={(e) => openMenu(e, folderMenu(node))}
+              >
+                <Icon name="more" size={14} />
+              </button>
+            )}
+          </div>
+        )}
         {open && (
           <ul className="folder-children">
+            {newFolderRow(node.path)}
             {node.folders.map((f) => folder(f))}
-            {node.sessions.map(sessionRow)}
+            {node.sessions.map((s) => sessionRow(s, favorites))}
+            {!favorites && node.folders.length === 0 && node.sessions.length === 0 && editing?.kind !== "new" && (
+              <li className="folder-empty">
+                Empty. Drag sessions here or{" "}
+                <button type="button" className="link" onClick={() => p.onNew(node.path)}>
+                  add one
+                </button>
+                .
+              </li>
+            )}
           </ul>
         )}
       </li>
@@ -175,10 +463,12 @@ export function Sidebar(p: Props) {
     <aside className="sidebar" aria-label="Sessions">
       <div className="sidebar-actions">
         <button type="button" className="primary" onClick={p.onQuickConnect}>
+          <Icon name="plug" size={14} />
           Quick connect
         </button>
-        <div className="split-button" ref={menuRef}>
+        <div className="split-button" ref={shellRef}>
           <button type="button" onClick={() => p.onLocalTerminal()} title="Open a local terminal">
+            <Icon name="terminal" size={14} />
             Local
           </button>
           {p.shells.length > 1 && (
@@ -191,7 +481,7 @@ export function Sidebar(p: Props) {
               title="Choose a shell"
               onClick={() => setShellMenu((v) => !v)}
             >
-              ▾
+              <Icon name="chevron" size={10} className="caret open" />
             </button>
           )}
           {shellMenu && (
@@ -219,62 +509,143 @@ export function Sidebar(p: Props) {
       </div>
       <div className="sidebar-head">
         <h2>Sessions</h2>
-        <button type="button" className="icon" onClick={p.onNew} aria-label="New session" title="New session">
-          +
-        </button>
+        <span className="sidebar-head-actions">
+          <button type="button" className="icon" onClick={() => startNewFolder("")} aria-label="New folder" title="New folder">
+            <Icon name="folderPlus" />
+          </button>
+          <button type="button" className="icon" onClick={() => p.onNew()} aria-label="New session" title="New session">
+            <Icon name="plus" />
+          </button>
+        </span>
       </div>
-      <input
-        className="search"
-        type="search"
-        placeholder="Search (#tag)"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        aria-label="Search sessions"
-      />
-      <nav className="session-list">
-        {p.sessions.length === 0 && (
-          <p className="empty">
-            No saved sessions yet.
-            <br />
-            <button type="button" className="link" onClick={p.onNew}>
-              Create one
+      <label className="search">
+        <Icon name="search" size={14} />
+        <input
+          type="search"
+          placeholder="Search, or #tag"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Search sessions"
+        />
+      </label>
+      <nav
+        className={`session-list ${drag?.target === "" ? "drop-target" : ""} ${drag ? "is-dragging" : ""}`}
+        data-drop=""
+        onContextMenu={(e) =>
+          openMenu(e, [
+            { label: "New session…", run: () => p.onNew() },
+            { label: "New folder", run: () => startNewFolder("") },
+          ])
+        }
+      >
+        {p.sessions.length === 0 && p.folders.length === 0 && !editing && (
+          <div className="empty">
+            <p>No saved sessions yet.</p>
+            <button type="button" className="primary" onClick={() => p.onNew()}>
+              New session
             </button>
-          </p>
+            <button type="button" className="link" onClick={p.onImport}>
+              Import from ~/.ssh/config
+            </button>
+          </div>
         )}
-        {p.sessions.length > 0 && filtered.length === 0 && <p className="empty">No matches.</p>}
+        {p.sessions.length > 0 && searching && filtered.length === 0 && <p className="empty">No matches.</p>}
         <ul className="tree">
+          {newFolderRow("")}
           {favorites.length > 0 &&
-            folder(
-              { name: "Favorites", path: "\u0000favorites", folders: [], sessions: favorites, total: favorites.length },
-              "★ Favorites",
-            )}
+            folder({ name: "Favorites", path: FAVORITES, folders: [], sessions: favorites, total: favorites.length }, true)}
           {tree.folders.map((f) => folder(f))}
-          {tree.sessions.map(sessionRow)}
+          {tree.sessions.map((s) => sessionRow(s))}
         </ul>
       </nav>
       <div className="sidebar-footer">
-        <button type="button" className="link" onClick={p.onImport}>
-          Import ~/.ssh/config…
+        <button type="button" className="ghost" onClick={p.onTools} title="Ping, traceroute, port scan, DNS…">
+          <Icon name="tools" size={14} />
+          Tools
         </button>
-        <button type="button" className="link" onClick={p.onImportSessions}>
-          Import…
+        <button type="button" className="ghost" onClick={p.onKeys} title="SSH keys">
+          <Icon name="key" size={14} />
+          Keys
         </button>
-        <button type="button" className="link" onClick={p.onExport}>
-          Export…
-        </button>
-        <button type="button" className="link" onClick={p.onTools}>
-          Network tools
-        </button>
-        <button type="button" className="link" onClick={p.onKeys}>
-          SSH keys
-        </button>
-        <button type="button" className="icon" onClick={p.onAbout} aria-label="About Termalith" title="About Termalith">
-          ⓘ
-        </button>
-        <button type="button" className="icon" onClick={p.onSettings} aria-label="Settings" title="Settings">
-          ⚙
-        </button>
+        <div className="split-button" ref={moreRef}>
+          <button
+            type="button"
+            className="ghost"
+            aria-haspopup="menu"
+            aria-expanded={moreMenu}
+            title="Import and export sessions"
+            onClick={() => setMoreMenu((v) => !v)}
+          >
+            <Icon name="swap" size={14} />
+            Import
+          </button>
+          {moreMenu && (
+            <div className="menu menu-up" role="menu">
+              {(
+                [
+                  ["Import ~/.ssh/config…", p.onImport],
+                  ["Import sessions (JSON, MobaXterm)…", p.onImportSessions],
+                  ["Export sessions…", p.onExport],
+                ] as const
+              ).map(([label, run]) => (
+                <button
+                  key={label}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMoreMenu(false);
+                    run();
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <span className="sidebar-footer-end">
+          <button type="button" className="icon" onClick={p.onSettings} aria-label="Settings" title="Settings">
+            <Icon name="gear" />
+          </button>
+          <button type="button" className="icon" onClick={p.onAbout} aria-label="About Termalith" title="About Termalith">
+            <Icon name="info" />
+          </button>
+        </span>
       </div>
+      {menu && (
+        <div ref={menuRef} className="menu context-menu" role="menu" style={{ left: menu.x, top: menu.y }}>
+          {menu.items.map((item, i) =>
+            item === "sep" ? (
+              // biome-ignore lint/suspicious/noArrayIndexKey: separators have no identity
+              <hr key={`sep-${i}`} />
+            ) : (
+              <button
+                key={item.label}
+                type="button"
+                role="menuitem"
+                className={item.danger ? "danger" : undefined}
+                disabled={item.disabled !== undefined}
+                title={item.disabled}
+                onClick={() => {
+                  setMenu(null);
+                  item.run();
+                }}
+              >
+                {item.label}
+              </button>
+            ),
+          )}
+        </div>
+      )}
+      {drag && (
+        <div className="drag-ghost" style={{ left: drag.x + 12, top: drag.y + 8 }} aria-hidden="true">
+          {drag.item.kind === "folder" ? <Icon name="folder" size={13} /> : <ProtocolBadge protocol={drag.item.session.protocol ?? "ssh"} />}
+          {drag.label}
+          <span className="drag-hint">
+            {drag.target === null ? "" : drag.target ? `→ ${folderPath(drag.target).at(-1)}` : "→ top level"}
+          </span>
+        </div>
+      )}
     </aside>
   );
 }

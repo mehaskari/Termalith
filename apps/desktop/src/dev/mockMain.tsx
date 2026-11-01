@@ -100,6 +100,8 @@ seed({ name: "edge-fw", host: "10.0.0.1", port: 22, username: "admin", auth: { k
 seed({ name: "replica-2", host: "10.0.0.12", port: 22, username: "postgres", auth: { kind: "agent" }, folder: "Production / DB" });
 seed({ name: "lab vnc", host: "192.168.1.40", port: 5900, username: "", auth: { kind: "password" }, folder: null, protocol: "vnc" });
 
+const mockFolders = new Set<string>(["Lab/Switches"]);
+
 const desktops = new Map<number, Record<string, unknown>>();
 let nextDesktop = 1;
 
@@ -247,6 +249,52 @@ mockIPC(
         return null;
       case "sessions_list":
         return [...sessions.values()];
+      case "folders_list":
+        return [...mockFolders];
+      case "folder_create": {
+        const path = String(a.path).split("/").map((x) => x.trim()).filter(Boolean).join("/");
+        if (!path) throw { code: "invalid", message: "invalid folder: must not be empty" };
+        mockFolders.add(path);
+        return path;
+      }
+      case "folder_rename": {
+        const norm = (f: string) => f.split("/").map((x) => x.trim()).filter(Boolean).join("/");
+        const from = norm(String(a.from));
+        const to = norm(String(a.to));
+        if (to.toLowerCase().startsWith(`${from.toLowerCase()}/`)) throw { code: "invalid", message: "invalid folder: cannot move a folder into itself" };
+        const moved = (p: string) => {
+          const n = norm(p);
+          if (n.toLowerCase() === from.toLowerCase()) return to;
+          if (n.toLowerCase().startsWith(`${from.toLowerCase()}/`)) return to + n.slice(from.length);
+          return null;
+        };
+        for (const s of sessions.values()) {
+          const m = s.folder ? moved(s.folder) : null;
+          if (m) s.folder = m;
+        }
+        for (const f of [...mockFolders]) {
+          const m = moved(f);
+          if (m) {
+            mockFolders.delete(f);
+            mockFolders.add(m);
+          }
+        }
+        mockFolders.add(to);
+        return to;
+      }
+      case "folder_delete": {
+        const path = String(a.path).toLowerCase();
+        const inside = (f: string) => f.toLowerCase() === path || f.toLowerCase().startsWith(`${path}/`);
+        if ([...sessions.values()].some((s) => s.folder && inside(s.folder.split("/").map((x) => x.trim()).join("/"))))
+          throw { code: "invalid", message: "invalid folder: move or delete the sessions in it first" };
+        for (const f of [...mockFolders]) if (inside(f)) mockFolders.delete(f);
+        return null;
+      }
+      case "session_move": {
+        const s = sessions.get(a.id as string);
+        if (s) s.folder = (a.folder as string | null) ?? null;
+        return null;
+      }
       case "session_create": {
         seed(a.input as SessionInput);
         return [...sessions.values()].at(-1);

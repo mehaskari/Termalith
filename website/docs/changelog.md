@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Folders are now first-class: create empty folders and subfolders, rename,
+  delete, and drag sessions or folders to move them.
+- A refreshed look: protocol badges (SSH, RDP, VNC, Telnet) in the session
+  tree, drawn icons instead of emoji, a tidier sidebar footer and quieter
+  toolbars.
 - Crash reports: if Termalith closes unexpectedly, the next start shows the
   saved report with options to copy it or report it on GitHub. Nothing is
   sent automatically, and reports contain no passwords or terminal contents.

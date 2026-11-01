@@ -367,6 +367,8 @@ const MIGRATIONS: &[&str] = &[
         connection TEXT NOT NULL,
         finished_at INTEGER NOT NULL
     );",
+    // v13: folders that exist on their own (may be empty).
+    "CREATE TABLE folders (path TEXT PRIMARY KEY NOT NULL COLLATE NOCASE);",
 ];
 
 pub struct SessionStore {

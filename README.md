@@ -68,4 +68,4 @@ Termalith handles credentials and remote access, so it is deliberately conservat
 
 ## License
 
-[MIT](LICENSE). "Termalith" is a working name; it has not been checked for trademarks.
+[MIT](LICENSE). Third-party components and their licenses: [website/docs/third-party.md](website/docs/third-party.md) (regenerate with `scripts/third-party-licenses.sh`). "Termalith" is a working name; it has not been checked for trademarks.

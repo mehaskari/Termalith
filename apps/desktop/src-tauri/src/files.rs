@@ -1,9 +1,9 @@
 //! SFTP file-browser IPC. Downloads always land in the backend-chosen
 //! downloads directory; uploads take a token for a file the user dropped.
 
-use app_core::TransferEvent;
+use app_core::{MAX_EDIT_BYTES, TransferEvent, decode_text, remote_join, safe_file_name};
 use protocol_ssh::{RemoteEntry, RemoteKind};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 use tauri::ipc::Channel;
 
@@ -105,6 +105,76 @@ pub async fn sftp_upload(
     Ok(state.transfers.start_upload(sftp, local, &dir, move |e| {
         let _ = on_event.send(e);
     })?)
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+pub struct EditVersion {
+    size: Option<u64>,
+    modified: Option<u32>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteText {
+    path: String,
+    content: String,
+    /// Pass back when saving; detects changes made by someone else.
+    version: EditVersion,
+}
+
+/// Opens `dir/name` for the built-in editor (UTF-8 text up to 2 MiB).
+#[tauri::command]
+pub async fn sftp_read_text(
+    state: State<'_, AppState>,
+    terminal_id: u64,
+    dir: String,
+    name: String,
+) -> Result<RemoteText, IpcError> {
+    let path = remote_join(&dir, safe_file_name(&name)?);
+    let sftp = state.hub.sftp(terminal_id).await?;
+    let (bytes, stat) = sftp.read_file(&path, MAX_EDIT_BYTES).await?;
+    Ok(RemoteText {
+        content: decode_text(bytes)?,
+        path,
+        version: EditVersion {
+            size: stat.size,
+            modified: stat.modified,
+        },
+    })
+}
+
+/// Saves editor content over `dir/name`, refusing if the file changed
+/// since `version` was read. Returns the new version.
+#[tauri::command]
+pub async fn sftp_save_text(
+    state: State<'_, AppState>,
+    terminal_id: u64,
+    dir: String,
+    name: String,
+    content: String,
+    version: EditVersion,
+) -> Result<EditVersion, IpcError> {
+    if content.len() as u64 > MAX_EDIT_BYTES {
+        return Err(protocol_ssh::SshError::TooLarge {
+            limit: MAX_EDIT_BYTES,
+        }
+        .into());
+    }
+    let path = remote_join(&dir, safe_file_name(&name)?);
+    let sftp = state.hub.sftp(terminal_id).await?;
+    let expected = protocol_ssh::RemoteStat {
+        size: version.size,
+        modified: version.modified,
+        permissions: None,
+    };
+    let stat = sftp
+        .replace_file(&path, content.as_bytes(), &expected)
+        .await?;
+    Ok(EditVersion {
+        size: stat.size,
+        modified: stat.modified,
+    })
 }
 
 /// Runs a failed or cancelled transfer again; returns the new id.

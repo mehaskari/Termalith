@@ -633,6 +633,67 @@ async fn sftp_upload_download_round_trip() {
     sess.disconnect().await.unwrap();
 }
 
+#[tokio::test]
+async fn sftp_edit_reads_replaces_and_detects_conflicts() {
+    let s = sshd_or_skip!(SshdConfig::default());
+    let sess = connect_trusted(&s).await;
+    let sftp = sess.sftp().await.unwrap();
+    let path = s.path("notes.conf");
+    std::fs::write(&path, b"a = 1\n").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
+    }
+    let remote = s.remote("notes.conf");
+
+    let (data, stat) = sftp.read_file(&remote, 1024).await.unwrap();
+    assert_eq!(data, b"a = 1\n");
+    assert!(matches!(
+        sftp.read_file(&remote, 3).await,
+        Err(SshError::TooLarge { limit: 3 })
+    ));
+    assert!(matches!(
+        sftp.read_file(&s.remote(""), 1024).await,
+        Err(SshError::NotAFile(_))
+    ));
+
+    let new = sftp
+        .replace_file(&remote, b"a = 2\nb = 3\n", &stat)
+        .await
+        .unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), b"a = 2\nb = 3\n");
+    assert_eq!(new.size, Some(12));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o640, "permissions are kept");
+    }
+    no_partials(s.dir.path());
+    assert!(
+        std::fs::read_dir(s.dir.path()).unwrap().all(|e| !e
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .ends_with("-old")),
+        "backup removed"
+    );
+
+    // Someone else edits the file: saving with the old stat is refused.
+    std::fs::write(&path, b"changed elsewhere, longer\n").unwrap();
+    assert!(matches!(
+        sftp.replace_file(&remote, b"mine\n", &new).await,
+        Err(SshError::Modified(_))
+    ));
+    assert_eq!(
+        std::fs::read(&path).unwrap(),
+        b"changed elsewhere, longer\n"
+    );
+    sftp.close().await.unwrap();
+    sess.disconnect().await.unwrap();
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn sftp_refuses_to_overwrite_unless_asked() {
     let s = sshd_or_skip!(SshdConfig::default());

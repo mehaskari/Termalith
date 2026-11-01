@@ -20,5 +20,5 @@ pub use session::{
     Auth, ConnectOptions, ExecOutput, ShellChannel, ShellEvent, ShellReader, ShellWriter,
     SshSession, Target,
 };
-pub use sftp::{RemoteEntry, RemoteKind, SftpClient, TransferOptions};
+pub use sftp::{RemoteEntry, RemoteKind, RemoteStat, SftpClient, TransferOptions};
 pub use tokio_util::sync::CancellationToken;

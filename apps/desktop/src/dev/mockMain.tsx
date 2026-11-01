@@ -51,6 +51,12 @@ function progressThen(ch: ChannelLike, total: number, done: unknown) {
   setTimeout(step, 100);
 }
 const retryNames = new Map<number, string>();
+const remoteText: Record<string, string> = {};
+const remoteVersions: Record<string, number> = {};
+// Dev helper: simulate someone else editing a file on the server.
+(window as unknown as Record<string, unknown>).__touchRemote = (key: string) => {
+  remoteVersions[key] = (remoteVersions[key] ?? 1) + 10;
+};
 let nextTerm = 1;
 let nextPrompt = 1;
 let nextSession = 1;
@@ -291,6 +297,20 @@ mockIPC(
             : { kind: "done", destination: `/Users/me/Downloads/${a.name}` },
         );
         return { id, downloadsDir: "/Users/me/Downloads" };
+      }
+      case "sftp_read_text": {
+        const key = `${a.dir}/${a.name}`;
+        if (!(key in remoteText)) remoteText[key] = `# ${a.name}\nlisten 8080\nworkers 4\n`;
+        const content = remoteText[key] ?? "";
+        return { path: key, content, version: { size: content.length, modified: remoteVersions[key] ?? 1 } };
+      }
+      case "sftp_save_text": {
+        const key = `${a.dir}/${a.name}`;
+        const v = a.version as { modified: number | null };
+        if ((remoteVersions[key] ?? 1) !== v.modified) throw { code: "remote_modified", message: `${key} was changed on the server since it was opened` };
+        remoteText[key] = String(a.content);
+        remoteVersions[key] = (remoteVersions[key] ?? 1) + 1;
+        return { size: remoteText[key].length, modified: remoteVersions[key] };
       }
       case "transfer_retry": {
         const name = retryNames.get(Number(a.id));

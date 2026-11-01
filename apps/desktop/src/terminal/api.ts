@@ -407,3 +407,31 @@ export function startLog(id: TerminalId, label: string): Promise<LogInfo> {
 export function stopLog(id: TerminalId): Promise<LogInfo | null> {
   return invoke("terminal_log_stop", { id });
 }
+
+// ---------------------------------------------------------------- remote editor
+
+/** Identifies the file content a save is based on (conflict detection). */
+export interface EditVersion {
+  size: number | null;
+  modified: number | null;
+}
+
+export interface RemoteText {
+  path: string;
+  content: string;
+  version: EditVersion;
+}
+
+export function readRemoteText(terminalId: TerminalId, dir: string, name: string): Promise<RemoteText> {
+  return invoke("sftp_read_text", { terminalId, dir, name });
+}
+
+export function saveRemoteText(
+  terminalId: TerminalId,
+  dir: string,
+  name: string,
+  content: string,
+  version: EditVersion,
+): Promise<EditVersion> {
+  return invoke("sftp_save_text", { terminalId, dir, name, content, version });
+}

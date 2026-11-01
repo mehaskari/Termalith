@@ -53,6 +53,16 @@ pub enum SshError {
     #[error("transfer cancelled")]
     Cancelled,
 
+    #[error("file is larger than {limit} bytes")]
+    TooLarge { limit: u64 },
+
+    /// The remote file changed since it was read (conflict on save).
+    #[error("{0} was changed on the server since it was opened")]
+    Modified(String),
+
+    #[error("{0} is not a regular file")]
+    NotAFile(String),
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }

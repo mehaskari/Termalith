@@ -41,6 +41,8 @@
     "allow-sftp-upload",
     "allow-transfer-cancel",
     "allow-transfer-retry",
+    "allow-sftp-read-text",
+    "allow-sftp-save-text",
     "allow-known-host-forget",
     "allow-ssh-config-preview",
     "allow-ssh-config-import",

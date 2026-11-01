@@ -33,6 +33,8 @@ interface Props {
   dropped: DroppedFile[] | null;
   onDroppedHandled: () => void;
   onClose: () => void;
+  /** Open a remote file in the built-in editor. */
+  onEdit: (dir: string, name: string) => void;
 }
 
 let transferKey = 1;
@@ -41,7 +43,7 @@ function message(e: unknown): string {
   return isIpcError(e) ? e.message : String(e);
 }
 
-export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose }: Props) {
+export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onEdit }: Props) {
   const [path, setPath] = useState<string | null>(null);
   const [pathInput, setPathInput] = useState("");
   const [entries, setEntries] = useState<RemoteEntry[]>([]);
@@ -177,6 +179,12 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose }: P
                 <span className="file-icon" aria-hidden="true">{e.kind === "symlink" ? "↪" : "·"}</span>
                 <span className="file-name" title={e.name}>{e.name}</span>
                 <span className="file-size">{formatSize(e.size)}</span>
+                {e.kind === "file" && (
+                  <button type="button" className="icon" title={`Edit ${e.name}`} aria-label={`Edit ${e.name}`}
+                    onClick={() => path && onEdit(path, e.name)}>
+                    ✎
+                  </button>
+                )}
                 {e.kind === "file" && (
                   <button type="button" className="icon" title={`Download ${e.name}`} aria-label={`Download ${e.name}`}
                     onClick={() => download(e)}>

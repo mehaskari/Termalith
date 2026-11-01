@@ -36,6 +36,7 @@
     "allow-desktop-close",
     "allow-host-key-respond",
     "allow-auth-prompt-respond",
+    "allow-open-web-link",
     "allow-keys-list",
     "allow-key-generate",
     "allow-key-public",

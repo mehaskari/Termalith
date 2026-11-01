@@ -229,6 +229,36 @@ impl SftpClient {
         }
     }
 
+    /// Creates a directory. Fails if anything exists at `remote`.
+    pub async fn create_dir(&self, remote: &str) -> Result<(), SshError> {
+        if self.inner.try_exists(remote).await? {
+            return Err(SshError::DestinationExists(remote.to_owned()));
+        }
+        Ok(self.inner.create_dir(remote).await?)
+    }
+
+    /// Renames a file or directory; never replaces an existing `to`.
+    pub async fn rename(&self, from: &str, to: &str) -> Result<(), SshError> {
+        if self.inner.try_exists(to).await? {
+            return Err(SshError::DestinationExists(to.to_owned()));
+        }
+        Ok(self.inner.rename(from, to).await?)
+    }
+
+    /// Deletes a file, a symlink (not its target) or an empty directory.
+    /// Directories with content are refused by the server; there is
+    /// deliberately no recursive delete.
+    pub async fn delete(&self, remote: &str) -> Result<(), SshError> {
+        let m = self.inner.symlink_metadata(remote).await?;
+        if m.is_dir() {
+            self.inner.remove_dir(remote).await.map_err(|e| {
+                SshError::Sftp(format!("could not delete the folder (is it empty?): {e}"))
+            })
+        } else {
+            Ok(self.inner.remove_file(remote).await?)
+        }
+    }
+
     /// Size, modification time and mode of a regular file.
     pub async fn stat(&self, remote: &str) -> Result<RemoteStat, SshError> {
         let m = self.inner.metadata(remote).await?;

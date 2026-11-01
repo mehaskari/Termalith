@@ -634,6 +634,48 @@ async fn sftp_upload_download_round_trip() {
 }
 
 #[tokio::test]
+async fn sftp_folder_rename_and_delete() {
+    let s = sshd_or_skip!(SshdConfig::default());
+    let sess = connect_trusted(&s).await;
+    let sftp = sess.sftp().await.unwrap();
+    std::fs::write(s.path("a.txt"), b"a").unwrap();
+    std::fs::write(s.path("b.txt"), b"b").unwrap();
+
+    sftp.create_dir(&s.remote("logs")).await.unwrap();
+    assert!(s.path("logs").is_dir());
+    assert!(matches!(
+        sftp.create_dir(&s.remote("logs")).await,
+        Err(SshError::DestinationExists(_))
+    ));
+
+    sftp.rename(&s.remote("a.txt"), &s.remote("c.txt"))
+        .await
+        .unwrap();
+    assert!(!s.path("a.txt").exists() && s.path("c.txt").exists());
+    assert!(matches!(
+        sftp.rename(&s.remote("c.txt"), &s.remote("b.txt")).await,
+        Err(SshError::DestinationExists(_))
+    ));
+    assert_eq!(
+        std::fs::read(s.path("b.txt")).unwrap(),
+        b"b",
+        "never replaced"
+    );
+
+    // Non-empty folders are refused; empty ones and files are deleted.
+    std::fs::write(s.path("logs").join("x.log"), b"x").unwrap();
+    assert!(sftp.delete(&s.remote("logs")).await.is_err());
+    assert!(s.path("logs").join("x.log").exists());
+    sftp.delete(&s.remote("logs/x.log")).await.unwrap();
+    sftp.delete(&s.remote("logs")).await.unwrap();
+    assert!(!s.path("logs").exists());
+    sftp.delete(&s.remote("c.txt")).await.unwrap();
+    assert!(!s.path("c.txt").exists());
+    sftp.close().await.unwrap();
+    sess.disconnect().await.unwrap();
+}
+
+#[tokio::test]
 async fn sftp_edit_reads_replaces_and_detects_conflicts() {
     let s = sshd_or_skip!(SshdConfig::default());
     let sess = connect_trusted(&s).await;

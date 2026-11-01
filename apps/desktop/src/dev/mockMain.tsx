@@ -329,6 +329,27 @@ mockIPC(
         );
         return { id, downloadsDir: "/Users/me/Downloads" };
       }
+      case "sftp_mkdir": {
+        const list = (remoteFiles[a.dir as string] ??= []);
+        if (list.some((e) => e.name === a.name)) throw { code: "destination_exists", message: `destination already exists: ${a.dir}/${a.name}` };
+        list.push({ name: a.name as string, kind: "dir", size: null });
+        remoteFiles[`${a.dir}/${a.name}`] = [];
+        return null;
+      }
+      case "sftp_rename": {
+        const list = remoteFiles[a.dir as string] ?? [];
+        if (list.some((e) => e.name === a.to)) throw { code: "destination_exists", message: `destination already exists: ${a.dir}/${a.to}` };
+        const e = list.find((x) => x.name === a.from);
+        if (e) e.name = a.to as string;
+        return null;
+      }
+      case "sftp_delete": {
+        const dir = a.dir as string;
+        const key = `${dir}/${a.name}`;
+        if ((remoteFiles[key]?.length ?? 0) > 0) throw { code: "sftp_error", message: "SFTP error: could not delete the folder (is it empty?): Failure" };
+        remoteFiles[dir] = (remoteFiles[dir] ?? []).filter((e) => e.name !== a.name);
+        return null;
+      }
       case "sftp_read_text": {
         const key = `${a.dir}/${a.name}`;
         if (!(key in remoteText)) remoteText[key] = `# ${a.name}\nlisten 8080\nworkers 4\n`;

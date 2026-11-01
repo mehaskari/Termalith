@@ -177,6 +177,50 @@ pub async fn sftp_save_text(
     })
 }
 
+/// Creates folder `name` in `dir`.
+#[tauri::command]
+pub async fn sftp_mkdir(
+    state: State<'_, AppState>,
+    terminal_id: u64,
+    dir: String,
+    name: String,
+) -> Result<(), IpcError> {
+    let path = remote_join(&dir, safe_file_name(&name)?);
+    Ok(state.hub.sftp(terminal_id).await?.create_dir(&path).await?)
+}
+
+/// Renames `from` to `to` inside `dir` (no moves between folders, never
+/// replaces an existing entry).
+#[tauri::command]
+pub async fn sftp_rename(
+    state: State<'_, AppState>,
+    terminal_id: u64,
+    dir: String,
+    from: String,
+    to: String,
+) -> Result<(), IpcError> {
+    let old = remote_join(&dir, safe_file_name(&from)?);
+    let new = remote_join(&dir, safe_file_name(&to)?);
+    Ok(state
+        .hub
+        .sftp(terminal_id)
+        .await?
+        .rename(&old, &new)
+        .await?)
+}
+
+/// Deletes a file, symlink or empty folder `name` in `dir`.
+#[tauri::command]
+pub async fn sftp_delete(
+    state: State<'_, AppState>,
+    terminal_id: u64,
+    dir: String,
+    name: String,
+) -> Result<(), IpcError> {
+    let path = remote_join(&dir, safe_file_name(&name)?);
+    Ok(state.hub.sftp(terminal_id).await?.delete(&path).await?)
+}
+
 /// Runs a failed or cancelled transfer again; returns the new id.
 #[tauri::command]
 pub fn transfer_retry(

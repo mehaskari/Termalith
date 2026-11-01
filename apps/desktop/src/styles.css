@@ -1063,3 +1063,53 @@ button.recording {
   padding-left: 8px;
   padding-right: 8px;
 }
+
+.files-list > li {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+.files-list > li > .file-row {
+  flex: 1;
+  min-width: 0;
+}
+.file-menu {
+  position: relative;
+  display: inline-flex;
+}
+.file-menu > button {
+  visibility: hidden;
+}
+.files-list > li:hover .file-menu > button,
+.file-menu > button:focus-visible,
+.file-menu > button[aria-expanded="true"] {
+  visibility: visible;
+}
+.file-menu .menu {
+  left: auto;
+  right: 0;
+}
+.menu button.danger {
+  color: var(--danger);
+}
+
+.files-panel {
+  min-width: min(220px, 60%);
+  container-type: inline-size;
+}
+@container (max-width: 240px) {
+  .file-size {
+    display: none;
+  }
+}
+
+.sidebar-actions {
+  gap: 4px;
+}
+.sidebar-actions button {
+  padding-left: 7px;
+  padding-right: 7px;
+}
+.sidebar-actions .split-toggle {
+  padding: 0 4px;
+}

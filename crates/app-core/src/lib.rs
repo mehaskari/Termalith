@@ -4,6 +4,7 @@
 
 mod auth_prompts;
 mod connect;
+mod crash;
 mod desktops;
 mod error;
 mod files;
@@ -22,6 +23,7 @@ mod tunnels;
 
 pub use auth_prompts::{AuthPrompt, AuthPromptBroker, AuthPromptField};
 pub use connect::{ConnectRequest, Connected, Connector, PasswordInput};
+pub use crash::{CrashKind, CrashReport, CrashReports, MAX_REPORTS, panic_report};
 pub use desktops::{DesktopHub, DesktopInfo, DesktopLaunch, DesktopState};
 pub use error::AppError;
 pub use files::{

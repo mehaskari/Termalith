@@ -582,6 +582,23 @@ export function openSshFiles(request: SshOpenRequest): Promise<{ id: TerminalId;
 /** Opens an http(s) link from terminal output in the default browser. */
 export const openWebLink = (url: string) => invoke<void>("open_web_link", { url });
 
+// ---------------------------------------------------------------- crash reports
+
+export interface CrashReport {
+  /** File name; pass it back to dismiss the report. */
+  id: string;
+  kind: "backend" | "ui";
+  /** Seconds since the Unix epoch. */
+  time: number;
+  summary: string;
+  text: string;
+}
+
+export const crashReports = () => invoke<CrashReport[]>("crash_reports");
+export const dismissCrashReports = (ids: string[]) => invoke<void>("crash_dismiss", { ids });
+export const reportFrontendError = (message: string, details: string) =>
+  invoke<void>("frontend_error", { message, details });
+
 // ---------------------------------------------------------------- transfer history
 
 export interface TransferRecord {

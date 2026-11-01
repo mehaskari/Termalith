@@ -19,6 +19,9 @@ import {
   type SessionRecord,
   type SshTarget,
   appInfo,
+  type CrashReport,
+  crashReports,
+  dismissCrashReports,
   createSession,
   deleteSession,
   forgetHostKey,
@@ -54,6 +57,7 @@ import { DiffPane, type DiffTarget } from "./ui/DiffPane";
 import { AuthPromptDialog } from "./ui/AuthPromptDialog";
 import { KeysDialog } from "./ui/KeysDialog";
 import { AboutDialog } from "./ui/AboutDialog";
+import { CrashNotice } from "./ui/CrashNotice";
 import { CommandPalette, type PaletteItem } from "./ui/CommandPalette";
 import { Dialog } from "./ui/Dialog";
 import { FilesPanel } from "./ui/FilesPanel";
@@ -152,6 +156,7 @@ export function App() {
   const [keysOpen, setKeysOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [crashes, setCrashes] = useState<CrashReport[]>([]);
   const [tabMenu, setTabMenu] = useState<{ key: number; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -453,6 +458,7 @@ export function App() {
   const didOpenInitialTab = useRef(false);
   useEffect(() => {
     appInfo().then(setInfo, () => setInfo({ version: "?", secretsAvailable: false, agentAvailable: false }));
+    crashReports().then(setCrashes, () => {});
     refresh();
     // The first tab uses the preferred shell, so wait for settings and the
     // shell list. StrictMode runs effects twice in development; open once.
@@ -1250,6 +1256,15 @@ export function App() {
         />
       )}
       {aboutOpen && <AboutDialog info={info} onClose={() => setAboutOpen(false)} />}
+      {crashes.length > 0 && (
+        <CrashNotice
+          reports={crashes}
+          onDismiss={() => {
+            void dismissCrashReports(crashes.map((c) => c.id)).catch(() => {});
+            setCrashes([]);
+          }}
+        />
+      )}
       {keysOpen && (
         <KeysDialog
           targets={tabs

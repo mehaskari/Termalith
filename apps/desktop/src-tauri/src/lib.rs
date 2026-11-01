@@ -1,6 +1,7 @@
 //! Tauri boundary. Translates IPC to calls on platform-neutral crates; holds
 //! no domain logic of its own.
 
+mod crash;
 mod desktop;
 mod error;
 mod files;
@@ -15,11 +16,20 @@ mod terminal;
 use tauri::webview::PageLoadEvent;
 use tauri::{DragDropEvent, Emitter, Manager, RunEvent, WindowEvent};
 
+use std::sync::Arc;
+
+use crate::crash::CrashState;
 use crate::state::AppState;
 
 pub fn run() {
     let app = tauri::Builder::default()
         .setup(|app| {
+            let reports = Arc::new(app_core::CrashReports::new(
+                app.path().app_log_dir()?.join("crashes"),
+                env!("CARGO_PKG_VERSION"),
+            ));
+            crash::install_hook(reports.clone());
+            app.manage(CrashState(reports));
             let state = AppState::init(app.handle())?;
             let dropped = state.dropped.clone();
             app.manage(state);
@@ -81,6 +91,9 @@ pub fn run() {
             ssh::host_key_respond,
             ssh::auth_prompt_respond,
             links::open_web_link,
+            crash::crash_reports,
+            crash::crash_dismiss,
+            crash::frontend_error,
             keys::keys_list,
             keys::key_generate,
             keys::key_public,

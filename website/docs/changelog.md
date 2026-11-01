@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Crash reports: if Termalith closes unexpectedly, the next start shows the
+  saved report with options to copy it or report it on GitHub. Nothing is
+  sent automatically, and reports contain no passwords or terminal contents.
+- A window error now shows a recovery screen with **Reload** instead of a
+  blank window.
+
 ## 0.1.0 — first public preview
 
 The first public build. Installers for macOS (Apple Silicon), Windows and

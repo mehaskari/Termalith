@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-net-scan-start"
+description = "Enables the net_scan_start command without any pre-configured scope."
+commands.allow = ["net_scan_start"]
+
+[[permission]]
+identifier = "deny-net-scan-start"
+description = "Denies the net_scan_start command without any pre-configured scope."
+commands.deny = ["net_scan_start"]

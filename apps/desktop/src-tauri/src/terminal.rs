@@ -204,7 +204,19 @@ pub async fn telnet_open(
     let (tap, sink) = logged_sink(on_output, on_exit);
     let id = state
         .hub
-        .open_telnet(rec.input.host.trim(), rec.input.port, via, size, sink)
+        .open_telnet(
+            rec.input.host.trim(),
+            rec.input.port,
+            via,
+            state
+                .connector
+                .sessions
+                .settings()?
+                .proxy
+                .map(|p| p.to_proxy()),
+            size,
+            sink,
+        )
         .await?;
     state.logs.register(id, tap);
     Ok(id)
@@ -219,6 +231,21 @@ pub fn terminal_log_start(
     label: String,
 ) -> Result<LogInfo, IpcError> {
     Ok(state.logs.start(id, &label)?)
+}
+
+/// Saves a snapshot of a terminal's visible text and scrollback (sent by
+/// the UI) to a new file in the logs folder; returns the path.
+#[tauri::command]
+pub fn terminal_save_output(
+    state: State<'_, AppState>,
+    label: String,
+    text: String,
+) -> Result<String, IpcError> {
+    Ok(state
+        .logs
+        .save_text(&label, &text)?
+        .to_string_lossy()
+        .into_owned())
 }
 
 #[tauri::command]

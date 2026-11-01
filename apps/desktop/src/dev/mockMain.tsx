@@ -35,7 +35,7 @@ const mockSnippets: Array<{ id: string; name: string; command: string; folder: s
   { id: "snp-1", name: "Interface status", command: "show interfaces {{iface}} status", folder: "Cisco" },
   { id: "snp-2", name: "Disk usage", command: "df -h\ndu -sh {{path}}", folder: null },
 ];
-const mockSettings: Record<string, unknown> = { theme: "system", fontSize: 13, fontFamily: "", cursorStyle: "block", cursorBlink: true, scrollback: 5000, logSessions: false, defaultShell: null, copyOnSelect: false, rightClickPaste: false, autoReconnect: true, terminalScheme: "app" };
+const mockSettings: Record<string, unknown> = { theme: "system", fontSize: 13, fontFamily: "", cursorStyle: "block", cursorBlink: true, scrollback: 5000, logSessions: false, defaultShell: null, copyOnSelect: false, rightClickPaste: false, autoReconnect: true, terminalScheme: "app", proxy: null };
 const logging = new Set<number>();
 let nextTunnel = 1;
 const tunnels: Array<Record<string, unknown> & { id: number; terminalId: number }> = [];
@@ -144,6 +144,21 @@ mockIPC(
         }
         return { created, skipped: [], unresolvedJumps: [] };
       }
+      case "terminal_save_output":
+        return `/Users/me/Documents/Termalith Logs/2026-11-01_10-00-00_${String(a.label)}-output.txt`;
+      case "net_scan_start": {
+        const ch = a.onResult as ChannelLike;
+        const done = a.onDone as ChannelLike;
+        const ports = String(a.ports).split(",").map((p) => Number(p.trim())).filter((p) => p > 0);
+        let i = 0;
+        ports.forEach((port, k) =>
+          setTimeout(() => window.__TAURI_INTERNALS__.runCallback(ch.id, { index: i++, message: { port, open: port === 22 || port === 443 } }), 30 * k),
+        );
+        setTimeout(() => window.__TAURI_INTERNALS__.runCallback(done.id, { index: 0, message: { address: "10.0.0.5", error: null, cancelled: false } }), 30 * ports.length + 50);
+        return 7;
+      }
+      case "net_wake":
+        return null;
       case "terminal_log_start":
         logging.add(Number(a.id));
         return { path: `/Users/me/Documents/Termalith Logs/2026-11-01_10-00-00_${String(a.label)}.log`, bytes: 0, dropped: 0 };

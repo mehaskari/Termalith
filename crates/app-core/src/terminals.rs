@@ -289,11 +289,20 @@ impl TerminalHub {
         host: &str,
         port: u16,
         via: Option<Arc<SshSession>>,
+        proxy: Option<protocol_ssh::Proxy>,
         size: TerminalSize,
         sink: impl TerminalEventSink,
     ) -> Result<u64, AppError> {
-        let stream: BoxedStream = match &via {
-            None => {
+        let stream: BoxedStream = match (&via, proxy) {
+            (None, Some(p)) => Box::new(
+                tokio::time::timeout(
+                    TELNET_CONNECT_TIMEOUT,
+                    protocol_ssh::connect_via_proxy(&p, host, port),
+                )
+                .await
+                .map_err(|_| AppError::Network(format!("{host}:{port} did not answer")))??,
+            ),
+            (None, None) => {
                 let tcp = tokio::time::timeout(
                     TELNET_CONNECT_TIMEOUT,
                     tokio::net::TcpStream::connect((host, port)),
@@ -304,7 +313,7 @@ impl TerminalHub {
                 let _ = tcp.set_nodelay(true);
                 Box::new(tcp)
             }
-            Some(ssh) => Box::new(
+            (Some(ssh), _) => Box::new(
                 ssh.open_direct_tcpip(host, port, std::net::SocketAddr::from(([127, 0, 0, 1], 0)))
                     .await?,
             ),

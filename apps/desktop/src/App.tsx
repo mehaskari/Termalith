@@ -83,7 +83,7 @@ interface Tab {
   ended?: boolean;
   filesOpen?: boolean;
   /** Latest shortcut command for the main terminal of this tab. */
-  command?: { seq: number; action: "find" | "copy" | "paste" };
+  command?: { seq: number; action: "find" | "copy" | "paste" | "save" };
   tunnelsOpen?: boolean;
   snippetsOpen?: boolean;
   /** Set when the connection was refused because the host key changed. */
@@ -770,6 +770,15 @@ export function App() {
                     Duplicate
                   </button>
                 )}
+                {t.terminalId !== undefined && ["local", "ssh", "serial", "telnet"].includes(t.kind) && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={act(() => patchTab(t.key, { command: { seq: performance.now(), action: "save" } }))}
+                  >
+                    Save output…
+                  </button>
+                )}
                 <button type="button" role="menuitem" disabled={tabs.length < 2} onClick={act(() => closeOthers(t.key))}>
                   Close others
                 </button>
@@ -1011,6 +1020,8 @@ export function App() {
                       settings={settings}
                       theme={theme}
                       command={t.command}
+                      label={t.title}
+                      onNotice={setNotice}
                       onInput={(d) => mirrorInput(t.key, d)}
                     />
                   </div>

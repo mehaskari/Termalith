@@ -200,6 +200,10 @@ impl Connector {
                 )
             })?);
         }
+        // The proxy carries only the first hop; later hops run inside it.
+        if via.is_none() {
+            opts.proxy = self.sessions.settings()?.proxy.map(|p| p.to_proxy());
+        }
         if depth == 0 && input.x11_forward {
             opts.x11 = Some(local_x11().await?);
         }

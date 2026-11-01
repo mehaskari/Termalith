@@ -21,6 +21,8 @@ export function SettingsDialog({ initial, shells, onSave, onCancel }: Props) {
     if (!Number.isInteger(s.fontSize) || s.fontSize < 8 || s.fontSize > 32) return setError("Font size must be 8-32");
     if (!Number.isInteger(s.scrollback) || s.scrollback < 100 || s.scrollback > 100000)
       return setError("Scrollback must be 100-100000 lines");
+    if (s.proxy && (!s.proxy.host.trim() || !Number.isInteger(s.proxy.port) || s.proxy.port < 1 || s.proxy.port > 65535))
+      return setError("Enter the proxy host and a port (1-65535)");
     try {
       await onSave(s);
     } catch (err) {
@@ -90,6 +92,53 @@ export function SettingsDialog({ initial, shells, onSave, onCancel }: Props) {
           <input type="checkbox" checked={s.cursorBlink} onChange={(e) => set({ cursorBlink: e.target.checked })} />
           Blinking cursor
         </label>
+        <label>
+          Proxy
+          <select
+            value={s.proxy?.kind ?? ""}
+            onChange={(e) => {
+              const kind = e.target.value as "" | "socks5" | "http";
+              set({
+                proxy: kind
+                  ? { kind, host: s.proxy?.host ?? "", port: s.proxy?.port ?? (kind === "socks5" ? 1080 : 3128) }
+                  : null,
+              });
+            }}
+          >
+            <option value="">Direct connection</option>
+            <option value="socks5">SOCKS5</option>
+            <option value="http">HTTP (CONNECT)</option>
+          </select>
+        </label>
+        {s.proxy ? (
+          <label>
+            Proxy host and port
+            <span className="row">
+              <input
+                value={s.proxy.host}
+                placeholder="proxy.example.com"
+                spellCheck={false}
+                aria-label="Proxy host"
+                onChange={(e) => s.proxy && set({ proxy: { ...s.proxy, host: e.target.value } })}
+              />
+              <input
+                className="port"
+                value={s.proxy.port}
+                inputMode="numeric"
+                aria-label="Proxy port"
+                onChange={(e) => s.proxy && set({ proxy: { ...s.proxy, port: Number(e.target.value) } })}
+              />
+            </span>
+          </label>
+        ) : (
+          <span />
+        )}
+        {s.proxy && (
+          <p className="hint span-2">
+            SSH and Telnet connections go through the proxy (the first hop only; jump hosts are reached through the
+            first connection). The proxy sees which server you connect to, not the encrypted SSH traffic.
+          </p>
+        )}
         <label className="checkbox span-2">
           <input type="checkbox" checked={s.copyOnSelect} onChange={(e) => set({ copyOnSelect: e.target.checked })} />
           Copy selected terminal text automatically

@@ -1080,6 +1080,7 @@ async fn telnet_through_an_ssh_jump_host() {
             "127.0.0.1",
             port,
             Some(session),
+            None,
             TerminalSize::new(80, 24).unwrap(),
             move |ev: TerminalEvent| tx.send(ev).is_ok(),
         )

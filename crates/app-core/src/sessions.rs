@@ -354,6 +354,19 @@ const MIGRATIONS: &[&str] = &[
     DROP TABLE sessions;
     ALTER TABLE sessions_v11 RENAME TO sessions;
     CREATE INDEX sessions_name ON sessions (name COLLATE NOCASE);",
+    // v12: transfer history (no file contents, no credentials).
+    "CREATE TABLE transfer_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        direction TEXT NOT NULL CHECK (direction IN ('download', 'upload')),
+        name TEXT NOT NULL,
+        remote_path TEXT NOT NULL,
+        local_path TEXT,
+        size INTEGER,
+        outcome TEXT NOT NULL CHECK (outcome IN ('done', 'failed', 'cancelled')),
+        message TEXT,
+        connection TEXT NOT NULL,
+        finished_at INTEGER NOT NULL
+    );",
 ];
 
 pub struct SessionStore {

@@ -490,7 +490,10 @@ async fn file_browser_transfers_over_the_terminal_connection() {
         ["remote.txt"]
     );
 
-    let transfers = Arc::new(Transfers::default());
+    let history = Arc::new(SessionStore::open_in_memory().unwrap());
+    let transfers = Arc::new(Transfers::with_recorder(app_core::history_recorder(
+        history.clone(),
+    )));
     let local = tempfile::tempdir().unwrap();
 
     // Download into a backend-chosen directory; a second download gets a
@@ -500,10 +503,13 @@ async fn file_browser_transfers_over_the_terminal_connection() {
         transfers
             .start_download(
                 sftp.clone(),
-                &remote_dir,
-                "remote.txt",
-                Some(15),
-                local.path().into(),
+                app_core::Download {
+                    remote_dir: &remote_dir,
+                    name: "remote.txt",
+                    size: Some(15),
+                    dest_dir: local.path().into(),
+                    connection: "test-conn",
+                },
                 sink,
             )
             .unwrap();
@@ -522,11 +528,14 @@ async fn file_browser_transfers_over_the_terminal_connection() {
         transfers
             .start_download(
                 sftp.clone(),
-                &remote_dir,
-                "../escape.txt",
-                None,
-                local.path().into(),
-                sink
+                app_core::Download {
+                    remote_dir: &remote_dir,
+                    name: "../escape.txt",
+                    size: None,
+                    dest_dir: local.path().into(),
+                    connection: "test-conn",
+                },
+                sink,
             )
             .is_err()
     );
@@ -536,7 +545,7 @@ async fn file_browser_transfers_over_the_terminal_connection() {
     std::fs::write(&up, vec![7u8; 300_000]).unwrap();
     let (sink, mut rx) = event_sink();
     transfers
-        .start_upload(sftp.clone(), up.clone(), &remote_dir, sink)
+        .start_upload(sftp.clone(), up.clone(), &remote_dir, "test-conn", sink)
         .unwrap();
     assert!(matches!(
         wait_event(&mut rx).await,
@@ -550,7 +559,7 @@ async fn file_browser_transfers_over_the_terminal_connection() {
     );
     let (sink, mut rx) = event_sink();
     transfers
-        .start_upload(sftp.clone(), up, &remote_dir, sink)
+        .start_upload(sftp.clone(), up, &remote_dir, "test-conn", sink)
         .unwrap();
     match wait_event(&mut rx).await {
         TransferEvent::Failed { message, .. } => {
@@ -569,10 +578,13 @@ async fn file_browser_transfers_over_the_terminal_connection() {
     let tid = transfers
         .start_download(
             sftp.clone(),
-            &remote_dir,
-            "big.bin",
-            None,
-            local.path().into(),
+            app_core::Download {
+                remote_dir: &remote_dir,
+                name: "big.bin",
+                size: None,
+                dest_dir: local.path().into(),
+                connection: "test-conn",
+            },
             sink,
         )
         .unwrap();
@@ -590,6 +602,28 @@ async fn file_browser_transfers_over_the_terminal_connection() {
         assert!(start.elapsed() < Duration::from_secs(5));
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
+
+    // Every finished transfer was recorded (newest first), retries too.
+    let h = history.transfer_history(50).unwrap();
+    let outcomes: Vec<_> = h.iter().map(|r| (r.name.as_str(), r.outcome)).collect();
+    use app_core::TransferOutcome as O;
+    assert_eq!(
+        outcomes,
+        [
+            ("big.bin", O::Cancelled),
+            ("upload.bin", O::Failed),
+            ("upload.bin", O::Done),
+            ("remote.txt", O::Done),
+            ("remote.txt", O::Done),
+        ],
+        "{h:?}"
+    );
+    assert!(h.iter().all(|r| r.connection == "test-conn"));
+    assert!(
+        h[3].local_path
+            .as_deref()
+            .is_some_and(|p| p.ends_with("remote (1).txt"))
+    );
 
     // SFTP is not available on local terminals.
     let local_term = r

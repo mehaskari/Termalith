@@ -16,6 +16,7 @@ import {
   sftpUpload,
 } from "../terminal/api";
 import { Dialog } from "./Dialog";
+import { TransferHistory } from "./TransferHistory";
 import { formatSize, joinRemote, parentRemote, percent } from "./paths";
 
 type FileOp =
@@ -103,6 +104,10 @@ interface Props {
   onClose: () => void;
   /** Open a remote file in the built-in editor. */
   onEdit: (dir: string, name: string) => void;
+  /** Compare two remote files (the first was picked with "Compare…"). */
+  onCompare?: (a: { dir: string; name: string }, b: { dir: string; name: string }) => void;
+  /** Connection label recorded in the transfer history. */
+  connection?: string;
 }
 
 let transferKey = 1;
@@ -111,7 +116,9 @@ function message(e: unknown): string {
   return isIpcError(e) ? e.message : String(e);
 }
 
-export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onEdit }: Props) {
+export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onEdit, onCompare, connection }: Props) {
+  const [showHistory, setShowHistory] = useState(false);
+  const [compareBase, setCompareBase] = useState<{ dir: string; name: string } | null>(null);
   const [path, setPath] = useState<string | null>(null);
   const [pathInput, setPathInput] = useState("");
   const [entries, setEntries] = useState<RemoteEntry[]>([]);
@@ -200,7 +207,7 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onE
       { id: null, key, direction: "down", name: entry.name, transferred: 0, total: entry.size, state: "running" },
       ...ts,
     ]);
-    sftpDownload(terminalId, path, entry.name, entry.size, onEvent(key, false)).then(
+    sftpDownload(terminalId, path, entry.name, entry.size, onEvent(key, false), connection).then(
       (r) => update(key, { id: r.id }),
       (e) => update(key, { state: "failed", detail: message(e) }),
     );
@@ -215,7 +222,7 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onE
         { id: null, key, direction: "up", name: f.name, transferred: 0, total: f.size, state: "running" },
         ...ts,
       ]);
-      sftpUpload(terminalId, f.token, path, onEvent(key, true)).then(
+      sftpUpload(terminalId, f.token, path, onEvent(key, true), connection).then(
         (id) => update(key, { id }),
         (e) => update(key, { state: "failed", detail: message(e) }),
       );
@@ -241,6 +248,10 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onE
         >
           <input value={pathInput} onChange={(e) => setPathInput(e.target.value)} aria-label="Remote path" spellCheck={false} />
         </form>
+        <button type="button" className="icon" title="Transfer history" aria-label="Transfer history" aria-pressed={showHistory}
+          onClick={() => setShowHistory((v) => !v)}>
+          ⏱
+        </button>
         <button type="button" className="icon" title="New folder" aria-label="New folder" disabled={!path}
           onClick={() => setOp({ kind: "mkdir" })}>
           +
@@ -254,6 +265,13 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onE
         </button>
       </header>
 
+      {compareBase && (
+        <p className="files-compare">
+          Comparing <code>{compareBase.name}</code>: choose “Compare with …” on another file.
+          <button type="button" className="link" onClick={() => setCompareBase(null)}>Cancel</button>
+        </p>
+      )}
+      {showHistory && <TransferHistory />}
       {error && <p className="files-error" role="alert">{error}</p>}
       <ul className="files-list" aria-busy={loading}>
         {entries.map((e) => (
@@ -293,6 +311,21 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onE
                   <button type="button" role="menuitem" onClick={() => { setMenuFor(null); setOp({ kind: "rename", entry: e }); }}>
                     Rename…
                   </button>
+                  {onCompare && e.kind === "file" && path && (
+                    compareBase && !(compareBase.dir === path && compareBase.name === e.name) ? (
+                      <button type="button" role="menuitem" onClick={() => {
+                        setMenuFor(null);
+                        onCompare(compareBase, { dir: path, name: e.name });
+                        setCompareBase(null);
+                      }}>
+                        Compare with {compareBase.name}
+                      </button>
+                    ) : (
+                      <button type="button" role="menuitem" onClick={() => { setMenuFor(null); setCompareBase({ dir: path, name: e.name }); }}>
+                        Compare…
+                      </button>
+                    )
+                  )}
                   <button type="button" role="menuitem" className="danger" onClick={() => { setMenuFor(null); setOp({ kind: "delete", entry: e }); }}>
                     Delete…
                   </button>

@@ -51,6 +51,8 @@ fn main() {
             "sftp_upload",
             "transfer_cancel",
             "transfer_retry",
+            "transfer_history",
+            "transfer_history_clear",
             "sftp_read_text",
             "sftp_save_text",
             "sftp_mkdir",

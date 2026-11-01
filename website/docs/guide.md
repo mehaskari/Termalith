@@ -160,6 +160,11 @@ twice).
   automatically and failed transfers have **Retry**.
 - **New folder**, **Rename** and **Delete** (files and empty folders; there
   is no recursive delete).
+- **⏱ Transfer history** lists recent downloads and uploads (all
+  connections, the last 500) with their outcome; **Clear** empties it. Only
+  names, paths and sizes are kept — never file contents.
+- **Compare…** (row menu ⋯) on one text file, then **Compare with …** on
+  another, opens both side by side with the differences highlighted.
 - **✎ Edit** opens a text file (UTF-8, up to 2 MiB) in an editor tab.
   <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd> saves it back with its
   permissions. If someone changed the file on the server meanwhile, the save

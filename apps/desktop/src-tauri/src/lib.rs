@@ -98,6 +98,9 @@ pub fn run() {
             files::transfer_retry,
             files::sftp_read_text,
             files::sftp_save_text,
+            files::sftp_mkdir,
+            files::sftp_rename,
+            files::sftp_delete,
             ssh::known_host_forget,
         ])
         .build(tauri::generate_context!())

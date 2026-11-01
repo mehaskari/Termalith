@@ -471,3 +471,16 @@ export interface AuthPrompt {
 export function respondAuthPrompt(requestId: number, answers: string[] | null): Promise<boolean> {
   return invoke("auth_prompt_respond", { requestId, answers });
 }
+
+// ---------------------------------------------------------------- file operations
+
+export const sftpMkdir = (terminalId: TerminalId, dir: string, name: string) =>
+  invoke<void>("sftp_mkdir", { terminalId, dir, name });
+
+/** Renames within `dir`; never replaces an existing entry. */
+export const sftpRename = (terminalId: TerminalId, dir: string, from: string, to: string) =>
+  invoke<void>("sftp_rename", { terminalId, dir, from, to });
+
+/** Deletes a file, symlink or empty folder. */
+export const sftpDelete = (terminalId: TerminalId, dir: string, name: string) =>
+  invoke<void>("sftp_delete", { terminalId, dir, name });

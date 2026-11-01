@@ -7,12 +7,80 @@ import {
   cancelTransfer,
   isIpcError,
   retryTransfer,
+  sftpDelete,
   sftpDownload,
+  sftpMkdir,
+  sftpRename,
   sftpHome,
   sftpList,
   sftpUpload,
 } from "../terminal/api";
+import { Dialog } from "./Dialog";
 import { formatSize, joinRemote, parentRemote, percent } from "./paths";
+
+type FileOp =
+  | { kind: "mkdir" }
+  | { kind: "rename"; entry: RemoteEntry }
+  | { kind: "delete"; entry: RemoteEntry };
+
+/** Asks for a file or folder name (validated again by the backend). */
+function NameDialog(props: { title: string; initial: string; action: string; onSubmit: (name: string) => Promise<void>; onCancel: () => void }) {
+  const [name, setName] = useState(props.initial);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const trimmed = name.trim();
+  const invalid = !trimmed || trimmed === "." || trimmed === ".." || /[/\\]/.test(trimmed);
+  return (
+    <Dialog
+      title={props.title}
+      onCancel={props.onCancel}
+      actions={
+        <>
+          <button type="button" onClick={props.onCancel}>
+            Cancel
+          </button>
+          <button type="submit" form="name-form" className="primary" disabled={invalid || busy}>
+            {props.action}
+          </button>
+        </>
+      }
+    >
+      <form
+        id="name-form"
+        className="stack"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (invalid) return;
+          setBusy(true);
+          props.onSubmit(trimmed).catch((err) => {
+            setError(message(err));
+            setBusy(false);
+          });
+        }}
+      >
+        <input
+          autoFocus
+          value={name}
+          spellCheck={false}
+          autoCapitalize="off"
+          aria-label="Name"
+          onChange={(e) => setName(e.target.value)}
+          onFocus={(e) => {
+            // Select the name without its extension, like file managers do.
+            const dot = e.target.value.lastIndexOf(".");
+            e.target.setSelectionRange(0, dot > 0 ? dot : e.target.value.length);
+          }}
+        />
+        {invalid && trimmed && <p className="hint">A name cannot contain / or \\.</p>}
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+      </form>
+    </Dialog>
+  );
+}
 
 interface Transfer {
   id: number | null;
@@ -50,6 +118,23 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onE
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [op, setOp] = useState<FileOp | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (menuFor === null) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as Element).closest?.(".file-menu")) setMenuFor(null);
+    };
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [menuFor]);
+
+  async function runOp(f: () => Promise<void>) {
+    await f();
+    setOp(null);
+    if (path) await load(path);
+  }
 
   const load = useCallback(
     async (p: string) => {
@@ -156,6 +241,10 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onE
         >
           <input value={pathInput} onChange={(e) => setPathInput(e.target.value)} aria-label="Remote path" spellCheck={false} />
         </form>
+        <button type="button" className="icon" title="New folder" aria-label="New folder" disabled={!path}
+          onClick={() => setOp({ kind: "mkdir" })}>
+          +
+        </button>
         <button type="button" className="icon" title="Refresh" aria-label="Refresh" disabled={!path}
           onClick={() => path && void load(path)}>
           ⟳
@@ -193,6 +282,23 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onE
                 )}
               </div>
             )}
+            <span className="file-menu">
+              <button type="button" className="icon" aria-label={`More actions for ${e.name}`} title="More"
+                aria-haspopup="menu" aria-expanded={menuFor === e.name}
+                onClick={() => setMenuFor(menuFor === e.name ? null : e.name)}>
+                ⋯
+              </button>
+              {menuFor === e.name && (
+                <span className="menu" role="menu">
+                  <button type="button" role="menuitem" onClick={() => { setMenuFor(null); setOp({ kind: "rename", entry: e }); }}>
+                    Rename…
+                  </button>
+                  <button type="button" role="menuitem" className="danger" onClick={() => { setMenuFor(null); setOp({ kind: "delete", entry: e }); }}>
+                    Delete…
+                  </button>
+                </span>
+              )}
+            </span>
           </li>
         ))}
         {!loading && path && entries.length === 0 && !error && <li className="files-empty">Empty folder</li>}
@@ -242,6 +348,56 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onE
             );
           })}
         </ul>
+      )}
+      {op?.kind === "mkdir" && path && (
+        <NameDialog
+          title="New folder"
+          initial=""
+          action="Create"
+          onCancel={() => setOp(null)}
+          onSubmit={(name) => runOp(() => sftpMkdir(terminalId, path, name))}
+        />
+      )}
+      {op?.kind === "rename" && path && (
+        <NameDialog
+          title={`Rename ${op.entry.name}`}
+          initial={op.entry.name}
+          action="Rename"
+          onCancel={() => setOp(null)}
+          onSubmit={(name) =>
+            name === op.entry.name ? Promise.resolve(setOp(null)) : runOp(() => sftpRename(terminalId, path, op.entry.name, name))
+          }
+        />
+      )}
+      {op?.kind === "delete" && path && (
+        <Dialog
+          title={`Delete ${op.entry.name}?`}
+          tone="warning"
+          onCancel={() => setOp(null)}
+          actions={
+            <>
+              <button type="button" onClick={() => setOp(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger"
+                onClick={() => runOp(() => sftpDelete(terminalId, path, op.entry.name)).catch((e) => {
+                  setOp(null);
+                  setError(message(e));
+                })}
+              >
+                Delete
+              </button>
+            </>
+          }
+        >
+          <p>
+            {op.entry.kind === "dir"
+              ? "The folder is deleted only if it is empty."
+              : "The file is deleted on the server. This cannot be undone."}
+          </p>
+        </Dialog>
       )}
     </section>
   );

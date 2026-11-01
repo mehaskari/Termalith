@@ -122,13 +122,17 @@ impl AppState {
             .map(|d| d.join("Termalith Logs"))
             .unwrap_or_else(|_| data_dir.join("logs"));
 
+        let transfers = Arc::new(Transfers::with_recorder(app_core::history_recorder(
+            Arc::clone(&connector.sessions),
+        )));
+
         Ok(Self {
             hub: Arc::new(TerminalHub::with_default_flow()),
             connector,
             broker,
             auth_prompts,
             secrets_available,
-            transfers: Arc::new(Transfers::default()),
+            transfers,
             tunnels: Arc::new(Tunnels::default()),
             probes: Arc::new(crate::nettools::Probes::default()),
             dropped: Arc::new(DroppedFiles::default()),

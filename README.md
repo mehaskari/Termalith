@@ -29,6 +29,7 @@ Termalith is an open-source, cross-platform remote administration workstation fo
 - SFTP panel next to a terminal, or a file-browser tab without a shell.
 - Upload by drag and drop, downloads, folders, rename, delete (no recursive delete), transfer queue with retry.
 - Edit a remote text file in place; saving refuses to overwrite changes made on the server meanwhile.
+- Compare two remote text files side by side; transfer history (last 500, metadata only).
 
 **Other connections**
 - RDP and VNC through the installed client (Windows App/Microsoft Remote Desktop and Screen Sharing on macOS, Remote Desktop Connection on Windows, FreeRDP/TigerVNC on Linux), optionally through an SSH tunnel.

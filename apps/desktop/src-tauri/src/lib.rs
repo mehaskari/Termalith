@@ -108,6 +108,8 @@ pub fn run() {
             files::sftp_upload,
             files::transfer_cancel,
             files::transfer_retry,
+            files::transfer_history,
+            files::transfer_history_clear,
             files::sftp_read_text,
             files::sftp_save_text,
             files::sftp_mkdir,

@@ -1378,3 +1378,136 @@ button.recording {
 .folder-head .folder-open-all:focus-visible {
   visibility: visible;
 }
+
+.tab-kind.diff {
+  background: #9aa8ff;
+}
+/* File comparison */
+.diff-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.diff-head {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.diff-head code {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diff-head code + code {
+  border-left: 1px solid var(--line);
+}
+.diff-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  font-family: Menlo, "SF Mono", Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  background: var(--term-bg);
+}
+.diff-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px 1fr;
+}
+.diff-no {
+  color: var(--muted);
+  text-align: right;
+  padding: 0 8px;
+  user-select: none;
+  opacity: 0.7;
+}
+.diff-text {
+  white-space: pre;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.diff-text + .diff-no {
+  border-left: 1px solid var(--line);
+}
+.diff-text.removed {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+}
+.diff-text.added {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.diff-msg {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+/* Transfer history */
+.history {
+  border-bottom: 1px solid var(--line);
+  max-height: 45%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.history-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px 6px;
+  overflow: auto;
+}
+.history-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px;
+  font-size: 12px;
+}
+.history-dir {
+  width: 12px;
+  color: var(--muted);
+}
+.history-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-name small {
+  display: block;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+.history-outcome {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.history-outcome.done {
+  color: var(--accent);
+}
+.history-outcome.failed {
+  color: var(--danger);
+}
+.files-compare {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: var(--panel-2);
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}

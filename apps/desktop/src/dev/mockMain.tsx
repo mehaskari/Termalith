@@ -146,6 +146,14 @@ mockIPC(
         }
         return { created, skipped: [], unresolvedJumps: [] };
       }
+      case "transfer_history":
+        return [
+          { id: 3, direction: "upload", name: "nginx.conf", remotePath: "/home/deploy/nginx.conf", localPath: null, size: 2400, outcome: "failed", message: "permission denied", connection: "web-01", finishedAt: Math.floor(Date.now() / 1000) - 60 },
+          { id: 2, direction: "download", name: "app.log", remotePath: "/home/deploy/logs/app.log", localPath: "/Users/me/Downloads/app.log", size: 1204331, outcome: "done", message: null, connection: "web-01", finishedAt: Math.floor(Date.now() / 1000) - 600 },
+          { id: 1, direction: "download", name: "backup.tar.gz", remotePath: "/home/deploy/backup.tar.gz", localPath: null, size: 48234112, outcome: "cancelled", message: null, connection: "db-primary", finishedAt: Math.floor(Date.now() / 1000) - 7200 },
+        ];
+      case "transfer_history_clear":
+        return null;
       case "open_web_link":
         (window as unknown as Record<string, unknown>).__openedLinks = [
           ...(((window as unknown as Record<string, unknown>).__openedLinks as string[]) ?? []),

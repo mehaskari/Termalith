@@ -50,6 +50,7 @@ import {
 } from "./terminal/api";
 import { DesktopPane } from "./ui/DesktopPane";
 import { EditorPane } from "./ui/EditorPane";
+import { DiffPane, type DiffTarget } from "./ui/DiffPane";
 import { AuthPromptDialog } from "./ui/AuthPromptDialog";
 import { KeysDialog } from "./ui/KeysDialog";
 import { AboutDialog } from "./ui/AboutDialog";
@@ -77,7 +78,7 @@ import { isDesktop, targetLabel } from "./ui/sessionList";
 interface Tab {
   key: number;
   title: string;
-  kind: "local" | "ssh" | "serial" | "tools" | "desktop" | "editor" | "telnet" | "files";
+  kind: "local" | "ssh" | "serial" | "tools" | "desktop" | "editor" | "telnet" | "files" | "diff";
   open: Opener;
   terminalId?: TerminalId;
   /** Connection over (failed, or the remote shell exited). */
@@ -103,6 +104,8 @@ interface Tab {
   edit?: { terminalId: TerminalId; dir: string; name: string };
   /** Editor has unsaved changes. */
   dirty?: boolean;
+  /** Diff tabs: the two files compared. */
+  diff?: { left: DiffTarget; right: DiffTarget };
   /** Connection lost: time (ms since epoch) of the automatic reconnect. */
   reconnectAt?: number;
   /** Local tabs: the shell id they were opened with (null = default). */
@@ -256,6 +259,14 @@ export function App() {
   localPrefs.current = { shells, defaultShell: settings.defaultShell };
 
   /** Opens a local terminal with `shellId`, else the preferred shell. */
+  const openDiff = useCallback(
+    (terminalId: TerminalId, a: { dir: string; name: string }, b: { dir: string; name: string }) => {
+      const key = addTab(`${a.name} ↔ ${b.name}`, "diff", openLocalTerminal);
+      patchTab(key, { diff: { left: { terminalId, ...a }, right: { terminalId, ...b } } });
+    },
+    [addTab, patchTab],
+  );
+
   const openLocal = useCallback(
     (shellId?: string) => {
       const { shells: list, defaultShell } = localPrefs.current;
@@ -814,6 +825,8 @@ export function App() {
             <div key={t.key} className="pane" hidden={t.key !== active} role="tabpanel">
               {t.kind === "tools" ? (
                 <NetworkTools />
+              ) : t.kind === "diff" && t.diff ? (
+                <DiffPane left={t.diff.left} right={t.diff.right} />
               ) : t.kind === "editor" && t.edit ? (
                 <EditorPane
                   terminalId={t.edit.terminalId}
@@ -849,6 +862,8 @@ export function App() {
                         onDroppedHandled={() => setDropped(null)}
                         onClose={() => closeTab(t.key)}
                         onEdit={(dir, name) => t.terminalId !== undefined && openEditor(t.terminalId, dir, name)}
+                        onCompare={(a, b) => t.terminalId !== undefined && openDiff(t.terminalId, a, b)}
+                        connection={t.title.replace(/ \(files\)$/, "")}
                       />
                     </>
                   ) : (
@@ -1056,6 +1071,8 @@ export function App() {
                     onDroppedHandled={() => setDropped(null)}
                     onClose={() => patchTab(t.key, { filesOpen: false })}
                     onEdit={(dir, name) => t.terminalId !== undefined && openEditor(t.terminalId, dir, name)}
+                    onCompare={(a, b) => t.terminalId !== undefined && openDiff(t.terminalId, a, b)}
+                    connection={t.title}
                   />
                 )}
               </div>

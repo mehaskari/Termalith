@@ -20,6 +20,7 @@ use tokio::sync::Semaphore;
 
 use crate::AppError;
 use crate::files::{safe_file_name, unique_destination};
+use crate::history::{TransferDirection, TransferMeta};
 
 /// Minimum bytes between progress events, to keep IPC traffic low.
 const PROGRESS_STEP: u64 = 256 * 1024;
@@ -68,7 +69,24 @@ type Op = Arc<dyn Fn(CancellationToken, Progress) -> OpFuture + Send + Sync>;
 struct Job {
     op: Op,
     total: Option<u64>,
+    /// What and where, for the history (None in tests).
+    meta: Option<TransferMeta>,
 }
+
+/// A file to download.
+pub struct Download<'a> {
+    pub remote_dir: &'a str,
+    /// Untrusted name from the server; validated before use.
+    pub name: &'a str,
+    pub size: Option<u64>,
+    /// Where to save (chosen by the backend, not the UI).
+    pub dest_dir: PathBuf,
+    /// Connection label for the history.
+    pub connection: &'a str,
+}
+
+/// Called once per finished transfer (also retries) with its outcome.
+pub type TransferRecorder = Arc<dyn Fn(&TransferMeta, &TransferEvent) + Send + Sync>;
 
 pub struct Transfers {
     next: AtomicU64,
@@ -76,6 +94,7 @@ pub struct Transfers {
     retryable: Mutex<VecDeque<(u64, Job)>>,
     slots: Arc<Semaphore>,
     retry_delays: [Duration; AUTO_RETRIES as usize],
+    recorder: Option<TransferRecorder>,
 }
 
 impl Default for Transfers {
@@ -113,6 +132,16 @@ impl Transfers {
             retryable: Mutex::default(),
             slots: Arc::new(Semaphore::new(concurrent)),
             retry_delays,
+            recorder: None,
+        }
+    }
+
+    /// Transfers that report each finished transfer to `recorder`
+    /// (e.g. the transfer history).
+    pub fn with_recorder(recorder: TransferRecorder) -> Self {
+        Self {
+            recorder: Some(recorder),
+            ..Self::default()
         }
     }
 
@@ -146,14 +175,25 @@ impl Transfers {
     pub fn start_download(
         self: &Arc<Self>,
         sftp: Arc<SftpClient>,
-        remote_dir: &str,
-        name: &str,
-        total: Option<u64>,
-        dest_dir: PathBuf,
+        req: Download<'_>,
         sink: impl FnMut(TransferEvent) + Send + 'static,
     ) -> Result<u64, AppError> {
+        let Download {
+            remote_dir,
+            name,
+            size: total,
+            dest_dir,
+            connection,
+        } = req;
         let name = safe_file_name(name)?.to_owned();
         let remote = remote_join(remote_dir, &name);
+        let meta = TransferMeta {
+            direction: TransferDirection::Download,
+            name: name.clone(),
+            remote_path: remote.clone(),
+            connection: connection.to_owned(),
+            size: total,
+        };
         let op: Op = Arc::new(move |cancel, mut progress| {
             let (sftp, remote) = (Arc::clone(&sftp), remote.clone());
             // Chosen per attempt: an earlier attempt never took the name.
@@ -166,7 +206,14 @@ impl Transfers {
                 Ok(dest.to_string_lossy().into_owned())
             })
         });
-        Ok(self.spawn(Job { op, total }, sink))
+        Ok(self.spawn(
+            Job {
+                op,
+                total,
+                meta: Some(meta),
+            },
+            sink,
+        ))
     }
 
     /// Uploads a local file into `remote_dir`, keeping its name. Refuses to
@@ -176,6 +223,7 @@ impl Transfers {
         sftp: Arc<SftpClient>,
         local: PathBuf,
         remote_dir: &str,
+        connection: &str,
         sink: impl FnMut(TransferEvent) + Send + 'static,
     ) -> Result<u64, AppError> {
         let name = local
@@ -184,6 +232,13 @@ impl Transfers {
             .ok_or_else(|| AppError::invalid("file", "has no name"))?;
         let remote = remote_join(remote_dir, safe_file_name(&name)?);
         let total = std::fs::metadata(&local).ok().map(|m| m.len());
+        let meta = TransferMeta {
+            direction: TransferDirection::Upload,
+            name: name.clone(),
+            remote_path: remote.clone(),
+            connection: connection.to_owned(),
+            size: total,
+        };
         let op: Op = Arc::new(move |cancel, mut progress| {
             let (sftp, local, remote) = (Arc::clone(&sftp), local.clone(), remote.clone());
             Box::pin(async move {
@@ -194,7 +249,14 @@ impl Transfers {
                 Ok(remote)
             })
         });
-        Ok(self.spawn(Job { op, total }, sink))
+        Ok(self.spawn(
+            Job {
+                op,
+                total,
+                meta: Some(meta),
+            },
+            sink,
+        ))
     }
 
     /// Runs a failed or cancelled transfer again (from the start) under a
@@ -224,6 +286,9 @@ impl Transfers {
         let this = Arc::clone(self);
         tokio::spawn(async move {
             let ev = this.run(&job, &cancel, &mut sink).await;
+            if let (Some(rec), Some(meta)) = (&this.recorder, &job.meta) {
+                rec(meta, &ev);
+            }
             if matches!(
                 ev,
                 TransferEvent::Cancelled
@@ -431,7 +496,14 @@ mod tests {
                 }
             })
         });
-        (Job { op, total: None }, calls)
+        (
+            Job {
+                op,
+                total: None,
+                meta: None,
+            },
+            calls,
+        )
     }
 
     #[tokio::test]
@@ -537,6 +609,7 @@ mod tests {
                 Job {
                     op: op.clone(),
                     total: None,
+                    meta: None,
                 },
                 s,
             ));

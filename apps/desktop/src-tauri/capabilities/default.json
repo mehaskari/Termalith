@@ -53,6 +53,8 @@
     "allow-sftp-upload",
     "allow-transfer-cancel",
     "allow-transfer-retry",
+    "allow-transfer-history",
+    "allow-transfer-history-clear",
     "allow-sftp-read-text",
     "allow-sftp-save-text",
     "allow-sftp-mkdir",

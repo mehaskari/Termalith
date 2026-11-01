@@ -7,6 +7,7 @@ mod connect;
 mod desktops;
 mod error;
 mod files;
+mod history;
 mod host_keys;
 mod keys;
 mod logs;
@@ -26,6 +27,9 @@ pub use error::AppError;
 pub use files::{
     DroppedFile, DroppedFiles, MAX_EDIT_BYTES, decode_text, safe_file_name, unique_destination,
 };
+pub use history::{
+    MAX_HISTORY, TransferDirection, TransferMeta, TransferOutcome, TransferRecord, history_recorder,
+};
 pub use host_keys::{HostKeyPrompt, PromptBroker};
 pub use keys::{KeyInstall, install_public_key};
 pub use logs::{AnsiStripper, LogInfo, LogTap, TerminalLogs, tapped};
@@ -41,5 +45,5 @@ pub use ssh_config::{
     IMPORT_FOLDER, ImportCandidate, ImportReport, import_candidates, parse_ssh_config,
 };
 pub use terminals::{FLOW_HIGH_WATERMARK, TerminalHub};
-pub use transfers::{TransferEvent, Transfers, remote_join};
+pub use transfers::{Download, TransferEvent, TransferRecorder, Transfers, remote_join};
 pub use tunnels::{TunnelInfo, TunnelKind, TunnelSpec, Tunnels};

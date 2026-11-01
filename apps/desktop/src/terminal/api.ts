@@ -224,12 +224,14 @@ export const sftpDownload = (
   name: string,
   size: number | null,
   onEvent: (e: TransferEvent) => void,
+  connection?: string,
 ) =>
   invoke<{ id: number; downloadsDir: string }>("sftp_download", {
     terminalId,
     dir,
     name,
     size,
+    connection: connection ?? null,
     onEvent: transferChannel(onEvent),
   });
 
@@ -238,7 +240,8 @@ export const sftpUpload = (
   token: number,
   dir: string,
   onEvent: (e: TransferEvent) => void,
-) => invoke<number>("sftp_upload", { terminalId, token, dir, onEvent: transferChannel(onEvent) });
+  connection?: string,
+) => invoke<number>("sftp_upload", { terminalId, token, dir, connection: connection ?? null, onEvent: transferChannel(onEvent) });
 
 export const cancelTransfer = (id: number) => invoke<boolean>("transfer_cancel", { id });
 
@@ -578,3 +581,22 @@ export function openSshFiles(request: SshOpenRequest): Promise<{ id: TerminalId;
 
 /** Opens an http(s) link from terminal output in the default browser. */
 export const openWebLink = (url: string) => invoke<void>("open_web_link", { url });
+
+// ---------------------------------------------------------------- transfer history
+
+export interface TransferRecord {
+  id: number;
+  direction: "download" | "upload";
+  name: string;
+  remotePath: string;
+  localPath: string | null;
+  size: number | null;
+  outcome: "done" | "failed" | "cancelled";
+  message: string | null;
+  connection: string;
+  /** Seconds since the Unix epoch. */
+  finishedAt: number;
+}
+
+export const transferHistory = (limit = 200) => invoke<TransferRecord[]>("transfer_history", { limit });
+export const clearTransferHistory = () => invoke<void>("transfer_history_clear");

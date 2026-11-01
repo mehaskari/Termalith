@@ -73,15 +73,19 @@ pub async fn sftp_download(
     dir: String,
     name: String,
     size: Option<u64>,
+    connection: Option<String>,
     on_event: Channel<TransferEvent>,
 ) -> Result<TransferStarted, IpcError> {
     let sftp = state.hub.sftp(terminal_id).await?;
     let id = state.transfers.start_download(
         sftp,
-        &dir,
-        &name,
-        size,
-        state.downloads_dir.clone(),
+        app_core::Download {
+            remote_dir: &dir,
+            name: &name,
+            size,
+            dest_dir: state.downloads_dir.clone(),
+            connection: connection.as_deref().unwrap_or(""),
+        },
         move |e| {
             let _ = on_event.send(e);
         },
@@ -98,13 +102,17 @@ pub async fn sftp_upload(
     terminal_id: u64,
     token: u64,
     dir: String,
+    connection: Option<String>,
     on_event: Channel<TransferEvent>,
 ) -> Result<u64, IpcError> {
     let sftp = state.hub.sftp(terminal_id).await?;
     let local = state.dropped.take(token)?;
-    Ok(state.transfers.start_upload(sftp, local, &dir, move |e| {
-        let _ = on_event.send(e);
-    })?)
+    let connection = connection.unwrap_or_default();
+    Ok(state
+        .transfers
+        .start_upload(sftp, local, &dir, &connection, move |e| {
+            let _ = on_event.send(e);
+        })?)
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
@@ -219,6 +227,23 @@ pub async fn sftp_delete(
 ) -> Result<(), IpcError> {
     let path = remote_join(&dir, safe_file_name(&name)?);
     Ok(state.hub.sftp(terminal_id).await?.delete(&path).await?)
+}
+
+/// Finished transfers, most recent first.
+#[tauri::command]
+pub fn transfer_history(
+    state: State<'_, AppState>,
+    limit: Option<u32>,
+) -> Result<Vec<app_core::TransferRecord>, IpcError> {
+    Ok(state
+        .connector
+        .sessions
+        .transfer_history(limit.unwrap_or(200))?)
+}
+
+#[tauri::command]
+pub fn transfer_history_clear(state: State<'_, AppState>) -> Result<(), IpcError> {
+    Ok(state.connector.sessions.clear_transfer_history()?)
 }
 
 /// Runs a failed or cancelled transfer again; returns the new id.

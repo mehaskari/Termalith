@@ -10,6 +10,7 @@ mod files;
 mod host_keys;
 mod keys;
 mod logs;
+mod mobaxterm;
 mod sessions;
 mod settings;
 mod snippets;
@@ -28,6 +29,7 @@ pub use files::{
 pub use host_keys::{HostKeyPrompt, PromptBroker};
 pub use keys::{KeyInstall, install_public_key};
 pub use logs::{AnsiStripper, LogInfo, LogTap, TerminalLogs, tapped};
+pub use mobaxterm::{import_mobaxterm, is_mobaxterm, parse_mobaxterm};
 pub use sessions::{
     AuthMethod, SessionId, SessionInput, SessionProtocol, SessionRecord, SessionStore,
 };

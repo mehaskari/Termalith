@@ -125,7 +125,9 @@ mockIPC(
       case "sessions_export":
         return { json: JSON.stringify({ format: "termalith-sessions", version: 1, sessions: [...sessions.values()].map(({ id: _i, hasSavedSecret: _h, updatedAt: _u, ...rest }) => rest) }, null, 2), savedTo: "/Users/me/Downloads/termalith-sessions.json" };
       case "sessions_import":
-        return { created: [], skipped: [], unresolvedJumps: [] };
+        return String(a.json).includes("[Bookmarks")
+          ? { created: ["web01", "db primary"], skipped: [], unresolvedJumps: [], notImported: ["telnet box: this MobaXterm session type is not supported"] }
+          : { created: [], skipped: [], unresolvedJumps: [], notImported: [] };
       case "ssh_config_preview":
         return [
           { alias: "prod-web", input: { name: "prod-web", host: "prod-web.example.com", port: 22, username: "deploy", auth: { kind: "agent" }, folder: "SSH config" }, warnings: [], jumpAlias: null },

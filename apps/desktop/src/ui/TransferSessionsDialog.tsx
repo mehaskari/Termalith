@@ -33,6 +33,8 @@ export function TransferSessionsDialog({ mode, onDone, onCancel }: Props) {
       const parts = [`Imported ${r.created.length} session(s)`];
       if (r.skipped.length) parts.push(`skipped ${r.skipped.length} existing`);
       if (r.unresolvedJumps.length) parts.push(`jump host not found for ${r.unresolvedJumps.join(", ")}`);
+      if (r.notImported.length)
+        parts.push(`not imported: ${r.notImported.slice(0, 5).join("; ")}${r.notImported.length > 5 ? ` and ${r.notImported.length - 5} more` : ""}`);
       onDone(parts.join("; ") + ".");
     } catch (e) {
       setError(isIpcError(e) ? e.message : String(e));
@@ -77,7 +79,7 @@ export function TransferSessionsDialog({ mode, onDone, onCancel }: Props) {
       <p className="hint">
         {mode === "export"
           ? "Sessions without passwords or keychain entries. Key files are referenced by path."
-          : "Paste the contents of a Termalith session export. Sessions with existing names are skipped."}
+          : "Paste a Termalith session export, or the contents of a MobaXterm .mxtsessions file exported from MobaXterm (SSH, RDP and VNC sessions are imported). Sessions with existing names are skipped."}
       </p>
       {savedTo && (
         <p className="hint">
@@ -89,7 +91,7 @@ export function TransferSessionsDialog({ mode, onDone, onCancel }: Props) {
         value={text}
         readOnly={mode === "export"}
         spellCheck={false}
-        placeholder={mode === "import" ? '{ "format": "termalith-sessions", … }' : ""}
+        placeholder={mode === "import" ? '{ "format": "termalith-sessions", … }  or  [Bookmarks] …' : ""}
         onChange={(e) => setText(e.target.value)}
         aria-label={mode === "export" ? "Exported sessions" : "Sessions to import"}
       />

@@ -197,7 +197,7 @@ export function parseForm(
       username,
       auth,
       folder: f.folder.trim() || null,
-      jumpVia: (f.protocol !== "telnet" && f.jumpVia) || null,
+      jumpVia: f.jumpVia || null,
       protocol: f.protocol,
       domain: domain || null,
       tags,

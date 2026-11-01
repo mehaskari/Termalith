@@ -196,10 +196,15 @@ pub async fn telnet_open(
         }
         .into());
     }
+    // Through a jump host: only the bastion-to-device leg is unencrypted.
+    let via = match &rec.input.jump_via {
+        Some(jump) => Some(state.connector.connect_tunnel(jump).await?),
+        None => None,
+    };
     let (tap, sink) = logged_sink(on_output, on_exit);
     let id = state
         .hub
-        .open_telnet(rec.input.host.trim(), rec.input.port, size, sink)
+        .open_telnet(rec.input.host.trim(), rec.input.port, via, size, sink)
         .await?;
     state.logs.register(id, tap);
     Ok(id)

@@ -80,7 +80,7 @@ corepack pnpm test
 - Import sessions from `~/.ssh/config` (supported subset, including single-hop ProxyJump; unsupported options are listed per entry).
 - Host-key verification: dialog for unknown keys; changed keys are refused with an explicit warning and a deliberate "remove recorded key" step.
 - Tunnels per SSH tab: local forwards (-L), remote forwards (-R) and a SOCKS5 proxy (-D); loopback-only unless you explicitly allow other machines.
-- Telnet sessions for legacy network devices (clearly marked as unencrypted): option negotiation, window size, terminal type; also imported from MobaXterm.
+- Telnet sessions for legacy network devices (clearly marked as unencrypted), directly or through an SSH jump host so only the last leg is unencrypted; also imported from MobaXterm.
 - Serial consoles (COM / tty): port discovery, baud, data bits, parity, stop bits, flow control.
 - Command snippets with `{{variables}}`, a preview of exactly what will be typed, and an explicit "press Enter" choice.
 - Network tools tab: ping, traceroute, TCP port check, DNS lookup, IPv4 subnet calculator.

@@ -28,11 +28,18 @@ enum Entry {
     Telnet(Arc<TelnetTerminal>),
 }
 
+/// A byte stream a Telnet session runs over: TCP, or a tunnel channel.
+pub trait TelnetStream: tokio::io::AsyncRead + tokio::io::AsyncWrite + Send + Unpin {}
+impl<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Send + Unpin> TelnetStream for T {}
+type BoxedStream = Box<dyn TelnetStream>;
+
 struct TelnetTerminal {
-    writer: tokio::sync::Mutex<tokio::net::tcp::OwnedWriteHalf>,
+    writer: tokio::sync::Mutex<tokio::io::WriteHalf<BoxedStream>>,
     codec: Arc<Mutex<protocol_telnet::Telnet>>,
     gate: Arc<AsyncGate>,
     cancel: CancellationToken,
+    /// SSH connection the stream is tunnelled through, kept open.
+    _via: Option<Arc<SshSession>>,
 }
 
 impl TelnetTerminal {
@@ -255,24 +262,46 @@ impl TerminalHub {
 
     /// Opens a serial console. Blocking (opens the device); call off the UI
     /// thread. The terminal ends when closed or when the device goes away.
-    /// Opens a Telnet connection (unencrypted) to `host:port`.
+    /// Opens a Telnet connection (unencrypted) to `host:port`, directly or
+    /// through `via` (a `direct-tcpip` channel of that SSH connection, so
+    /// only the last leg is unencrypted).
     pub async fn open_telnet(
         &self,
         host: &str,
         port: u16,
+        via: Option<Arc<SshSession>>,
+        size: TerminalSize,
+        sink: impl TerminalEventSink,
+    ) -> Result<u64, AppError> {
+        let stream: BoxedStream = match &via {
+            None => {
+                let tcp = tokio::time::timeout(
+                    TELNET_CONNECT_TIMEOUT,
+                    tokio::net::TcpStream::connect((host, port)),
+                )
+                .await
+                .map_err(|_| AppError::Network(format!("{host}:{port} did not answer")))?
+                .map_err(|e| AppError::Network(format!("{host}:{port}: {e}")))?;
+                let _ = tcp.set_nodelay(true);
+                Box::new(tcp)
+            }
+            Some(ssh) => Box::new(
+                ssh.open_direct_tcpip(host, port, std::net::SocketAddr::from(([127, 0, 0, 1], 0)))
+                    .await?,
+            ),
+        };
+        self.open_telnet_stream(stream, via, size, sink)
+    }
+
+    fn open_telnet_stream(
+        &self,
+        stream: BoxedStream,
+        via: Option<Arc<SshSession>>,
         size: TerminalSize,
         mut sink: impl TerminalEventSink,
     ) -> Result<u64, AppError> {
         use tokio::io::AsyncReadExt;
-        let tcp = tokio::time::timeout(
-            TELNET_CONNECT_TIMEOUT,
-            tokio::net::TcpStream::connect((host, port)),
-        )
-        .await
-        .map_err(|_| AppError::Network(format!("{host}:{port} did not answer")))?
-        .map_err(|e| AppError::Network(format!("{host}:{port}: {e}")))?;
-        let _ = tcp.set_nodelay(true);
-        let (mut reader, writer) = tcp.into_split();
+        let (mut reader, writer) = tokio::io::split(stream);
         let codec = Arc::new(Mutex::new(protocol_telnet::Telnet::new(
             size.cols(),
             size.rows(),
@@ -285,6 +314,7 @@ impl TerminalHub {
             codec: Arc::clone(&codec),
             gate: Arc::clone(&gate),
             cancel: cancel.clone(),
+            _via: via,
         });
         self.lock().insert(id, Entry::Telnet(Arc::clone(&term)));
         let entries = Arc::downgrade(&self.entries);

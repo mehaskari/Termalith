@@ -100,7 +100,8 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
         {form.protocol === "telnet" && (
           <p className="pane-warning span-2">
             Telnet is not encrypted: everything you type, including passwords, can be read on the network.
-            Use it only for devices that offer nothing else.
+            Use it only for devices that offer nothing else. Through a jump host, only the part between the
+            jump host and the device is unencrypted.
           </p>
         )}
         {mode !== "quick" && (
@@ -183,7 +184,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
             />
           </label>
         )}
-        {mode !== "quick" && form.protocol !== "telnet" && (
+        {mode !== "quick" && (
           <label className="span-2">
             {desktop ? "Tunnel through (SSH session)" : "Connect via (jump host)"}
             <select value={form.jumpVia} onChange={(e) => set({ jumpVia: e.target.value })}>

@@ -1056,3 +1056,49 @@ async fn public_key_is_installed_once_with_safe_permissions() {
     );
     assert!(install_public_key(&sftp, &home, "not a key").await.is_err());
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn telnet_through_an_ssh_jump_host() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let Some(r) = rig() else { return };
+    let session = trusted_connection(&r).await;
+    // A "device" reachable from the SSH server.
+    let device = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = device.local_addr().unwrap().port();
+    let server = tokio::spawn(async move {
+        let (mut s, _) = device.accept().await.unwrap();
+        s.write_all(b"Switch> ").await.unwrap();
+        let mut buf = [0u8; 6];
+        s.read_exact(&mut buf).await.unwrap();
+        assert_eq!(&buf, b"show\r\n");
+        s.write_all(b"ok\r\n").await.unwrap();
+    });
+    let (tx, mut rx) = mpsc::unbounded_channel::<TerminalEvent>();
+    let id = r
+        .hub
+        .open_telnet(
+            "127.0.0.1",
+            port,
+            Some(session),
+            TerminalSize::new(80, 24).unwrap(),
+            move |ev: TerminalEvent| tx.send(ev).is_ok(),
+        )
+        .await
+        .unwrap();
+    let mut text = Vec::new();
+    let mut typed = false;
+    while let Some(TerminalEvent::Output(b)) =
+        tokio::time::timeout(Duration::from_secs(10), rx.recv())
+            .await
+            .expect("telnet output")
+    {
+        r.hub.ack(id, b.len()).ok();
+        text.extend_from_slice(&b);
+        if !typed && text.ends_with(b"Switch> ") {
+            typed = true;
+            r.hub.write(id, b"show\r").await.unwrap();
+        }
+    }
+    server.await.unwrap();
+    assert_eq!(String::from_utf8_lossy(&text), "Switch> ok\r\n");
+}

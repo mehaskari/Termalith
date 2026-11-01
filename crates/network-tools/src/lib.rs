@@ -222,15 +222,17 @@ mod tests {
             .await
             .unwrap();
         assert!(open.open && open.error.is_none());
-        // A port that was never connected to, then closed. (Reusing `port`
-        // is flaky: the earlier connection can still be in the backlog.)
-        let unused = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let dead = unused.local_addr().unwrap().port();
-        drop(unused);
+        // A port that is bound but never listening: reserved for the whole
+        // test, so no parallel test can take it, and connections are
+        // refused or time out. (A freed port can be reused by another test.)
+        let reserved = tokio::net::TcpSocket::new_v4().unwrap();
+        reserved.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+        let dead = reserved.local_addr().unwrap().port();
         drop(l);
         let closed = tcp_check("127.0.0.1", dead, Duration::from_secs(2))
             .await
             .unwrap();
+        drop(reserved);
         assert!(!closed.open && closed.error.is_some());
         assert!(
             tcp_check("127.0.0.1", 0, Duration::from_secs(1))

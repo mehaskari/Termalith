@@ -1,0 +1,65 @@
+# Project website and documentation: https://mehaskari.github.io/Termalith/
+# Built by .github/workflows/pages.yml on every push to main that touches it.
+# Local preview:  pip install -r website/requirements.txt && mkdocs serve -f website/mkdocs.yml
+site_name: Termalith
+site_description: Open-source remote administration workstation — SSH, SFTP, RDP/VNC, tunnels, serial, Telnet and network tools in one app
+site_url: https://mehaskari.github.io/Termalith/
+repo_url: https://github.com/mehaskari/Termalith
+repo_name: mehaskari/Termalith
+edit_uri: edit/main/website/docs/
+docs_dir: docs
+site_dir: ../site
+strict: true
+
+nav:
+  - Home: index.md
+  - User Guide: guide.md
+  - Security: security.md
+  - Changelog: changelog.md
+
+extra_css:
+  - stylesheets/extra.css
+
+theme:
+  name: material
+  font:
+    text: Inter
+    code: JetBrains Mono
+  custom_dir: overrides  # home.html: the landing page at the site root
+  features:
+    - navigation.instant
+    - navigation.top
+    - toc.follow
+    - search.highlight
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+
+markdown_extensions:
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - admonition
+  - tables
+  - attr_list
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.keys
+
+validation:
+  links:
+    anchors: warn

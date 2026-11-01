@@ -1,0 +1,48 @@
+/* Match the landing page: Void Ink background, Termalith accent, same fonts. */
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0A0E12;
+  --md-default-bg-color--light: #121821;
+  --md-code-bg-color: #121821;
+  --md-default-fg-color: #EAF1F6;
+  --md-default-fg-color--light: #B7C2CE;
+  --md-default-fg-color--lighter: #7C8896;
+  --md-typeset-a-color: #7FD1B9;
+  --md-accent-fg-color: #99E0CB;
+  --md-primary-fg-color: #0A0E12;
+  --md-primary-bg-color: #EAF1F6;
+  --md-footer-bg-color: #0A0E12;
+  --md-footer-bg-color--dark: #0A0E12;
+}
+[data-md-color-scheme="slate"] .md-header,
+[data-md-color-scheme="slate"] .md-tabs {
+  background: rgba(10, 14, 18, 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #1A222C;
+}
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #1f7a63;
+  --md-typeset-a-color: #1f7a63;
+  --md-accent-fg-color: #2a9d80;
+}
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-header__title {
+  font-family: "Space Grotesk", var(--md-text-font-family), sans-serif;
+  letter-spacing: -0.01em;
+}
+.md-typeset table:not([class]) {
+  border-radius: 10px;
+}
+.md-typeset .admonition.note,
+.md-typeset details.note {
+  border-color: #7FD1B9;
+}
+.md-typeset .note > .admonition-title,
+.md-typeset .note > summary {
+  background-color: rgba(127, 209, 185, 0.12);
+}
+.md-typeset .note > .admonition-title::before,
+.md-typeset .note > summary::before {
+  background-color: #7FD1B9;
+}

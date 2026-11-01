@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Termalith — One workspace. Every connection.</title>
+<meta name="description" content="Termalith: an open-source remote administration workstation — SSH terminals, SFTP, RDP/VNC, tunnels, serial and Telnet consoles and network tools in one app for macOS, Windows and Linux.">
+<link rel="canonical" href="https://mehaskari.github.io/Termalith/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230A0E12'/%3E%3Cpath d='M26 34l16 16-16 16' fill='none' stroke='%237FD1B9' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M50 68h24' stroke='%237FD1B9' stroke-width='8' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Void Ink — background */
+    --bg: #0A0E12;
+    /* Panel Slate — cards / terminal surface */
+    --panel: #121821;
+    --panel-2: #161D27;
+    /* Hairline — borders */
+    --line: #212B38;
+    --line-soft: #1A222C;
+    /* Foam White / Slate Mist — text */
+    --ink: #EAF1F6;
+    --ink-dim: #B7C2CE;
+    --muted: #7C8896;
+    --faint: #4C5663;
+    /* Latency tiers — the tool's own colour language */
+    --good: #7FD1B9;   /* Termalith accent */
+    --warn: #F5A623;   /* Amber Pulse   50-150ms */
+    --loss: #F2617A;   /* Rose Alert    >150ms / timeout */
+
+    --good-dim: rgba(127,209,185,0.14);
+    --warn-dim: rgba(245,166,35,0.14);
+    --loss-dim: rgba(242,97,122,0.14);
+
+    --radius: 10px;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --display: 'Space Grotesk', ui-sans-serif, sans-serif;
+    --body: 'Inter', ui-sans-serif, sans-serif;
+  }
+
+  *{ box-sizing: border-box; }
+  html{ scroll-behavior: smooth; }
+  body{
+    margin:0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection{ background: var(--good); color: var(--bg); }
+
+  a{ color: inherit; }
+
+  img, svg{ display:block; max-width:100%; }
+
+  /* faint network-grid backdrop */
+  body::before{
+    content:"";
+    position: fixed; inset:0;
+    background-image:
+      linear-gradient(var(--line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+    background-size: 42px 42px;
+    -webkit-mask-image: radial-gradient(ellipse 80% 55% at 50% 0%, black 0%, transparent 70%);
+    mask-image: radial-gradient(ellipse 80% 55% at 50% 0%, black 0%, transparent 70%);
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap{ max-width: 1120px; margin: 0 auto; padding: 0 28px; position: relative; z-index:1; }
+
+  h1,h2,h3{ font-family: var(--display); font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+
+  .eyebrow{
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--good);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .eyebrow::before{
+    content:"";
+    width: 6px; height:6px; border-radius:50%;
+    background: var(--good);
+    box-shadow: 0 0 0 3px var(--good-dim);
+  }
+
+  code, .mono{ font-family: var(--mono); }
+
+  /* ---------- NAV ---------- */
+  header.nav{
+    position: sticky; top:0; z-index: 50;
+    backdrop-filter: blur(10px);
+    background: rgba(10,14,18,0.78);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .nav-inner{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 16px 28px;
+    max-width: 1120px; margin:0 auto;
+  }
+  .brand{
+    display:flex; align-items:center; gap:10px;
+    font-family: var(--display); font-weight:700; font-size: 18px;
+    text-decoration:none; color: var(--ink);
+  }
+  .brand .dot{
+    width:9px;height:9px;border-radius:50%;
+    background: var(--good);
+    box-shadow: 0 0 0 4px var(--good-dim);
+  }
+  .nav-links{ display:flex; gap: 28px; list-style:none; margin:0; padding:0; }
+  .nav-links a{
+    text-decoration:none; color: var(--muted); font-size: 14px; font-weight:500;
+    transition: color .15s ease;
+  }
+  .nav-links a:hover{ color: var(--ink); }
+  .nav-cta{
+    display:flex; align-items:center; gap:14px;
+  }
+  .btn{
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 9px 16px;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+    cursor:pointer;
+    text-decoration:none;
+    display:inline-flex; align-items:center; gap:8px;
+    transition: border-color .15s ease, transform .15s ease, background .15s ease;
+  }
+  .btn:hover{ border-color: var(--good); transform: translateY(-1px); }
+  .btn-solid{
+    background: var(--good);
+    color: #06110F;
+    border-color: var(--good);
+    font-weight:600;
+  }
+  .btn-solid:hover{ background:#99E0CB; }
+  .nav-mobile-hide{ display:inline-flex; }
+
+  /* ---------- HERO ---------- */
+  .hero{ padding: 84px 0 60px; }
+  .hero-grid{
+    display:grid; grid-template-columns: 1.05fr 0.95fr; gap: 56px; align-items:center;
+  }
+  .hero h1{
+    font-size: clamp(34px, 4.6vw, 54px);
+    line-height: 1.06;
+    margin: 18px 0 20px;
+  }
+  .hero h1 em{
+    font-style: normal;
+    color: var(--good);
+  }
+  .hero p.lede{
+    font-size: 17px;
+    color: var(--ink-dim);
+    max-width: 46ch;
+    margin: 0 0 30px;
+  }
+  .install-pill{
+    display:inline-flex; align-items:center; gap:12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px 8px 12px 16px;
+    font-family: var(--mono);
+    font-size: 14px;
+    margin-bottom: 26px;
+  }
+  .install-pill .prompt{ color: var(--good); }
+  .install-pill .cmd{ color: var(--ink); }
+  .copy-btn{
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor:pointer;
+    transition: all .15s ease;
+  }
+  .copy-btn:hover{ color: var(--good); border-color: var(--good); }
+
+  .hero-ctas{ display:flex; gap: 14px; flex-wrap:wrap; }
+
+  /* legend */
+  .legend{
+    display:flex; gap:18px; margin-top: 34px; flex-wrap:wrap;
+  }
+  .legend span{
+    font-family: var(--mono); font-size:12px; color: var(--muted);
+    display:flex; align-items:center; gap:7px;
+  }
+  .legend .sw{ width:9px; height:9px; border-radius:2px; }
+
+  /* ---------- TERMINAL ---------- */
+  .term{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 30px 60px -25px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.02);
+  }
+  .term-bar{
+    display:flex; align-items:center; gap:8px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel-2);
+  }
+  .term-bar .dot{ width:10px; height:10px; border-radius:50%; }
+  .term-bar .d1{ background:#F2617A; }
+  .term-bar .d2{ background:#F5A623; }
+  .term-bar .d3{ background:#7FD1B9; }
+  .term-title{
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    margin-left: 6px;
+  }
+  .term-body{
+    padding: 20px 20px 22px;
+    font-family: var(--mono);
+    font-size: 13.5px;
+    min-height: 300px;
+  }
+  .term-line{ white-space: pre; margin: 0 0 4px; color: var(--ink-dim); opacity:0; transform: translateY(4px); }
+  .term-line.show{ animation: rise .35s ease forwards; }
+  @keyframes rise{ to{ opacity:1; transform: translateY(0); } }
+  .term-line .host{ color: var(--ink); }
+  .term-line .t-good{ color: var(--good); }
+  .term-line .t-warn{ color: var(--warn); }
+  .term-line .t-loss{ color: var(--loss); }
+  .term-line .muted{ color: var(--faint); }
+  .caret{
+    display:inline-block; width:7px; height:15px; background: var(--good);
+    vertical-align: -2px; animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  .bar-track{ display:inline-block; width: 160px; height:8px; background: var(--line-soft); border-radius:4px; overflow:hidden; vertical-align:middle; margin: 0 8px; }
+  .bar-fill{ height:100%; width:0%; border-radius:4px; transition: width .5s ease; }
+
+  .spark-wrap{ margin-top: 14px; padding-top:14px; border-top: 1px dashed var(--line); }
+  .spark-label{ color: var(--muted); font-size:12px; margin-bottom:8px; display:block;}
+
+  .stats-line{ margin-top: 14px; color: var(--ink-dim); }
+  .stats-line b{ color: var(--ink); font-weight:600; }
+
+  /* ---------- SECTIONS ---------- */
+  section{ padding: 88px 0; position:relative; z-index:1; }
+  .section-head{ max-width: 640px; margin-bottom: 48px; }
+  .section-head h2{ font-size: clamp(26px,3vw,36px); margin: 14px 0 12px; }
+  .section-head p{ color: var(--muted); font-size:15.5px; }
+
+  .divider{ height:1px; background: var(--line-soft); border:none; margin:0; }
+
+  /* ---------- FEATURE GROUPS ---------- */
+  .groups{ display:grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); border-radius: 14px; overflow:hidden; }
+  .group{ background: var(--bg); padding: 26px 22px; }
+  .group .g-tag{ font-family: var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color: var(--good); margin-bottom:14px; display:block; }
+  .group h3{ font-family: var(--display); font-size: 17px; margin-bottom: 14px; }
+  .group ul{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px; }
+  .group li{ font-size: 13.5px; color: var(--ink-dim); display:flex; align-items:flex-start; gap:8px; }
+  .group li::before{ content:"·"; color: var(--faint); }
+
+  /* ---------- COMMAND SHOWCASE ---------- */
+  .tabs{ display:flex; gap:4px; flex-wrap:wrap; margin-bottom: 20px; border-bottom: 1px solid var(--line-soft); }
+  .tab{
+    font-family: var(--mono); font-size: 13px; color: var(--muted);
+    background:none; border:none; padding: 11px 16px; cursor:pointer;
+    border-bottom: 2px solid transparent; margin-bottom:-1px;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .tab:hover{ color: var(--ink-dim); }
+  .tab.active{ color: var(--good); border-color: var(--good); }
+
+  .cmd-panel{ display:none; }
+  .cmd-panel.active{ display:block; }
+  .cmd-desc{ color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+  .cmd-term{ background: var(--panel); border:1px solid var(--line); border-radius: 12px; padding: 20px; font-family: var(--mono); font-size: 13px; overflow-x:auto; }
+  .cmd-term div{ white-space: pre; color: var(--ink-dim); margin-bottom:3px; }
+  .cmd-term .p{ color: var(--good); }
+  .cmd-term .g{ color: var(--good); }
+  .cmd-term .w{ color: var(--warn); }
+  .cmd-term .l{ color: var(--loss); }
+  .cmd-term .h{ color: var(--ink); }
+  .cmd-term .m{ color: var(--faint); }
+
+  /* ---------- INSTALL ---------- */
+  .install-tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 18px; }
+  .itab{
+    font-family: var(--mono); font-size:12.5px; padding: 8px 14px; border-radius: 20px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor:pointer;
+    transition: all .15s ease;
+  }
+  .itab.active, .itab:hover{ border-color: var(--good); color: var(--good); }
+  .install-panel{ display:none; }
+  .install-panel.active{ display:block; }
+  .code-block{
+    position:relative;
+    background: var(--panel); border:1px solid var(--line); border-radius: 10px;
+    padding: 18px 50px 18px 18px;
+    font-family: var(--mono); font-size: 13px; color: var(--ink-dim);
+    overflow-x:auto; white-space: pre;
+  }
+  .code-block .copy-btn{ position:absolute; top:12px; right:12px; }
+  .code-block .cm{ color: var(--faint); }
+  .code-block .hl{ color: var(--good); }
+  .install-note{ color: var(--muted); font-size: 13.5px; margin-top: 14px; }
+  .steps{ list-style:none; margin: 0; padding:0; counter-reset: step; }
+  .steps li{ counter-increment: step; padding: 10px 0 10px 34px; position:relative; font-size:14px; color: var(--ink-dim); border-bottom:1px solid var(--line-soft); }
+  .steps li:last-child{ border-bottom:none; }
+  .steps li::before{
+    content: counter(step);
+    position:absolute; left:0; top:9px;
+    width:20px; height:20px; border-radius:5px; background: var(--good-dim); color: var(--good);
+    font-family: var(--mono); font-size:11px; display:flex; align-items:center; justify-content:center;
+  }
+  .steps code{ color: var(--ink); background: var(--panel-2); padding: 1px 6px; border-radius:4px; }
+
+  .install-grid{ display:grid; grid-template-columns: 1fr 320px; gap: 40px; align-items:start; }
+  .platform-card{ background: var(--panel); border:1px solid var(--line); border-radius: 12px; padding: 20px; }
+  .platform-card h3{ font-family: var(--display); font-size:15px; margin-bottom:10px; }
+  .platform-card p{ color: var(--muted); font-size: 13px; margin:0; }
+
+  /* ---------- STRIP ---------- */
+  .strip{
+    border-top: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--line-soft);
+    padding: 30px 0;
+  }
+  .strip-inner{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap: 18px; }
+  .strip-item{ font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .strip-item b{ color: var(--ink); font-weight:600; }
+
+  /* ---------- FOOTER ---------- */
+  footer{ padding: 60px 0 40px; }
+  .footer-grid{ display:flex; justify-content:space-between; gap: 40px; flex-wrap:wrap; }
+  footer .brand{ margin-bottom: 14px; }
+  footer p{ color: var(--muted); font-size: 13.5px; max-width: 40ch; margin:0; }
+  .footer-links{ display:flex; gap: 34px; flex-wrap:wrap; }
+  .footer-col h4{ font-family: var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color: var(--faint); margin: 0 0 12px; }
+  .footer-col ul{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px; }
+  .footer-col a{ text-decoration:none; color: var(--ink-dim); font-size: 13.5px; }
+  .footer-col a:hover{ color: var(--good); }
+  .footer-bottom{ margin-top: 50px; padding-top: 24px; border-top:1px solid var(--line-soft); display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; color: var(--faint); font-size:12.5px; font-family: var(--mono); }
+
+  /* ---------- RESPONSIVE ---------- */
+  @media (max-width: 900px){
+    .hero-grid{ grid-template-columns: 1fr; }
+    .groups{ grid-template-columns: repeat(2,1fr); }
+    .install-grid{ grid-template-columns: 1fr; }
+    .nav-links{ display:none; }
+  }
+  @media (max-width: 560px){
+    .groups{ grid-template-columns: 1fr; }
+    .wrap{ padding: 0 18px; }
+    .hero{ padding: 56px 0 40px; }
+    section{ padding: 60px 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+
+  :focus-visible{ outline: 2px solid var(--good); outline-offset: 2px; }
+
+  /* additions for the GitHub Pages version */
+  .groups{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .group li{ display:block; padding-left: 14px; text-indent: -14px; }
+  .group li::before{ display:inline-block; width: 14px; text-indent: 0; }
+  .group code{ font-size: 12.5px; color: var(--ink); white-space: nowrap; }
+  @media (max-width: 900px){ .groups{ grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px){ .groups{ grid-template-columns: 1fr; } }
+  .new{ font-family: var(--mono); font-size: 10px; letter-spacing:.08em; color: var(--bg); background: var(--good); border-radius: 4px; padding: 1px 5px; margin-left: 6px; vertical-align: 1px; }
+  .platform-card + .platform-card{ margin-top: 16px; }
+  .platform-card code{ color: var(--ink); background: var(--panel-2); padding: 1px 6px; border-radius:4px; font-size: 12.5px; }
+  .docs-links{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .doc-card{ display:block; text-decoration:none; background: var(--panel); border:1px solid var(--line); border-radius: 12px; padding: 22px; transition: border-color .15s ease, transform .15s ease; }
+  .doc-card:hover{ border-color: var(--good); transform: translateY(-2px); }
+  .doc-card h3{ font-size: 17px; margin-bottom: 8px; }
+  .doc-card p{ color: var(--muted); font-size: 14px; margin: 0; }
+  .doc-card .arrow{ color: var(--good); font-family: var(--mono); font-size: 13px; margin-top: 14px; display:block; }
+  .cmd-term{ -webkit-overflow-scrolling: touch; }
+  @media (max-width: 900px){ .docs-links{ grid-template-columns: 1fr; } }
+
+  /* ---------- APP WINDOW (hero) ---------- */
+  .app{ display:grid; grid-template-columns: 190px 1fr; min-height: 340px; }
+  .app-side{ border-right:1px solid var(--line); padding: 12px 10px; font-size: 12.5px; background: var(--panel); }
+  .app-side .qc{ display:block; text-align:center; background: var(--good); color:#06110F; border-radius:6px; padding:6px; font-weight:600; font-size:12px; margin-bottom:12px; }
+  .tree{ list-style:none; margin:0; padding:0; }
+  .tree ul{ list-style:none; margin:2px 0 4px 8px; padding-left:10px; border-left:1px solid var(--line); }
+  .tree .fd{ color: var(--ink); font-weight:600; padding:3px 4px; display:flex; gap:6px; align-items:center; }
+  .tree .fd .n{ margin-left:auto; color: var(--muted); font-weight:500; font-size:10.5px; border:1px solid var(--line); border-radius:999px; padding:0 6px; }
+  .tree .ss{ padding:4px 6px; border-radius:5px; color: var(--ink-dim); }
+  .tree .ss small{ display:block; color: var(--muted); font-family: var(--mono); font-size:10.5px; }
+  .tree .ss.on{ background: var(--panel-2); color: var(--ink); }
+  .app-main{ display:flex; flex-direction:column; min-width:0; }
+  .app-tabs{ display:flex; gap:2px; padding: 8px 10px 0; border-bottom:1px solid var(--line); background: var(--panel-2); }
+  .app-tab{ font-family: var(--mono); font-size:11.5px; color: var(--muted); padding: 6px 12px; border-radius:6px 6px 0 0; display:flex; gap:6px; align-items:center; }
+  .app-tab.on{ background: var(--bg); color: var(--ink); }
+  .app-tab i{ width:7px; height:7px; border-radius:50%; background: var(--good); display:inline-block; }
+  .app-tab i.w{ background: var(--warn); }
+  .app-tab i.m{ background: var(--muted); }
+  .app .term-body{ min-height: 0; flex:1; background: var(--bg); font-size: 12.5px; padding: 16px; }
+  @media (max-width: 560px){ .app{ grid-template-columns: 1fr; } .app-side{ display:none; } }
+
+  /* ---------- DIFFERENCES ---------- */
+  .why{ display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+  .why-card{ background: var(--panel); border:1px solid var(--line); border-radius: 12px; padding: 22px; }
+  .why-card h3{ font-size: 16px; margin-bottom: 8px; }
+  .why-card p{ color: var(--muted); font-size: 14px; margin:0; }
+  @media (max-width: 900px){ .why{ grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="#top" class="brand"><span class="dot"></span>Termalith</a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#why">Why</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="guide/">Docs</a></li>
+    </ul>
+    <div class="nav-cta">
+      <a class="btn nav-mobile-hide" href="https://github.com/mehaskari/Termalith" target="_blank" rel="noopener">GitHub ↗</a>
+      <a class="btn btn-solid" href="#install">Download</a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow">Open source · macOS · Windows · Linux</span>
+        <h1>One workspace.<br><em>Every connection.</em></h1>
+        <p class="lede">Termalith keeps your servers, network gear and remote desktops in one window: SSH terminals, SFTP, RDP and VNC, tunnels, serial and Telnet consoles and network tools — with your passwords in the system keychain and host keys checked every time.</p>
+
+        <div class="install-pill">
+          <span class="prompt">↓</span>
+          <span class="cmd">Termalith 0.1 preview</span>
+          <a class="copy-btn" href="https://github.com/mehaskari/Termalith/releases" target="_blank" rel="noopener">releases</a>
+        </div>
+
+        <div class="hero-ctas">
+          <a class="btn btn-solid" href="#install">Download →</a>
+          <a class="btn" href="guide/">Read the guide</a>
+        </div>
+
+        <div class="legend">
+          <span><span class="sw" style="background:var(--good)"></span> SSH</span>
+          <span><span class="sw" style="background:var(--warn)"></span> RDP / VNC</span>
+          <span><span class="sw" style="background:var(--loss)"></span> Telnet (unencrypted)</span>
+        </div>
+      </div>
+
+      <div class="term">
+        <div class="term-bar">
+          <span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
+          <span class="term-title">Termalith</span>
+        </div>
+        <div class="app">
+          <div class="app-side">
+            <span class="qc">Quick connect</span>
+            <ul class="tree">
+              <li><div class="fd">▾ 📂 Production <span class="n">4</span></div>
+                <ul>
+                  <li><div class="fd">▾ 📂 DB <span class="n">2</span></div>
+                    <ul>
+                      <li class="ss">db-primary<small>postgres@10.0.0.9</small></li>
+                      <li class="ss">replica-2<small>agent · via bastion</small></li>
+                    </ul>
+                  </li>
+                  <li class="ss on">web-01<small>deploy@web1</small></li>
+                  <li class="ss">win-jump<small>RDP · via bastion</small></li>
+                </ul>
+              </li>
+              <li><div class="fd">▸ 📁 Network <span class="n">5</span></div></li>
+              <li><div class="fd">▸ 📁 Lab <span class="n">3</span></div></li>
+            </ul>
+          </div>
+          <div class="app-main">
+            <div class="app-tabs">
+              <span class="app-tab"><i class="m"></i>zsh</span>
+              <span class="app-tab on"><i></i>web-01</span>
+              <span class="app-tab"><i class="w"></i>win-jump</span>
+            </div>
+            <div class="term-body" id="heroTerm"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">What it does</span>
+        <h2>The everyday toolbox of an admin, in one app</h2>
+        <p>Saved sessions on the left, tabs on the right — and every kind of connection you reach for during a working day.</p>
+      </div>
+
+      <div class="groups">
+        <div class="group">
+          <span class="g-tag">Terminals</span>
+          <h3>Work in many places at once</h3>
+          <ul>
+            <li>Local shells, tabs and split panes</li>
+            <li>Broadcast typing with a loud banner</li>
+            <li>Snippets with <code>&#123;&#123;variables&#125;&#125;</code></li>
+            <li>Session logs, find, color schemes</li>
+            <li>Command palette <code>⌘K</code></li>
+          </ul>
+        </div>
+        <div class="group">
+          <span class="g-tag">SSH</span>
+          <h3>Connect safely, stay connected</h3>
+          <ul>
+            <li>Password, keys, agent, one-time codes</li>
+            <li>Strict host keys, keychain secrets</li>
+            <li>Jump hosts, SOCKS/HTTP proxy</li>
+            <li>Tunnels <code>-L</code> <code>-R</code> <code>-D</code></li>
+            <li>X11 &amp; agent forwarding, reconnect</li>
+          </ul>
+        </div>
+        <div class="group">
+          <span class="g-tag">Files</span>
+          <h3>Move and edit files</h3>
+          <ul>
+            <li>SFTP panel or file-browser tab</li>
+            <li>Drag and drop, queue with retry</li>
+            <li>Folders, rename, delete</li>
+            <li>Edit remote files with conflict check</li>
+            <li>SSH key manager</li>
+          </ul>
+        </div>
+        <div class="group">
+          <span class="g-tag">Everything else</span>
+          <h3>Desktops, devices, diagnostics</h3>
+          <ul>
+            <li>RDP and VNC via your installed client</li>
+            <li>Serial consoles and Telnet</li>
+            <li>Ping, traceroute, port scan, DNS</li>
+            <li>Subnet calculator, Wake-on-LAN</li>
+            <li>Import from <code>~/.ssh/config</code> &amp; MobaXterm</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <section id="why">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Why Termalith</span>
+        <h2>Conservative where it matters</h2>
+        <p>A remote-access tool holds the keys to your infrastructure. Termalith is open source and careful by default.</p>
+      </div>
+      <div class="why">
+        <div class="why-card">
+          <h3>Secrets stay in the keychain</h3>
+          <p>Passwords and passphrases live only in the system credential store, saved only after a login worked, never in logs or on command lines.</p>
+        </div>
+        <div class="why-card">
+          <h3>No silent trust</h3>
+          <p>Unknown host keys are shown; changed keys are refused. Tunnels listen on loopback, forwarding is opt-in, unexpected server channels are rejected.</p>
+        </div>
+        <div class="why-card">
+          <h3>Native on three systems</h3>
+          <p>A small Rust core with a web UI (Tauri), the same features on macOS, Windows and Linux, tested in CI on all three. MIT licensed.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <section id="install">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Install</span>
+        <h2>Pick your platform</h2>
+        <p>Preview builds are on the <a href="https://github.com/mehaskari/Termalith/releases" target="_blank" rel="noopener">Releases page</a>. They are not code-signed yet.</p>
+      </div>
+
+      <div class="install-grid">
+        <div>
+          <div class="install-tabs" id="installTabs">
+            <button class="itab active" data-i="mac">macOS</button>
+            <button class="itab" data-i="win">Windows</button>
+            <button class="itab" data-i="linux">Linux</button>
+            <button class="itab" data-i="src">From source</button>
+          </div>
+          <div class="install-panel active" data-p="mac">
+            <div class="code-block"><span class="cm"># Apple Silicon</span>
+Termalith_0.1.0_aarch64.dmg
+<span class="cm"># first launch: right-click the app → Open</span></div>
+          </div>
+          <div class="install-panel" data-p="win">
+            <div class="code-block"><span class="cm"># Windows 10/11, installer or MSI</span>
+Termalith_0.1.0_x64-setup.exe
+Termalith_0.1.0_x64_en-US.msi
+<span class="cm"># SmartScreen: More info → Run anyway</span></div>
+          </div>
+          <div class="install-panel" data-p="linux">
+            <div class="code-block"><span class="cm"># AppImage (any distribution) or .deb</span>
+chmod +x Termalith_0.1.0_amd64.AppImage
+./Termalith_0.1.0_amd64.AppImage
+<span class="cm"># or</span>
+sudo apt install ./Termalith_0.1.0_amd64.deb</div>
+          </div>
+          <div class="install-panel" data-p="src">
+            <div class="code-block">git clone https://github.com/mehaskari/Termalith.git
+cd Termalith
+corepack pnpm install
+corepack pnpm dev</div>
+            <p class="install-note">Needs Rust, Node.js 24 and the Tauri prerequisites for your system.</p>
+          </div>
+        </div>
+        <div>
+          <div class="platform-card">
+            <h3>First steps</h3>
+            <ol class="steps">
+              <li>Click <b>+</b> to save a session, or <b>Quick connect</b></li>
+              <li>Confirm the server's host key once</li>
+              <li>Open <b>Files</b> or <b>Tunnels</b> on the tab</li>
+            </ol>
+          </div>
+          <div class="platform-card">
+            <h3>Coming from MobaXterm?</h3>
+            <p>Export your sessions there and paste the <code>.mxtsessions</code> file into <b>Import…</b> — folders come along.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <section id="docs">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Documentation</span>
+        <h2>Everything in one guide</h2>
+        <p>From installing to tunnels, X11 and keyboard shortcuts.</p>
+      </div>
+      <div class="docs-links">
+        <a class="doc-card" href="guide/">
+          <h3>User Guide</h3>
+          <p>Sessions, SSH, files, remote desktop, tools, shortcuts and troubleshooting.</p>
+          <span class="arrow">guide →</span>
+        </a>
+        <a class="doc-card" href="security/">
+          <h3>Security</h3>
+          <p>How credentials, host keys and connections are handled, and how to report a problem.</p>
+          <span class="arrow">security →</span>
+        </a>
+        <a class="doc-card" href="changelog/">
+          <h3>Changelog</h3>
+          <p>What changed in each release, newest first.</p>
+          <span class="arrow">changelog →</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <div class="strip">
+    <div class="wrap strip-inner">
+      <span class="strip-item"><b>MIT</b> licensed</span>
+      <span class="strip-item">Rust · Tauri 2 · React</span>
+      <span class="strip-item">CI on <b>macOS, Windows, Linux</b></span>
+      <span class="strip-item">Secrets in the <b>system keychain</b></span>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <a href="#top" class="brand"><span class="dot"></span>Termalith</a>
+        <p>One workspace. Every connection. — created by Meh Askari.</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/mehaskari/Termalith" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://github.com/mehaskari/Termalith/releases" target="_blank" rel="noopener">Releases</a></li>
+            <li><a href="https://github.com/mehaskari/Termalith/issues" target="_blank" rel="noopener">Issues</a></li>
+            <li><a href="https://mehaskari.ir" target="_blank" rel="noopener">mehaskari.ir</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Docs</h4>
+          <ul>
+            <li><a href="guide/">User Guide</a></li>
+            <li><a href="security/">Security</a></li>
+            <li><a href="changelog/">Changelog</a></li>
+            <li><a href="#install">Installation</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© <span id="year"></span> Meh Askari — Termalith</span>
+      <span>MIT License</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  // ---- install tabs ----
+  document.querySelectorAll('#installTabs .itab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      document.querySelectorAll('#installTabs .itab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.install-panel').forEach(p=>p.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelector('.install-panel[data-p="'+tab.dataset.i+'"]').classList.add('active');
+    });
+  });
+
+  // copy buttons on code blocks
+  document.querySelectorAll('.code-block').forEach(block=>{
+    const b = document.createElement('button');
+    b.className = 'copy-btn';
+    b.textContent = 'copy';
+    b.addEventListener('click', ()=>{
+      const text = [...block.childNodes].filter(n=>n!==b && !(n.classList && n.classList.contains('cm'))).map(n=>n.textContent).join('').replace(/\n{2,}/g,'\n').trim();
+      navigator.clipboard.writeText(text).then(()=>{ b.textContent='copied'; setTimeout(()=>b.textContent='copy',1400); });
+    });
+    block.appendChild(b);
+  });
+
+  // ---- hero: an SSH session in the app ----
+  (function(){
+    const el = document.getElementById('heroTerm');
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const lines = [
+      ['<span class="muted">Connecting to web1.example.com:22 …</span>', 300],
+      ['<span class="muted">Host key</span> <span class="t-good">ED25519 SHA256:k3mOz2Lr9cBgQ0uQ8w1…</span> <span class="muted">✓ known</span>', 450],
+      ['<span class="muted">Password from the system keychain ✓</span>', 350],
+      ['', 200],
+      ['<span class="host">deploy@web1:~$</span> systemctl is-active nginx', 600],
+      ['<span class="t-good">active</span>', 300],
+      ['<span class="host">deploy@web1:~$</span> df -h /', 650],
+      ['Filesystem  Size  Used Avail Use% Mounted on', 200],
+      ['/dev/sda1    80G   31G   46G  <span class="t-warn">41%</span> /', 200],
+      ['<span class="muted">Tunnel 127.0.0.1:5432 → db-primary:5432</span> <span class="t-good">● up</span>', 550],
+      ['<span class="host">deploy@web1:~$</span> <span class="caret"></span>', 400],
+    ];
+    function add(html, delay){
+      return new Promise(res=>setTimeout(()=>{
+        const d=document.createElement('div'); d.className='term-line'; d.innerHTML=html||'&nbsp;';
+        el.appendChild(d); requestAnimationFrame(()=>d.classList.add('show')); res();
+      }, reduce?0:delay));
+    }
+    async function run(){ el.innerHTML=''; for(const [h,t] of lines){ await add(h,t); } }
+    if('IntersectionObserver' in window){
+      const io=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ run(); io.disconnect(); } }),{threshold:0.3});
+      io.observe(el);
+    } else { run(); }
+  })();
+</script>
+
+</body>
+</html>

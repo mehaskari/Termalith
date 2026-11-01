@@ -42,6 +42,8 @@ pub struct Settings {
     pub copy_on_select: bool,
     /// Right-click in a terminal pastes.
     pub right_click_paste: bool,
+    /// Reconnect SSH tabs whose connection was lost.
+    pub auto_reconnect: bool,
 }
 
 impl Default for Settings {
@@ -57,6 +59,7 @@ impl Default for Settings {
             default_shell: None,
             copy_on_select: false,
             right_click_paste: false,
+            auto_reconnect: true,
         }
     }
 }

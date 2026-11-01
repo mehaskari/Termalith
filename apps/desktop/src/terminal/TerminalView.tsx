@@ -3,7 +3,7 @@ import { SearchAddon } from "@xterm/addon-search";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
-import { DEFAULT_SETTINGS, type Settings } from "./api";
+import { DEFAULT_SETTINGS, type ExitPayload, type Settings } from "./api";
 import { type ResolvedTheme, TERMINAL_THEMES, fontStack } from "../ui/theme";
 import {
   type Opener,
@@ -24,7 +24,9 @@ interface Props {
   active: boolean;
   onReady?: (id: TerminalId) => void;
   onFailed?: (error: unknown) => void;
-  onExited?: () => void;
+  /** The session ended; `payload.exit` is null when no exit status came
+   * (for SSH: the connection was lost rather than the shell exiting). */
+  onExited?: (payload: ExitPayload) => void;
   /** Keyboard input typed into this terminal (used for broadcast). */
   onInput?: (data: string) => void;
   settings?: Settings;
@@ -115,7 +117,7 @@ export function TerminalView({
             (payload) => {
               exited = true;
               term.write(`\r\n\x1b[2m[${describeExit(payload)}]\x1b[0m\r\n`);
-              callbacks.current.onExited?.();
+              callbacks.current.onExited?.(payload);
             },
           )
           .then(resolve, reject);

@@ -71,6 +71,7 @@ corepack pnpm test
 - Saved sessions with folders, favorites, tags and search (`#tag` filters by tag); quick connect.
 - Password, private-key, passphrase and ssh-agent authentication; keyboard-interactive for PAM servers and second factors (one-time codes are asked in a dialog); optional saving to the OS keychain (only after a successful login).
 - Jump hosts (ProxyJump) through another saved session; each hop's host key is verified.
+- Automatic reconnect when an SSH connection drops (not after `exit`), with a visible countdown and Cancel; can be turned off in Settings.
 - Optional SSH agent forwarding per session (off by default, never to jump hosts; imported from `ForwardAgent yes`).
 - Import sessions from `~/.ssh/config` (supported subset, including single-hop ProxyJump; unsupported options are listed per entry).
 - Host-key verification: dialog for unknown keys; changed keys are refused with an explicit warning and a deliberate "remove recorded key" step.

@@ -45,3 +45,23 @@ describe("shortcuts on Windows/Linux", () => {
     expect(matchShortcut(k("t", { ctrl: true, shift: true, alt: true }), false)).toBeNull();
   });
 });
+
+describe("tab numbers and palette", () => {
+  const k = (key: string, o: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; code: string }> = {}) => ({
+    key,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    altKey: false,
+    ...o,
+  });
+  it("maps Cmd+1..9 on macOS and Ctrl+Shift+1..9 elsewhere (by physical key)", () => {
+    expect(matchShortcut(k("3", { metaKey: true, code: "Digit3" }), true)).toBe("tab3");
+    expect(matchShortcut(k("#", { ctrlKey: true, shiftKey: true, code: "Digit3" }), false)).toBe("tab3");
+    expect(matchShortcut(k("3", { ctrlKey: true, code: "Digit3" }), false)).toBe(null);
+  });
+  it("opens the palette with Cmd+K / Ctrl+Shift+K", () => {
+    expect(matchShortcut(k("k", { metaKey: true }), true)).toBe("palette");
+    expect(matchShortcut(k("K", { ctrlKey: true, shiftKey: true }), false)).toBe("palette");
+  });
+});

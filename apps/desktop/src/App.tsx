@@ -52,6 +52,7 @@ import { DesktopPane } from "./ui/DesktopPane";
 import { EditorPane } from "./ui/EditorPane";
 import { AuthPromptDialog } from "./ui/AuthPromptDialog";
 import { KeysDialog } from "./ui/KeysDialog";
+import { CommandPalette, type PaletteItem } from "./ui/CommandPalette";
 import { Dialog } from "./ui/Dialog";
 import { FilesPanel } from "./ui/FilesPanel";
 import { HostKeyDialog } from "./ui/HostKeyDialog";
@@ -145,6 +146,7 @@ export function App() {
   const [confirmDelete, setConfirmDelete] = useState<SessionRecord | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState<Tab | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [tabMenu, setTabMenu] = useState<{ key: number; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -535,6 +537,24 @@ export function App() {
           const next = { ...s, fontSize: size };
           setSettings(next);
           void saveSettings(next).catch(() => {});
+          break;
+        }
+        case "palette":
+          setPaletteOpen(true);
+          break;
+        case "tab1":
+        case "tab2":
+        case "tab3":
+        case "tab4":
+        case "tab5":
+        case "tab6":
+        case "tab7":
+        case "tab8":
+        case "tab9": {
+          // Like browsers: 9 is the last tab.
+          const n = Number(action.slice(3));
+          const t = n === 9 ? ts[ts.length - 1] : ts[n - 1];
+          if (t) setActive(t.key);
           break;
         }
         default:
@@ -1164,6 +1184,38 @@ export function App() {
           </dl>
           <p className="hint">After removing it, reconnect: you will be asked to verify the new key.</p>
         </Dialog>
+      )}
+      {paletteOpen && (
+        <CommandPalette
+          onClose={() => setPaletteOpen(false)}
+          items={[
+            ...tabs.map(
+              (t): PaletteItem => ({ id: `tab-${t.key}`, label: t.title, detail: t.kind, group: "Tabs", run: () => setActive(t.key) }),
+            ),
+            ...sessions.map(
+              (s): PaletteItem => ({
+                id: `ses-${s.id}`,
+                label: s.name,
+                detail: `${targetLabel(s)}${s.folder ? ` · ${s.folder}` : ""}${(s.tags ?? []).map((x) => ` #${x}`).join("")}`,
+                group: "Sessions",
+                run: () => connectSaved(s),
+              }),
+            ),
+            ...(
+              [
+                ["New local terminal", () => openLocal()],
+                ["Quick connect…", () => setSessionDialog({ mode: "quick" })],
+                ["New session…", () => setSessionDialog({ mode: "create" })],
+                ["Serial console…", () => setSerialOpen(true)],
+                ["SSH keys…", () => setKeysOpen(true)],
+                ["Settings…", () => setSettingsOpen(true)],
+                ["Import ~/.ssh/config…", () => setImporting(true)],
+                ["Import sessions…", () => setTransferMode("import")],
+                ["Export sessions…", () => setTransferMode("export")],
+              ] as const
+            ).map(([label, run]): PaletteItem => ({ id: `act-${label}`, label, group: "Actions", run })),
+          ]}
+        />
       )}
       {keysOpen && (
         <KeysDialog

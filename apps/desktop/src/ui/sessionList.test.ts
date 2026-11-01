@@ -8,6 +8,7 @@ import {
   groupSessions,
   parseForm,
   parseTags,
+  splitTarget,
   targetLabel,
   withProtocol,
 } from "./sessionList";
@@ -197,5 +198,34 @@ describe("telnet sessions", () => {
     expect(r.ok && r.value.forwardAgent).toBe(false);
     expect(authLabel({ auth: { kind: "password" }, hasSavedSecret: false, protocol: "telnet" })).toBe("Telnet");
     expect(targetLabel({ username: "", host: "10.0.0.254", port: 23, protocol: "telnet" })).toBe("10.0.0.254");
+  });
+});
+
+describe("user@host:port in the host field", () => {
+  it("splits targets", () => {
+    expect(splitTarget("root@10.0.0.1:2222")).toEqual({ user: "root", host: "10.0.0.1", port: 2222 });
+    expect(splitTarget("example.com")).toEqual({ user: undefined, host: "example.com" });
+    expect(splitTarget("fe80::1")).toEqual({ user: undefined, host: "fe80::1" });
+    expect(splitTarget("me@[fe80::1]:22")).toEqual({ user: "me", host: "fe80::1", port: 22 });
+  });
+  it("fills user and port unless they were set explicitly", () => {
+    const f = { ...emptyForm(), host: "admin@sw1:2200" };
+    const r = parseForm(f, { requireName: false });
+    expect(r.ok && r.value).toMatchObject({ host: "sw1", username: "admin", port: 2200, name: "admin@sw1" });
+    const explicit = parseForm({ ...f, username: "ops", port: "2022" }, { requireName: false });
+    expect(explicit.ok && explicit.value).toMatchObject({ username: "ops", port: 2022 });
+  });
+});
+
+describe("command palette filter", () => {
+  it("matches every word in label, detail or group", async () => {
+    const { filterPalette } = await import("./CommandPalette");
+    const items = [
+      { id: "1", label: "web-01", detail: "deploy@web1", group: "Sessions" as const, run: () => {} },
+      { id: "2", label: "Settings", group: "Actions" as const, run: () => {} },
+    ];
+    expect(filterPalette(items, "web deploy").map((i) => i.id)).toEqual(["1"]);
+    expect(filterPalette(items, "actions set").map((i) => i.id)).toEqual(["2"]);
+    expect(filterPalette(items, "").length).toBe(2);
   });
 });

@@ -79,6 +79,14 @@ export function SettingsDialog({ initial, shells, onSave, onCancel }: Props) {
           <input type="checkbox" checked={s.cursorBlink} onChange={(e) => set({ cursorBlink: e.target.checked })} />
           Blinking cursor
         </label>
+        <label className="checkbox span-2">
+          <input type="checkbox" checked={s.copyOnSelect} onChange={(e) => set({ copyOnSelect: e.target.checked })} />
+          Copy selected terminal text automatically
+        </label>
+        <label className="checkbox span-2">
+          <input type="checkbox" checked={s.rightClickPaste} onChange={(e) => set({ rightClickPaste: e.target.checked })} />
+          Right-click in a terminal pastes
+        </label>
         {shells.length > 1 && (
           <label className="span-2">
             Shell for new local terminals

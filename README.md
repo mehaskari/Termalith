@@ -77,7 +77,7 @@ corepack pnpm test
 - Serial consoles (COM / tty): port discovery, baud, data bits, parity, stop bits, flow control.
 - Command snippets with `{{variables}}`, a preview of exactly what will be typed, and an explicit "press Enter" choice.
 - Network tools tab: ping, traceroute, TCP port check, DNS lookup, IPv4 subnet calculator.
-- Find in terminal output; shortcuts for tabs, copy/paste and font zoom (Cmd on macOS, Ctrl+Shift elsewhere).
+- Find in terminal output; shortcuts for tabs, copy/paste and font zoom (Cmd on macOS, Ctrl+Shift elsewhere); optional copy-on-select and right-click paste.
 - Broadcast input to several terminals: explicit target selection, red banner on the source, markers on targets, disconnected targets skipped and listed.
 - RDP and VNC sessions opened in the installed client (Windows App / Microsoft Remote Desktop / Screen Sharing on macOS, Remote Desktop Connection on Windows, FreeRDP / TigerVNC on Linux), optionally through an SSH tunnel; passwords are never passed on the command line.
 - Session logs: save a terminal's output as plain text (escape sequences removed) to Documents/Termalith Logs, per tab or automatically for every terminal; files are readable only by you.

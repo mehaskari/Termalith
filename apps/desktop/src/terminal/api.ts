@@ -277,6 +277,10 @@ export interface Settings {
   logSessions: boolean;
   /** Shell id for new local terminals; null = system default. */
   defaultShell: string | null;
+  /** Copy terminal selections to the clipboard automatically. */
+  copyOnSelect: boolean;
+  /** Right-click in a terminal pastes the clipboard. */
+  rightClickPaste: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -288,6 +292,8 @@ export const DEFAULT_SETTINGS: Settings = {
   scrollback: 5000,
   logSessions: false,
   defaultShell: null,
+  copyOnSelect: false,
+  rightClickPaste: false,
 };
 
 export const getSettings = () => invoke<Settings>("settings_get");

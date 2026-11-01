@@ -1,104 +1,70 @@
 # Termalith
 
-**One Workspace. Every Connection.**
+**One workspace. Every connection.**
 
-Termalith is an open-source, cross-platform remote administration workstation designed for infrastructure engineers, network administrators, and system administrators.
+Termalith is an open-source, cross-platform remote administration workstation for system and network administrators: SSH terminals, SFTP, remote desktop, tunnels, serial and Telnet consoles and network tools in one app. It is built with Tauri 2, Rust, React and TypeScript.
 
-It aims to provide a unified workspace for managing remote systems, network devices, servers, and infrastructure services.
+> **Status: early preview (0.1).** Most features are in daily use on macOS. Windows and Linux builds pass CI (unit and integration tests, a launch smoke test) but have had little hands-on use. Expect rough edges, and please report them.
 
-## Product identity
+## Features
 
-- Product name: Termalith
-- Naming status: Selected working name; domain, trademark, social handle, GitHub organization, and package-registry availability are not yet confirmed.
-- License: MIT (see `LICENSE`).
-- UI language: English
-- Target platforms: macOS, Windows, Linux
-- Primary development host: macOS on Apple Silicon
-- Architecture: Tauri 2 + Rust + React + TypeScript
+**Terminals**
+- Local terminals in tabs and split panes, with a choice of installed shell (zsh/bash/fish…; PowerShell, cmd, Git Bash and WSL on Windows).
+- Find, copy/paste and zoom shortcuts, copy-on-select and right-click paste (optional), color schemes (Solarized, Nord, Gruvbox, Tomorrow Night).
+- Broadcast typing to several terminals, with a visible banner and explicit targets.
+- Command snippets with `{{variables}}` and a preview of exactly what will be typed.
+- Session logs (plain text, opt-in) and "save output" of a tab's scrollback.
+- Command palette (Cmd+K / Ctrl+Shift+K) over tabs, sessions and actions.
 
-## Product vision
+**SSH**
+- Password, private key, ssh-agent and keyboard-interactive (PAM, one-time codes) authentication; secrets are stored only in the OS keychain, and only after a successful login.
+- Strict host-key verification: unknown keys are shown for confirmation, changed keys are refused.
+- Jump hosts (ProxyJump), SOCKS5/HTTP proxy for the first hop, automatic reconnect when a connection drops.
+- Tunnels: local (-L), remote (-R) and dynamic SOCKS (-D), loopback-only unless you allow other machines.
+- X11 forwarding (with cookie substitution, like OpenSSH) and agent forwarding, both opt-in per session.
+- Startup command per session; SSH key manager (generate Ed25519, install a public key on a server).
 
-Termalith is intended to be a comprehensive alternative to MobaXterm, with a modern interface and a cross-platform architecture.
+**Files**
+- SFTP panel next to a terminal, or a file-browser tab without a shell.
+- Upload by drag and drop, downloads, folders, rename, delete (no recursive delete), transfer queue with retry.
+- Edit a remote text file in place; saving refuses to overwrite changes made on the server meanwhile.
 
-It should combine terminal access, remote file management, remote desktop connectivity, connection organization, and network administration tools in one application.
+**Other connections**
+- RDP and VNC through the installed client (Windows App/Microsoft Remote Desktop and Screen Sharing on macOS, Remote Desktop Connection on Windows, FreeRDP/TigerVNC on Linux), optionally through an SSH tunnel.
+- Serial consoles (COM/tty) and Telnet (marked as unencrypted; can go through an SSH jump host).
+- Network tools: ping, traceroute, TCP port check, port scan, DNS lookup, subnet calculator, Wake-on-LAN.
 
-## Core capabilities
+**Sessions**
+- Folders, favorites, tags and search; "open all" for a folder.
+- Import from `~/.ssh/config` and from MobaXterm `.mxtsessions` exports; export/import as JSON (never containing secrets).
 
-- SSH terminal
-- Local terminal
-- SFTP file manager
-- RDP remote desktop
-- VNC remote desktop
-- SSH tunnels and port forwarding
-- Jump hosts and ProxyJump
-- Serial console
-- Session manager
-- Credential management
-- Network utilities
-- Remote file editor
-- Session logging
-- Command snippets and macros
-- Multi-tab and split-pane interface
+Not yet: embedded RDP/VNC (external clients are used), code-signed installers.
 
-## Naming notice
+## Install
 
-Termalith is the selected working name. It is not yet claimed or legally cleared.
+Pre-release installers are built by GitHub Actions for macOS (Apple Silicon DMG), Windows (NSIS and MSI) and Linux (AppImage and deb). They are **not code-signed yet**:
 
-Before public release, verify trademark, domain, GitHub organization, social handles, and package-registry availability. Do not claim any identifier is reserved until it has actually been registered.
+- macOS: right-click the app and choose **Open** the first time.
+- Windows: SmartScreen may warn; choose **More info → Run anyway**.
 
-## Development strategy
+## Build from source
 
-- Develop primarily on macOS (Apple Silicon).
-- Use macOS as the first local development and acceptance target.
-- Keep Windows and Linux as first-class product targets.
-- Use native CI runners or dedicated test machines for Windows and Linux builds and integration tests.
-- Keep OS-specific functionality behind platform adapters.
-## Development (Phase 0 spike)
-
-Prerequisites (macOS): Xcode Command Line Tools, Node.js >= 24, rustup (`brew install rustup`; it is keg-only, so add `/opt/homebrew/opt/rustup/bin` to `PATH`).
+Requirements: Rust (the version in `rust-toolchain.toml`), Node.js 24 with Corepack, and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your OS (on Linux: WebKitGTK 4.1 development packages).
 
 ```bash
 corepack pnpm install
-corepack pnpm dev        # launches the Tauri app with a local terminal
-cargo test --workspace
-corepack pnpm test
+corepack pnpm dev                      # run the app
+cargo test --workspace                 # Rust tests (some use a local sshd when available)
+corepack pnpm test                     # frontend tests
+corepack pnpm --filter @termalith/desktop tauri build   # installers for this OS
 ```
 
+A UI preview without the Rust backend: `corepack pnpm --filter @termalith/desktop dev`, then open `http://localhost:1420/mock.html`.
 
-## What works today (first usable version)
+## Security
 
-- Local terminals in tabs (macOS, Windows, Linux) with a choice of installed shell (from /etc/shells; PowerShell, cmd, Git Bash and WSL distributions on Windows) and a default-shell setting, split side by side or top/bottom; SSH splits reuse the same connection.
-- "Open all" on a session folder (prompts for passwords, host keys and codes are queued one at a time).
-- Saved sessions with folders, favorites, tags and search (`#tag` filters by tag); quick connect.
-- Password, private-key, passphrase and ssh-agent authentication; keyboard-interactive for PAM servers and second factors (one-time codes are asked in a dialog); optional saving to the OS keychain (only after a successful login).
-- Outgoing SOCKS5 or HTTP CONNECT proxy for SSH and Telnet (Settings; first hop only).
-- Jump hosts (ProxyJump) through another saved session; each hop's host key is verified.
-- Automatic reconnect when an SSH connection drops (not after `exit`), with a visible countdown and Cancel; can be turned off in Settings.
-- SSH keys: list the key pairs in ~/.ssh with fingerprints, generate Ed25519 keys (optionally passphrase-protected), copy a public key, and install it in authorized_keys on a connected server (folder 0700, file 0600, never duplicated).
-- X11 forwarding per session (graphical programs on the server open windows here; needs XQuartz on macOS or VcXsrv/Xming on Windows). The server only gets a random fake cookie; the real one stays local. Imported from `ForwardX11 yes`.
-- Per-session startup command, typed into the shell once after login (e.g. `cd /var/log` or `tmux attach`).
-- Optional SSH agent forwarding per session (off by default, never to jump hosts; imported from `ForwardAgent yes`).
-- Import sessions from a MobaXterm `.mxtsessions` export (SSH, RDP and VNC sessions with their folders; other types are listed as not imported).
-- Import sessions from `~/.ssh/config` (supported subset, including single-hop ProxyJump; unsupported options are listed per entry).
-- Host-key verification: dialog for unknown keys; changed keys are refused with an explicit warning and a deliberate "remove recorded key" step.
-- Tunnels per SSH tab: local forwards (-L), remote forwards (-R) and a SOCKS5 proxy (-D); loopback-only unless you explicitly allow other machines.
-- Telnet sessions for legacy network devices (clearly marked as unencrypted), directly or through an SSH jump host so only the last leg is unencrypted; also imported from MobaXterm.
-- Serial consoles (COM / tty): port discovery, baud, data bits, parity, stop bits, flow control.
-- Command snippets with `{{variables}}`, a preview of exactly what will be typed, and an explicit "press Enter" choice.
-- Network tools tab: ping, traceroute, TCP port check, port scan (up to 1024 ports, 64 at a time), DNS lookup, IPv4 subnet calculator, Wake-on-LAN.
-- Save a terminal's text (screen and scrollback) to a file from the tab menu.
-- Terminal color schemes: Solarized Dark/Light, Nord, Gruvbox Dark, Tomorrow Night, or follow the app theme.
-- Command palette (Cmd+K / Ctrl+Shift+K) over tabs, sessions and actions; Cmd/Ctrl+Shift+1…9 switches tabs; quick connect accepts `user@host:port`.
-- Find in terminal output; shortcuts for tabs, copy/paste and font zoom (Cmd on macOS, Ctrl+Shift elsewhere); optional copy-on-select and right-click paste.
-- Broadcast input to several terminals: explicit target selection, red banner on the source, markers on targets, disconnected targets skipped and listed.
-- RDP and VNC sessions opened in the installed client (Windows App / Microsoft Remote Desktop / Screen Sharing on macOS, Remote Desktop Connection on Windows, FreeRDP / TigerVNC on Linux), optionally through an SSH tunnel; passwords are never passed on the command line.
-- Session logs: save a terminal's output as plain text (escape sequences removed) to Documents/Termalith Logs, per tab or automatically for every terminal; files are readable only by you.
-- Remote file editor: open a text file (UTF-8, up to 2 MiB) from the Files panel in an editor tab and save it back with Cmd/Ctrl+S; permissions are kept, the original is only replaced once the new content is fully written, and a save is refused if the file changed on the server meanwhile (reload or overwrite).
-- SFTP file browser tabs for saved SSH sessions without a shell (⇅ in the session list), with "Open terminal" on the same connection.
-- SFTP side panel per SSH tab: browse, create folders, rename and delete (files and empty folders; no recursive delete), download to the Downloads folder, upload by dropping files on the window, progress and cancel; up to 3 transfers at once (others queue), automatic retry of connection errors and a manual Retry button.
+Termalith handles credentials and remote access, so it is deliberately conservative: no shell or arbitrary command execution from the UI, secrets only in the OS credential store, strict host keys, loopback-only tunnels by default, no passwords on command lines, and opt-in for agent and X11 forwarding. If you find a security issue, please report it privately via GitHub's "Report a vulnerability" (Security tab) rather than in a public issue.
 
-Not yet: embedded RDP/VNC (external clients only).
+## License
 
-Installers (unsigned): the "Release builds" GitHub Actions workflow builds a macOS DMG, Windows NSIS/MSI installers and a Linux AppImage/deb on native runners; run it manually or push a `v*` tag.
-
-UI preview without a backend (development only): run `corepack pnpm --filter @termalith/desktop dev` and open `http://localhost:1420/mock.html`.
+[MIT](LICENSE). "Termalith" is a working name; it has not been checked for trademarks.

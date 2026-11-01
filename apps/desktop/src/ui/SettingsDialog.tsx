@@ -1,14 +1,16 @@
 import { type FormEvent, useState } from "react";
-import { type Settings, isIpcError } from "../terminal/api";
+import { type Settings, type ShellChoice, isIpcError } from "../terminal/api";
 import { Dialog } from "./Dialog";
 
 interface Props {
   initial: Settings;
+  /** Installed shells for the default-shell choice. */
+  shells: ShellChoice[];
   onSave: (s: Settings) => Promise<void>;
   onCancel: () => void;
 }
 
-export function SettingsDialog({ initial, onSave, onCancel }: Props) {
+export function SettingsDialog({ initial, shells, onSave, onCancel }: Props) {
   const [s, setS] = useState<Settings>(initial);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<Settings>) => setS((x) => ({ ...x, ...patch }));
@@ -77,6 +79,22 @@ export function SettingsDialog({ initial, onSave, onCancel }: Props) {
           <input type="checkbox" checked={s.cursorBlink} onChange={(e) => set({ cursorBlink: e.target.checked })} />
           Blinking cursor
         </label>
+        {shells.length > 1 && (
+          <label className="span-2">
+            Shell for new local terminals
+            <select
+              value={s.defaultShell ?? ""}
+              onChange={(e) => set({ defaultShell: e.target.value || null })}
+            >
+              <option value="">System default ({shells[0]?.name})</option>
+              {shells.map((sh) => (
+                <option key={sh.id} value={sh.id}>
+                  {sh.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="checkbox span-2">
           <input type="checkbox" checked={s.logSessions} onChange={(e) => set({ logSessions: e.target.checked })} />
           Log every new terminal to Documents/Termalith Logs (plain text; may contain sensitive output)

@@ -18,5 +18,5 @@ pub use backend::{NativePtyBackend, PtyBackend, PtyControl, SpawnedPty};
 pub use error::PtyError;
 pub use flow::FlowConfig;
 pub use manager::{TerminalEventSink, TerminalManager};
-pub use shell::{ShellSpec, default_shell};
+pub use shell::{ShellProfile, ShellSpec, available_shells, default_shell, shell_by_id};
 pub use types::{ExitInfo, MAX_INPUT_CHUNK, TerminalEvent, TerminalId, TerminalSize};

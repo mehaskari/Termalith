@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import type { SessionRecord } from "../terminal/api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { SessionRecord, ShellChoice } from "../terminal/api";
 import { authLabel, filterSessions, groupSessions, targetLabel } from "./sessionList";
 
 interface Props {
@@ -10,7 +10,9 @@ interface Props {
   onForgetSecret: (s: SessionRecord) => void;
   onNew: () => void;
   onQuickConnect: () => void;
-  onLocalTerminal: () => void;
+  /** Installed shells; `undefined` id = the preferred one. */
+  shells: ShellChoice[];
+  onLocalTerminal: (shellId?: string) => void;
   onImport: () => void;
   onToggleFavorite: (s: SessionRecord) => void;
   onDuplicate: (s: SessionRecord) => void;
@@ -23,6 +25,21 @@ interface Props {
 
 export function Sidebar(p: Props) {
   const [query, setQuery] = useState("");
+  const [shellMenu, setShellMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!shellMenu) return;
+    const close = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setShellMenu(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setShellMenu(false);
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", esc);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", esc);
+    };
+  }, [shellMenu]);
   const filtered = useMemo(() => filterSessions(p.sessions, query), [p.sessions, query]);
   const groups = useMemo(() => {
     const g = groupSessions(filtered);
@@ -36,9 +53,42 @@ export function Sidebar(p: Props) {
         <button type="button" className="primary" onClick={p.onQuickConnect}>
           Quick connect
         </button>
-        <button type="button" onClick={p.onLocalTerminal} title="Open a local terminal">
-          Local
-        </button>
+        <div className="split-button" ref={menuRef}>
+          <button type="button" onClick={() => p.onLocalTerminal()} title="Open a local terminal">
+            Local
+          </button>
+          {p.shells.length > 1 && (
+            <button
+              type="button"
+              className="split-toggle"
+              aria-haspopup="menu"
+              aria-expanded={shellMenu}
+              aria-label="Choose a shell"
+              title="Choose a shell"
+              onClick={() => setShellMenu((v) => !v)}
+            >
+              ▾
+            </button>
+          )}
+          {shellMenu && (
+            <div className="menu" role="menu">
+              {p.shells.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="menuitem"
+                  title={s.id}
+                  onClick={() => {
+                    setShellMenu(false);
+                    p.onLocalTerminal(s.id);
+                  }}
+                >
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <button type="button" onClick={p.onSerial} title="Open a serial console">
           Serial
         </button>

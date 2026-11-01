@@ -61,11 +61,37 @@ pub fn channel_sink(
     }
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellChoice {
+    id: String,
+    name: String,
+}
+
+/// Shells installed on this machine, the system default first.
+#[tauri::command]
+pub async fn terminal_shells() -> Result<Vec<ShellChoice>, IpcError> {
+    tauri::async_runtime::spawn_blocking(|| {
+        terminal_pty::available_shells()
+            .into_iter()
+            .map(|p| ShellChoice {
+                id: p.id,
+                name: p.name,
+            })
+            .collect()
+    })
+    .await
+    .map_err(|_| IpcError::internal("shell detection failed"))
+}
+
+/// Opens a local terminal. `shell` is an id from [`terminal_shells`]; the
+/// frontend can pick a shell but never supply a program or arguments.
 #[tauri::command]
 pub async fn terminal_open(
     state: State<'_, AppState>,
     cols: u16,
     rows: u16,
+    shell: Option<String>,
     on_output: Channel<InvokeResponseBody>,
     on_exit: Channel<ExitPayload>,
 ) -> Result<u64, IpcError> {
@@ -73,7 +99,10 @@ pub async fn terminal_open(
     let hub = state.hub.clone();
     let (tap, sink) = logged_sink(on_output, on_exit);
     let id = tauri::async_runtime::spawn_blocking(move || -> Result<u64, IpcError> {
-        let shell = terminal_pty::default_shell()?;
+        let shell = match shell {
+            Some(id) => terminal_pty::shell_by_id(&id)?,
+            None => terminal_pty::default_shell()?,
+        };
         Ok(hub.open_local(&shell, size, sink)?)
     })
     .await

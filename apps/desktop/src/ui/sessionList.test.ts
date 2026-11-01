@@ -187,3 +187,15 @@ describe("startup command", () => {
     expect(parseForm({ ...f, startupCommand: "a\nb" }, { requireName: true })).toMatchObject({ ok: false, field: "startupCommand" });
   });
 });
+
+describe("telnet sessions", () => {
+  it("defaults to port 23, allows no user and keeps the jump host", () => {
+    const f = { ...withProtocol(emptyForm(), "telnet"), name: "switch", host: "10.0.0.254", jumpVia: "ses-b" };
+    expect(f.port).toBe("23");
+    const r = parseForm(f, { requireName: true });
+    expect(r.ok && r.value).toMatchObject({ protocol: "telnet", username: "", port: 23, jumpVia: "ses-b", auth: { kind: "password" } });
+    expect(r.ok && r.value.forwardAgent).toBe(false);
+    expect(authLabel({ auth: { kind: "password" }, hasSavedSecret: false, protocol: "telnet" })).toBe("Telnet");
+    expect(targetLabel({ username: "", host: "10.0.0.254", port: 23, protocol: "telnet" })).toBe("10.0.0.254");
+  });
+});

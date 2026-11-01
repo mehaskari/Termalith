@@ -68,6 +68,8 @@ export function closeTerminal(id: TerminalId): Promise<void> {
 
 export type AuthMethod = { kind: "password" } | { kind: "keyFile"; path: string } | { kind: "agent" };
 
+export type SessionProtocol = "ssh" | "rdp" | "vnc";
+
 export interface SessionInput {
   name: string;
   host: string;
@@ -77,6 +79,10 @@ export interface SessionInput {
   folder: string | null;
   /** Saved session to tunnel through (ProxyJump). */
   jumpVia?: string | null;
+  /** Defaults to "ssh" when absent. */
+  protocol?: SessionProtocol;
+  /** Windows domain (RDP only). */
+  domain?: string | null;
 }
 
 export interface SessionRecord extends SessionInput {
@@ -333,3 +339,44 @@ export function startProbe(
 }
 
 export const cancelProbe = (id: number) => invoke<boolean>("net_probe_cancel", { id });
+
+// ---------------------------------------------------------------- remote desktop
+
+export interface DesktopClient {
+  name: string;
+  /** The client reads the password before it starts (FreeRDP). */
+  asksPasswordFirst: boolean;
+}
+
+export interface DesktopClients {
+  rdp: DesktopClient | null;
+  vnc: DesktopClient | null;
+}
+
+export type DesktopState = { kind: "running" } | { kind: "handedOff" } | { kind: "exited"; code: number | null };
+
+export type DesktopInfo = DesktopState & {
+  id: number;
+  sessionId: string | null;
+  label: string;
+  protocol: "rdp" | "vnc";
+  client: string;
+  address: string;
+  via: string | null;
+};
+
+export function desktopClients(): Promise<DesktopClients> {
+  return invoke("desktop_clients");
+}
+
+export function openDesktop(sessionId: string, password?: string): Promise<DesktopInfo> {
+  return invoke("desktop_open", { sessionId, password: password ?? null });
+}
+
+export function listDesktops(): Promise<DesktopInfo[]> {
+  return invoke("desktop_list");
+}
+
+export function closeDesktop(id: number): Promise<void> {
+  return invoke("desktop_close", { id });
+}

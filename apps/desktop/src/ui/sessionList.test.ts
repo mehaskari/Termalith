@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { SessionRecord } from "../terminal/api";
-import { authLabel, emptyForm, filterSessions, formFromSession, groupSessions, parseForm, targetLabel } from "./sessionList";
+import {
+  authLabel,
+  emptyForm,
+  filterSessions,
+  formFromSession,
+  groupSessions,
+  parseForm,
+  targetLabel,
+  withProtocol,
+} from "./sessionList";
 
 function s(name: string, folder: string | null, host = "10.0.0.1", username = "root"): SessionRecord {
   return {
@@ -46,7 +55,7 @@ describe("parseForm", () => {
     const r = parseForm(base, { requireName: true });
     expect(r).toEqual({
       ok: true,
-      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null },
+      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null },
     });
   });
 
@@ -83,7 +92,7 @@ describe("parseForm", () => {
     const rec = s("web", "prod");
     const r = parseForm(formFromSession(rec), { requireName: true });
     expect(r.ok && r.value).toEqual({
-      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null,
+      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null,
     });
   });
 });
@@ -109,5 +118,30 @@ describe("jump host", () => {
   it("round-trips the jump session id", () => {
     const r = parseForm({ ...emptyForm(), name: "n", host: "h", username: "u", jumpVia: "ses-abc" }, { requireName: true });
     expect(r.ok && r.value.jumpVia).toBe("ses-abc");
+  });
+});
+
+describe("remote desktop sessions", () => {
+  it("moves the default port with the protocol and keeps custom ports", () => {
+    const f = withProtocol(emptyForm(), "rdp");
+    expect(f.port).toBe("3389");
+    expect(withProtocol(f, "vnc").port).toBe("5900");
+    expect(withProtocol({ ...f, port: "13389" }, "vnc").port).toBe("13389");
+  });
+
+  it("parses RDP without a user name, forces password auth, keeps the domain", () => {
+    const f = { ...withProtocol(emptyForm(), "rdp"), name: "win", host: "win.local", domain: "CORP", authKind: "agent" as const };
+    const r = parseForm(f, { requireName: true });
+    expect(r.ok && r.value).toMatchObject({ protocol: "rdp", username: "", auth: { kind: "password" }, domain: "CORP", port: 3389 });
+    const vnc = parseForm({ ...f, protocol: "vnc" }, { requireName: true });
+    expect(vnc.ok && vnc.value.domain).toBe(null);
+  });
+
+  it("rejects option-like user names and labels targets", () => {
+    const f = { ...withProtocol(emptyForm(), "rdp"), name: "w", host: "h", username: "/p:x" };
+    expect(parseForm(f, { requireName: true })).toMatchObject({ ok: false, field: "username" });
+    expect(targetLabel({ username: "", host: "h", port: 3389, protocol: "rdp" })).toBe("h");
+    expect(targetLabel({ username: "u", host: "h", port: 5901, protocol: "vnc" })).toBe("u@h:5901");
+    expect(authLabel({ auth: { kind: "password" }, hasSavedSecret: false, protocol: "vnc" })).toBe("VNC");
   });
 });

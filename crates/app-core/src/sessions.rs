@@ -54,6 +54,36 @@ pub enum AuthMethod {
     Agent,
 }
 
+/// What a saved session connects with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum SessionProtocol {
+    #[default]
+    Ssh,
+    /// Remote desktop through an external client.
+    Rdp,
+    Vnc,
+}
+
+impl SessionProtocol {
+    fn column(self) -> &'static str {
+        match self {
+            SessionProtocol::Ssh => "ssh",
+            SessionProtocol::Rdp => "rdp",
+            SessionProtocol::Vnc => "vnc",
+        }
+    }
+
+    fn from_column(s: &str) -> Option<Self> {
+        Some(match s {
+            "ssh" => SessionProtocol::Ssh,
+            "rdp" => SessionProtocol::Rdp,
+            "vnc" => SessionProtocol::Vnc,
+            _ => return None,
+        })
+    }
+}
+
 /// User-editable fields of a session.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,6 +97,11 @@ pub struct SessionInput {
     /// Saved session to tunnel through (OpenSSH `ProxyJump`).
     #[serde(default)]
     pub jump_via: Option<SessionId>,
+    #[serde(default)]
+    pub protocol: SessionProtocol,
+    /// Windows domain (RDP only).
+    #[serde(default)]
+    pub domain: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -109,9 +144,35 @@ impl SessionInput {
                 "not a valid host name or address",
             ));
         }
-        validate_text("username", &self.username, 128)?;
+        // Remote desktop clients ask for the user name themselves if it is
+        // left empty; SSH needs one.
+        if self.protocol == SessionProtocol::Ssh || !self.username.is_empty() {
+            validate_text("username", &self.username, 128)?;
+        }
         if self.username.chars().any(char::is_whitespace) {
             return Err(AppError::invalid("username", "must not contain spaces"));
+        }
+        if self.username.starts_with('-') || self.username.starts_with('/') {
+            return Err(AppError::invalid(
+                "username",
+                "must not start with '-' or '/'",
+            ));
+        }
+        if self.protocol != SessionProtocol::Ssh && self.auth != AuthMethod::Password {
+            return Err(AppError::invalid(
+                "authentication",
+                "remote desktop sessions use the client's own login",
+            ));
+        }
+        match (&self.domain, self.protocol) {
+            (None, _) => {}
+            (Some(d), SessionProtocol::Rdp) => {
+                validate_text("domain", d, 128)?;
+                if d.chars().any(char::is_whitespace) || d.starts_with('-') || d.starts_with('/') {
+                    return Err(AppError::invalid("domain", "not a valid domain name"));
+                }
+            }
+            (Some(_), _) => return Err(AppError::invalid("domain", "only used for RDP")),
         }
         if self.port == 0 {
             return Err(AppError::invalid("port", "must be 1-65535"));
@@ -181,6 +242,10 @@ const MIGRATIONS: &[&str] = &[
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
     );",
+    // v6: RDP/VNC sessions.
+    "ALTER TABLE sessions ADD COLUMN protocol TEXT NOT NULL DEFAULT 'ssh'
+        CHECK (protocol IN ('ssh', 'rdp', 'vnc'));
+    ALTER TABLE sessions ADD COLUMN domain TEXT;",
 ];
 
 pub struct SessionStore {
@@ -240,7 +305,7 @@ impl SessionStore {
     pub fn list(&self) -> Result<Vec<SessionRecord>, AppError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain
              FROM sessions ORDER BY folder IS NOT NULL, folder COLLATE NOCASE, name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], row_to_record)?;
@@ -251,7 +316,7 @@ impl SessionStore {
     pub fn get(&self, id: &SessionId) -> Result<SessionRecord, AppError> {
         let conn = self.conn();
         conn.query_row(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain
              FROM sessions WHERE id = ?1",
             [id.as_str()],
             row_to_record,
@@ -267,8 +332,8 @@ impl SessionStore {
         let (kind, key) = auth_columns(&input.auth);
         let t = now();
         self.conn().execute(
-            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10)",
+            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12)",
             params![
                 id.as_str(),
                 input.name.trim(),
@@ -279,7 +344,9 @@ impl SessionStore {
                 key,
                 input.folder,
                 t,
-                input.jump_via.as_ref().map(SessionId::as_str)
+                input.jump_via.as_ref().map(SessionId::as_str),
+                input.protocol.column(),
+                input.domain
             ],
         )?;
         self.get(&id)
@@ -299,6 +366,9 @@ impl SessionStore {
                 return Err(AppError::invalid("jump host", "chain is too long"));
             }
             next = match self.get(&j) {
+                Ok(r) if r.input.protocol != SessionProtocol::Ssh => {
+                    return Err(AppError::invalid("jump host", "must be an SSH session"));
+                }
                 Ok(r) => r.input.jump_via,
                 Err(AppError::NotFound) => {
                     return Err(AppError::invalid(
@@ -337,7 +407,8 @@ impl SessionStore {
         };
         self.conn().execute(
             "UPDATE sessions SET name = ?2, host = ?3, port = ?4, username = ?5, auth_kind = ?6,
-             key_path = ?7, folder = ?8, credential_ref = ?9, updated_at = ?10, jump_session_id = ?11
+             key_path = ?7, folder = ?8, credential_ref = ?9, updated_at = ?10, jump_session_id = ?11,
+             protocol = ?12, domain = ?13
              WHERE id = ?1",
             params![
                 id.as_str(),
@@ -350,7 +421,9 @@ impl SessionStore {
                 input.folder,
                 cred,
                 now(),
-                input.jump_via.as_ref().map(SessionId::as_str)
+                input.jump_via.as_ref().map(SessionId::as_str),
+                input.protocol.column(),
+                input.domain
             ],
         )?;
         Ok((self.get(id)?, stale))
@@ -411,6 +484,10 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
         ("agent", _) => AuthMethod::Agent,
         _ => return Ok(Err(AppError::Db(format!("session {id}: bad auth columns")))),
     };
+    let protocol: String = r.get(12)?;
+    let Some(protocol) = SessionProtocol::from_column(&protocol) else {
+        return Ok(Err(AppError::Db(format!("session {id}: bad protocol"))));
+    };
     let credential = match cred.as_deref().map(CredentialRef::parse).transpose() {
         Ok(c) => c,
         Err(_) => {
@@ -432,6 +509,8 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
             auth,
             folder: r.get(8)?,
             jump_via: r.get::<_, Option<String>>(10)?.map(SessionId),
+            protocol,
+            domain: r.get(13)?,
         },
         updated_at: r.get(9)?,
     }))
@@ -450,6 +529,8 @@ mod tests {
             auth: AuthMethod::Password,
             folder: Some("Production".into()),
             jump_via: None,
+            protocol: SessionProtocol::Ssh,
+            domain: None,
         }
     }
 
@@ -619,6 +700,45 @@ mod tests {
         // Deleting the bastion clears the link (ON DELETE SET NULL).
         s.delete(&bastion.id).unwrap();
         assert_eq!(s.get(&t.id).unwrap().input.jump_via, None);
+    }
+
+    #[test]
+    fn remote_desktop_sessions() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let bastion = store.create(&input()).unwrap();
+        let mut rdp = SessionInput {
+            name: "win".into(),
+            host: "win.example.com".into(),
+            port: 3389,
+            username: String::new(),
+            auth: AuthMethod::Password,
+            folder: None,
+            jump_via: Some(bastion.id.clone()),
+            protocol: SessionProtocol::Rdp,
+            domain: Some("CORP".into()),
+        };
+        let rec = store.create(&rdp).unwrap();
+        assert_eq!(store.get(&rec.id).unwrap().input, rdp);
+
+        // A remote desktop session can't be a jump host.
+        let mut ssh = input();
+        ssh.name = "behind".into();
+        ssh.jump_via = Some(rec.id.clone());
+        assert!(store.create(&ssh).is_err());
+
+        rdp.auth = AuthMethod::Agent;
+        assert!(rdp.validate().is_err());
+        rdp.auth = AuthMethod::Password;
+        rdp.username = "/p:x".into();
+        assert!(rdp.validate().is_err());
+        rdp.username = String::new();
+        rdp.protocol = SessionProtocol::Vnc;
+        assert!(rdp.validate().is_err(), "domain is RDP only");
+        rdp.domain = None;
+        assert!(rdp.validate().is_ok());
+        let mut s = input();
+        s.username = String::new();
+        assert!(s.validate().is_err(), "SSH needs a user name");
     }
 
     #[test]

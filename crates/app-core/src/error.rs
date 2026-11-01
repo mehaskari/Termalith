@@ -32,6 +32,9 @@ pub enum AppError {
 
     #[error("serial I/O failed: {0}")]
     Serial(String),
+
+    #[error(transparent)]
+    Desktop(#[from] remote_desktop::DesktopError),
 }
 
 impl From<rusqlite::Error> for AppError {

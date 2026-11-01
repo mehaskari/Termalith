@@ -870,3 +870,58 @@ button.icon.starred {
 .tab.broadcasting {
   box-shadow: inset 0 -2px 0 var(--danger);
 }
+
+.tab-kind.desktop {
+  background: var(--warning);
+}
+.desktop-pane {
+  height: 100%;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px;
+}
+.desktop-card {
+  width: min(520px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px 24px;
+  background: var(--panel);
+}
+.desktop-card h2 {
+  margin: 0 0 14px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.desktop-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.desktop-dot.running,
+.desktop-dot.handedOff {
+  background: var(--accent);
+}
+.desktop-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 0 0 14px;
+}
+.desktop-facts dt {
+  color: var(--muted);
+}
+.desktop-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.desktop-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}

@@ -68,6 +68,12 @@ seed({ name: "web-01", host: "web1.example.com", port: 22, username: "deploy", a
 seed({ name: "db-primary", host: "10.0.0.9", port: 2222, username: "postgres", auth: { kind: "keyFile", path: "/Users/me/.ssh/id_ed25519" }, folder: "Production" });
 seed({ name: "lab router", host: "192.168.1.1", port: 22, username: "admin", auth: { kind: "password" }, folder: null }, true);
 
+seed({ name: "win-jump", host: "10.0.5.20", port: 3389, username: "", auth: { kind: "password" }, folder: "Production", jumpVia: "ses-000000000000000000000001", protocol: "rdp", domain: "CORP" });
+seed({ name: "lab vnc", host: "192.168.1.40", port: 5900, username: "", auth: { kind: "password" }, folder: null, protocol: "vnc" });
+
+const desktops = new Map<number, Record<string, unknown>>();
+let nextDesktop = 1;
+
 declare global {
   interface Window {
     __TAURI_INTERNALS__: { runCallback: (id: number, data: unknown) => void };
@@ -110,6 +116,30 @@ mockIPC(
         }
         return { created, skipped: [], unresolvedJumps: [] };
       }
+      case "desktop_clients":
+        return { rdp: { name: "Microsoft Remote Desktop", asksPasswordFirst: false }, vnc: { name: "Screen Sharing", asksPasswordFirst: false } };
+      case "desktop_open": {
+        const s = sessions.get(String(a.sessionId));
+        if (!s) throw { code: "not_found", message: "not found" };
+        const jump = s.jumpVia ? sessions.get(s.jumpVia) : undefined;
+        const d = {
+          id: nextDesktop++,
+          sessionId: s.id,
+          label: s.name,
+          protocol: s.protocol,
+          client: s.protocol === "rdp" ? "Microsoft Remote Desktop" : "Screen Sharing",
+          address: jump ? "127.0.0.1:52144" : `${s.host}:${s.port}`,
+          via: jump?.name ?? null,
+          kind: "handedOff",
+        };
+        desktops.set(d.id, d);
+        return d;
+      }
+      case "desktop_list":
+        return [...desktops.values()];
+      case "desktop_close":
+        desktops.delete(Number(a.id));
+        return null;
       case "sessions_list":
         return [...sessions.values()];
       case "session_create": {

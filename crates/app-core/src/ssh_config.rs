@@ -13,7 +13,7 @@ use std::path::Path;
 use serde::Serialize;
 
 use crate::AppError;
-use crate::sessions::{AuthMethod, SessionInput, SessionStore};
+use crate::sessions::{AuthMethod, SessionInput, SessionProtocol, SessionStore};
 
 /// Folder imported sessions are placed in.
 pub const IMPORT_FOLDER: &str = "SSH config";
@@ -212,6 +212,8 @@ pub fn parse_ssh_config(text: &str, home: &Path, default_user: &str) -> Vec<Impo
                     auth,
                     folder: Some(IMPORT_FOLDER.into()),
                     jump_via: None,
+                    protocol: SessionProtocol::Ssh,
+                    domain: None,
                 },
                 alias,
                 warnings,

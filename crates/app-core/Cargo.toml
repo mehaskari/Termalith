@@ -11,6 +11,7 @@ rust-version.workspace = true
 credential-store = { path = "../credential-store" }
 getrandom = "0.3"
 protocol-ssh = { path = "../protocol-ssh" }
+remote-desktop = { path = "../remote-desktop" }
 serial-console = { path = "../serial-console" }
 rusqlite = { version = "0.41.1", features = ["bundled"] }
 serde.workspace = true

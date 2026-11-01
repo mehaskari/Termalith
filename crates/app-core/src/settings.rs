@@ -3,7 +3,7 @@
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
-use crate::sessions::{AuthMethod, SessionInput, SessionStore};
+use crate::sessions::{AuthMethod, SessionInput, SessionProtocol, SessionStore};
 use crate::{AppError, ImportReport};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -129,6 +129,10 @@ struct ExportedSession {
     favorite: bool,
     #[serde(default)]
     jump_via: Option<String>,
+    #[serde(default)]
+    protocol: SessionProtocol,
+    #[serde(default)]
+    domain: Option<String>,
 }
 
 /// Serializes every session as versioned JSON. Never includes secrets.
@@ -153,6 +157,8 @@ pub fn export_sessions(store: &SessionStore) -> Result<String, AppError> {
                 folder: s.input.folder.clone(),
                 favorite: s.favorite,
                 jump_via: s.input.jump_via.as_ref().and_then(name_of),
+                protocol: s.input.protocol,
+                domain: s.input.domain.clone(),
             })
             .collect(),
     };
@@ -238,6 +244,8 @@ fn to_input(s: &ExportedSession) -> SessionInput {
         auth: s.auth.clone(),
         folder: s.folder.clone(),
         jump_via: None,
+        protocol: s.protocol,
+        domain: s.domain.clone(),
     }
 }
 
@@ -276,6 +284,8 @@ mod tests {
             auth: AuthMethod::Password,
             folder: Some("F".into()),
             jump_via: None,
+            protocol: SessionProtocol::Ssh,
+            domain: None,
         }
     }
 

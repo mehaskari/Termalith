@@ -1,4 +1,4 @@
-import type { SessionInput, SessionRecord } from "../terminal/api";
+import type { SessionInput, SessionProtocol, SessionRecord } from "../terminal/api";
 
 export interface SessionGroup {
   folder: string | null;
@@ -39,17 +39,28 @@ export function groupSessions(sessions: SessionRecord[]): SessionGroup[] {
   return groups;
 }
 
-export function authLabel(s: Pick<SessionRecord, "auth" | "hasSavedSecret">): string {
+export const DEFAULT_PORT: Record<SessionProtocol, number> = { ssh: 22, rdp: 3389, vnc: 5900 };
+
+export function isDesktop(s: Pick<SessionInput, "protocol">): boolean {
+  return s.protocol === "rdp" || s.protocol === "vnc";
+}
+
+export function authLabel(s: Pick<SessionRecord, "auth" | "hasSavedSecret" | "protocol">): string {
+  if (s.protocol === "rdp") return "RDP";
+  if (s.protocol === "vnc") return "VNC";
   if (s.auth.kind === "keyFile") return "key";
   if (s.auth.kind === "agent") return "agent";
   return s.hasSavedSecret ? "saved" : "";
 }
 
-export function targetLabel(s: Pick<SessionInput, "username" | "host" | "port">): string {
-  return s.port === 22 ? `${s.username}@${s.host}` : `${s.username}@${s.host}:${s.port}`;
+export function targetLabel(s: Pick<SessionInput, "username" | "host" | "port" | "protocol">): string {
+  const protocol = s.protocol ?? "ssh";
+  const host = s.port === DEFAULT_PORT[protocol] ? s.host : `${s.host}:${s.port}`;
+  return s.username ? `${s.username}@${host}` : host;
 }
 
 export interface SessionFormState {
+  protocol: SessionProtocol;
   name: string;
   host: string;
   port: string;
@@ -59,14 +70,34 @@ export interface SessionFormState {
   folder: string;
   /** Session id of the jump host, or "" for a direct connection. */
   jumpVia: string;
+  /** RDP only. */
+  domain: string;
+}
+
+/** Switches protocol, moving the port along if it was the old default. */
+export function withProtocol(f: SessionFormState, protocol: SessionProtocol): SessionFormState {
+  const port = f.port === String(DEFAULT_PORT[f.protocol]) || !f.port ? String(DEFAULT_PORT[protocol]) : f.port;
+  return { ...f, protocol, port, authKind: protocol === "ssh" ? f.authKind : "password" };
 }
 
 export function emptyForm(): SessionFormState {
-  return { name: "", host: "", port: "22", username: "", authKind: "password", keyPath: "", folder: "", jumpVia: "" };
+  return {
+    protocol: "ssh",
+    name: "",
+    host: "",
+    port: "22",
+    username: "",
+    authKind: "password",
+    keyPath: "",
+    folder: "",
+    jumpVia: "",
+    domain: "",
+  };
 }
 
 export function formFromSession(s: SessionInput): SessionFormState {
   return {
+    protocol: s.protocol ?? "ssh",
     name: s.name,
     host: s.host,
     port: String(s.port),
@@ -75,6 +106,7 @@ export function formFromSession(s: SessionInput): SessionFormState {
     keyPath: s.auth.kind === "keyFile" ? s.auth.path : "",
     folder: s.folder ?? "",
     jumpVia: s.jumpVia ?? "",
+    domain: s.domain ?? "",
   };
 }
 
@@ -92,14 +124,21 @@ export function parseForm(
   if (!host) return { ok: false, field: "host", message: "Host is required" };
   if (/\s/.test(host) || host.startsWith("-"))
     return { ok: false, field: "host", message: "Not a valid host name or address" };
-  if (!username) return { ok: false, field: "username", message: "Username is required" };
+  const desktop = f.protocol !== "ssh";
+  if (!username && !desktop) return { ok: false, field: "username", message: "Username is required" };
   if (/\s/.test(username)) return { ok: false, field: "username", message: "No spaces allowed" };
+  if (/^[-/]/.test(username)) return { ok: false, field: "username", message: "Must not start with - or /" };
+  const domain = f.protocol === "rdp" ? f.domain.trim() : "";
+  if (/\s/.test(domain) || /^[-/]/.test(domain))
+    return { ok: false, field: "domain", message: "Not a valid domain name" };
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     return { ok: false, field: "port", message: "Port must be 1-65535" };
-  const name = f.name.trim() || (requireName ? "" : `${username}@${host}`);
+  const name = f.name.trim() || (requireName ? "" : username ? `${username}@${host}` : host);
   if (!name) return { ok: false, field: "name", message: "Name is required" };
   let auth: SessionInput["auth"];
-  if (f.authKind === "agent") {
+  if (desktop) {
+    auth = { kind: "password" };
+  } else if (f.authKind === "agent") {
     auth = { kind: "agent" };
   } else if (f.authKind === "keyFile") {
     const path = f.keyPath.trim();
@@ -112,6 +151,16 @@ export function parseForm(
   }
   return {
     ok: true,
-    value: { name, host, port, username, auth, folder: f.folder.trim() || null, jumpVia: f.jumpVia || null },
+    value: {
+      name,
+      host,
+      port,
+      username,
+      auth,
+      folder: f.folder.trim() || null,
+      jumpVia: f.jumpVia || null,
+      protocol: f.protocol,
+      domain: domain || null,
+    },
   };
 }

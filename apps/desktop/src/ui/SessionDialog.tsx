@@ -1,7 +1,19 @@
-import { type FormEvent, useState } from "react";
-import { type SessionInput, type SessionRecord, isIpcError } from "../terminal/api";
+import { type FormEvent, useEffect, useState } from "react";
+import {
+  type DesktopClients,
+  type SessionInput,
+  type SessionProtocol,
+  type SessionRecord,
+  desktopClients,
+  isIpcError,
+} from "../terminal/api";
 import { Dialog } from "./Dialog";
-import { type SessionFormState, emptyForm, formFromSession, parseForm } from "./sessionList";
+import { type SessionFormState, emptyForm, formFromSession, parseForm, withProtocol } from "./sessionList";
+
+const INSTALL_HINT: Record<"rdp" | "vnc", string> = {
+  rdp: "No RDP client found. Install Windows App (macOS), or FreeRDP (xfreerdp) on Linux; Windows has Remote Desktop Connection built in.",
+  vnc: "No VNC client found. macOS includes Screen Sharing; on Linux or Windows install TigerVNC (vncviewer).",
+};
 
 interface Props {
   mode: "create" | "edit" | "quick";
@@ -24,6 +36,12 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
   const [busy, setBusy] = useState(false);
   const set = (patch: Partial<SessionFormState>) => setForm((f) => ({ ...f, ...patch }));
   const invalid = (field: string) => (error?.field === field ? true : undefined);
+  const [clients, setClients] = useState<DesktopClients | null>(null);
+  const desktop = form.protocol !== "ssh";
+  useEffect(() => {
+    if (desktop && !clients) desktopClients().then(setClients, () => {});
+  }, [desktop, clients]);
+  const client = form.protocol === "ssh" || !clients ? undefined : clients[form.protocol];
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -59,6 +77,26 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
       <form id="session-form" className="form-grid" onSubmit={submit} noValidate>
         {mode !== "quick" && (
           <label className="span-2">
+            Type
+            <select
+              value={form.protocol}
+              onChange={(e) => setForm((f) => withProtocol(f, e.target.value as SessionProtocol))}
+            >
+              <option value="ssh">SSH terminal</option>
+              <option value="rdp">RDP remote desktop</option>
+              <option value="vnc">VNC remote desktop</option>
+            </select>
+          </label>
+        )}
+        {desktop && clients && form.protocol !== "ssh" && (
+          <p className="hint span-2">
+            {client
+              ? `Opens in ${client.name} (external window).${client.asksPasswordFirst ? " You will be asked for the password when connecting; it is not saved." : " The client asks for credentials itself."}`
+              : INSTALL_HINT[form.protocol]}
+          </p>
+        )}
+        {mode !== "quick" && (
+          <label className="span-2">
             Name
             <input
               autoFocus
@@ -90,7 +128,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
           />
         </label>
         <label>
-          Username
+          {desktop ? "Username (optional)" : "Username"}
           <input
             value={form.username}
             spellCheck={false}
@@ -99,18 +137,32 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
             onChange={(e) => set({ username: e.target.value })}
           />
         </label>
-        <label>
-          Authentication
-          <select
-            value={form.authKind}
-            onChange={(e) => set({ authKind: e.target.value as SessionFormState["authKind"] })}
-          >
-            <option value="password">Password</option>
-            <option value="keyFile">Private key file</option>
-            <option value="agent">SSH agent</option>
-          </select>
-        </label>
-        {form.authKind === "keyFile" && (
+        {form.protocol === "rdp" && (
+          <label>
+            Domain (optional)
+            <input
+              value={form.domain}
+              spellCheck={false}
+              autoCapitalize="off"
+              aria-invalid={invalid("domain")}
+              onChange={(e) => set({ domain: e.target.value })}
+            />
+          </label>
+        )}
+        {!desktop && (
+          <label>
+            Authentication
+            <select
+              value={form.authKind}
+              onChange={(e) => set({ authKind: e.target.value as SessionFormState["authKind"] })}
+            >
+              <option value="password">Password</option>
+              <option value="keyFile">Private key file</option>
+              <option value="agent">SSH agent</option>
+            </select>
+          </label>
+        )}
+        {!desktop && form.authKind === "keyFile" && (
           <label className="span-2">
             Private key file
             <input
@@ -125,11 +177,11 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
         )}
         {mode !== "quick" && (
           <label className="span-2">
-            Connect via (jump host)
+            {desktop ? "Tunnel through (SSH session)" : "Connect via (jump host)"}
             <select value={form.jumpVia} onChange={(e) => set({ jumpVia: e.target.value })}>
               <option value="">Direct connection</option>
               {sessions
-                .filter((s) => s.id !== editingId)
+                .filter((s) => s.id !== editingId && (s.protocol ?? "ssh") === "ssh")
                 .map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} ({s.username}@{s.host})

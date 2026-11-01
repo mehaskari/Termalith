@@ -32,7 +32,12 @@ import {
   serialSummary,
   splitTerminal,
   updateSession,
+  type DesktopInfo,
+  closeDesktop,
+  listDesktops,
+  openDesktop,
 } from "./terminal/api";
+import { DesktopPane } from "./ui/DesktopPane";
 import { Dialog } from "./ui/Dialog";
 import { FilesPanel } from "./ui/FilesPanel";
 import { HostKeyDialog } from "./ui/HostKeyDialog";
@@ -51,12 +56,12 @@ import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
 import { resolveTheme } from "./ui/theme";
 import { isMacPlatform, matchShortcut } from "./ui/shortcuts";
 import { Sidebar } from "./ui/Sidebar";
-import { targetLabel } from "./ui/sessionList";
+import { isDesktop, targetLabel } from "./ui/sessionList";
 
 interface Tab {
   key: number;
   title: string;
-  kind: "local" | "ssh" | "serial" | "tools";
+  kind: "local" | "ssh" | "serial" | "tools" | "desktop";
   open: Opener;
   terminalId?: TerminalId;
   /** Connection over (failed, or the remote shell exited). */
@@ -72,6 +77,10 @@ interface Tab {
   /** Extra panes beside the main terminal. */
   splits: SplitPane[];
   direction: "row" | "column";
+  /** Remote desktop tabs: the external client session (null while opening). */
+  desktop?: DesktopInfo | null;
+  desktopError?: string | null;
+  sessionId?: string;
 }
 
 interface SplitPane {
@@ -232,15 +241,78 @@ export function App() {
     [addTab, askPassword, refresh, renameTab, patchTab],
   );
 
+  /** Opens an RDP/VNC session in its external client, in tab `key`. */
+  const runDesktop = useCallback(
+    async (key: number, s: SessionRecord) => {
+      patchTab(key, { desktop: null, desktopError: null });
+      let password: string | undefined;
+      for (;;) {
+        try {
+          const d = await openDesktop(s.id, password);
+          password = undefined;
+          patchTab(key, { desktop: d });
+          return;
+        } catch (e) {
+          if (isIpcError(e) && e.code === "password_required") {
+            const answer = await askPassword({ target: s.name, kind: "password", canSave: false, retry: null });
+            if (answer) {
+              password = answer.password;
+              continue;
+            }
+            patchTab(key, { desktopError: "Cancelled." });
+            return;
+          }
+          patchTab(key, { desktopError: isIpcError(e) ? e.message : String(e) });
+          return;
+        }
+      }
+    },
+    [askPassword, patchTab],
+  );
+
   const connectSaved = useCallback(
-    (s: SessionRecord) =>
+    (s: SessionRecord) => {
+      if (isDesktop(s)) {
+        const key = addTab(s.name, "desktop", openLocalTerminal);
+        patchTab(key, { sessionId: s.id });
+        void runDesktop(key, s);
+        return;
+      }
       connect({ sessionId: s.id }, s.name, {
         canSave: info?.secretsAvailable ?? false,
         keyAuth: s.auth.kind === "keyFile",
         savedSecret: s.hasSavedSecret,
-      }),
-    [connect, info],
+      });
+    },
+    [addTab, connect, info, patchTab, runDesktop],
   );
+
+  // Remote desktop status: poll while a client is running.
+  const watchDesktops = tabs.some((t) => t.desktop?.kind === "running");
+  useEffect(() => {
+    if (!watchDesktops) return;
+    const timer = window.setInterval(() => {
+      listDesktops().then(
+        (list) =>
+          setTabs((ts) =>
+            ts.map((t) => {
+              const d = t.desktop && list.find((x) => x.id === t.desktop?.id);
+              return d && d.kind !== t.desktop?.kind ? { ...t, desktop: d } : t;
+            }),
+          ),
+        () => {},
+      );
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [watchDesktops]);
+
+  // Closing a desktop tab (by any route) stops its client and tunnel.
+  const openDesktopIds = useRef(new Set<number>());
+  useEffect(() => {
+    const now = new Set(tabs.flatMap((t) => (t.desktop ? [t.desktop.id] : [])));
+    for (const id of openDesktopIds.current) if (!now.has(id)) void closeDesktop(id).catch(() => {});
+    openDesktopIds.current = now;
+  }, [tabs]);
 
   const didOpenInitialTab = useRef(false);
   useEffect(() => {
@@ -453,6 +525,18 @@ export function App() {
             <div key={t.key} className="pane" hidden={t.key !== active} role="tabpanel">
               {t.kind === "tools" ? (
                 <NetworkTools />
+              ) : t.kind === "desktop" ? (
+                <DesktopPane
+                  info={t.desktop ?? null}
+                  error={t.desktopError ?? null}
+                  onClose={() => closeTab(t.key)}
+                  onReopen={() => {
+                    // Replacing `desktop` closes the previous client (see the effect above).
+                    const s = sessions.find((x) => x.id === t.sessionId);
+                    if (s) void runDesktop(t.key, s);
+                    else patchTab(t.key, { desktopError: "The saved session no longer exists." });
+                  }}
+                />
               ) : (
               <>
               <div className="pane-toolbar">

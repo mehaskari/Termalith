@@ -16,6 +16,7 @@ tauri-build.workspace = true
 
 [dependencies]
 app-core = { path = "../../../crates/app-core" }
+remote-desktop = { path = "../../../crates/remote-desktop" }
 credential-store = { path = "../../../crates/credential-store" }
 protocol-ssh = { path = "../../../crates/protocol-ssh" }
 serial-console = { path = "../../../crates/serial-console" }

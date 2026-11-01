@@ -99,6 +99,10 @@ impl From<AppError> for IpcError {
             AppError::SerialPort(_) | AppError::Serial(_) => {
                 Self::new("serial_error", e.to_string())
             }
+            AppError::Desktop(remote_desktop::DesktopError::NoClient(_)) => {
+                Self::new("desktop_no_client", e.to_string())
+            }
+            AppError::Desktop(_) => Self::new("desktop_error", e.to_string()),
         }
     }
 }

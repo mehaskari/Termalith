@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { App } from "../App";
+import { ErrorBoundary } from "../ui/ErrorBoundary";
 import type { HostKeyAnswer, SessionInput, SessionRecord } from "../terminal/api";
 import "../styles.css";
 
@@ -153,6 +154,13 @@ mockIPC(
           { id: 1, direction: "download", name: "backup.tar.gz", remotePath: "/home/deploy/backup.tar.gz", localPath: null, size: 48234112, outcome: "cancelled", message: null, connection: "db-primary", finishedAt: Math.floor(Date.now() / 1000) - 7200 },
         ];
       case "transfer_history_clear":
+        return null;
+      case "crash_reports":
+        return new URLSearchParams(location.search).has("crash")
+          ? [{ id: "crash-1-0-backend.txt", kind: "backend", time: Math.floor(Date.now() / 1000) - 300, summary: "panic in thread 'tokio-runtime-worker' at crates/app-core/src/terminals.rs:120: index out of bounds", text: "Termalith 0.1.0-mock crash report (backend)\nOS: macos aarch64\nTime: 0\n\npanic in thread 'tokio-runtime-worker' at crates/app-core/src/terminals.rs:120: index out of bounds\n\nBacktrace:\n   0: ...\n" }]
+          : [];
+      case "crash_dismiss":
+      case "frontend_error":
         return null;
       case "open_web_link":
         (window as unknown as Record<string, unknown>).__openedLinks = [
@@ -499,10 +507,15 @@ let nextToken = 1;
   void emit("files-dropped", [{ token, name, size }]);
 };
 
+// `?uicrash` shows the recovery screen.
+function Boom(): never {
+  throw new TypeError("mock render failure");
+}
+
 const root = document.getElementById("root");
 if (!root) throw new Error("missing #root");
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>{new URLSearchParams(location.search).has("uicrash") ? <Boom /> : <App />}</ErrorBoundary>
   </StrictMode>,
 );

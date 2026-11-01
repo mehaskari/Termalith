@@ -1,9 +1,7 @@
 import icon from "../assets/icon.png";
 import { type AppInfo, openWebLink } from "../terminal/api";
 import { Dialog } from "./Dialog";
-
-const REPO = "https://github.com/mehaskari/Termalith";
-const SITE = "https://mehaskari.github.io/Termalith/";
+import { REPO, SITE } from "./project";
 
 /** Main open-source components (all MIT or MIT/Apache-2.0). */
 const COMPONENTS: Array<[string, string]> = [

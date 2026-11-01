@@ -1511,3 +1511,49 @@ button.recording {
   align-items: baseline;
   flex-wrap: wrap;
 }
+
+/* Crash reports */
+.crash-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 560px;
+}
+.crash-notice p {
+  margin: 0;
+}
+.crash-notice textarea {
+  font-family: Menlo, "SF Mono", Consolas, monospace;
+  font-size: 11px;
+  width: 100%;
+  resize: vertical;
+}
+.crash-screen {
+  max-width: 720px;
+  margin: 10vh auto;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.crash-screen h1 {
+  margin: 0;
+  font-size: 22px;
+}
+.crash-screen p {
+  margin: 0;
+}
+.crash-screen pre {
+  max-height: 40vh;
+  overflow: auto;
+  font-size: 11px;
+  padding: 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  white-space: pre-wrap;
+}
+.crash-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

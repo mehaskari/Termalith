@@ -261,3 +261,10 @@ Termalith cannot tell when you disconnect.
 
 **Serial port: permission denied (Linux)** — add yourself to the `dialout`
 group and log in again.
+
+**Termalith closed unexpectedly** — the next start shows the crash report
+that was saved (version, OS, where the error happened; no passwords or
+terminal contents). Nothing is sent automatically. Use **Copy report**, check
+it, then **Report on GitHub** and paste it into the issue. Reports are kept
+in the app's log folder (`crashes/`, at most 20) until you dismiss them. If
+the window itself hits an error, a recovery screen offers **Reload**.

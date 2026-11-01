@@ -40,6 +40,9 @@ Termalith is an open-source, cross-platform remote administration workstation fo
 - Collapsible folder tree with subfolders (`Production/DB`), favorites, tags and search; "open all" for a folder.
 - Import from `~/.ssh/config` and from MobaXterm `.mxtsessions` exports; export/import as JSON (never containing secrets).
 
+**Diagnostics**
+- Crash reports kept locally and shown on the next start (copy, or report on GitHub; never sent automatically); a recovery screen with Reload if the window hits an error.
+
 Not yet: embedded RDP/VNC (external clients are used), code-signed installers.
 
 ## Install

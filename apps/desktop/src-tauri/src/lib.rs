@@ -69,6 +69,7 @@ pub fn run() {
             nettools::net_probe_start,
             nettools::net_probe_cancel,
             ssh::ssh_open,
+            ssh::ssh_files_open,
             desktop::desktop_clients,
             desktop::desktop_open,
             desktop::desktop_list,

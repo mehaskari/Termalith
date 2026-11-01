@@ -26,6 +26,8 @@ enum Entry {
     Ssh(Arc<SshTerminal>),
     Serial(Arc<SerialTerminal>),
     Telnet(Arc<TelnetTerminal>),
+    /// An SSH connection used only for files (no shell).
+    Files(Arc<SshConnection>),
 }
 
 /// A byte stream a Telnet session runs over: TCP, or a tunnel channel.
@@ -146,6 +148,20 @@ impl TerminalHub {
         Ok(id)
     }
 
+    /// Keeps an authenticated SSH connection for file browsing only (no
+    /// shell). The id works with [`TerminalHub::sftp`] and
+    /// [`TerminalHub::close`]; terminal operations are refused.
+    pub fn open_files(&self, session: Arc<SshSession>) -> u64 {
+        let conn = Arc::new(SshConnection {
+            session,
+            users: AtomicUsize::new(1),
+            sftp: tokio::sync::Mutex::new(None),
+        });
+        let id = self.alloc();
+        self.lock().insert(id, Entry::Files(conn));
+        id
+    }
+
     /// Opens an interactive shell on an authenticated SSH session. The hub
     /// owns the session from now on; it is disconnected when the last
     /// terminal using it closes.
@@ -173,6 +189,8 @@ impl TerminalHub {
     ) -> Result<u64, AppError> {
         let conn = match self.target(id)? {
             Target::Ssh(t) => Arc::clone(&t.conn),
+            // A shell on a file browser's connection: no second login.
+            Target::Files(c) => c,
             Target::Local(_) | Target::Serial(_) | Target::Telnet(_) => {
                 return Err(AppError::invalid("terminal", "not an SSH terminal"));
             }
@@ -254,6 +272,7 @@ impl TerminalHub {
     pub fn ssh_session(&self, id: u64) -> Result<Arc<SshSession>, AppError> {
         match self.target(id)? {
             Target::Ssh(t) => Ok(Arc::clone(&t.conn.session)),
+            Target::Files(c) => Ok(Arc::clone(&c.session)),
             Target::Local(_) | Target::Serial(_) | Target::Telnet(_) => {
                 Err(AppError::invalid("terminal", "not an SSH terminal"))
             }
@@ -415,15 +434,20 @@ impl TerminalHub {
         Ok(id)
     }
 
-    /// Whether `id` is an SSH terminal (as opposed to a local one).
+    /// Whether `id` is backed by an SSH connection (terminal or file
+    /// browser), as opposed to a local shell.
     pub fn is_ssh(&self, id: u64) -> Result<bool, AppError> {
-        Ok(matches!(self.target(id)?, Target::Ssh(_)))
+        Ok(matches!(
+            self.target(id)?,
+            Target::Ssh(_) | Target::Files(_)
+        ))
     }
 
     /// Number of terminals sharing the SSH connection behind `id`.
     pub fn connection_users(&self, id: u64) -> Result<usize, AppError> {
         match self.target(id)? {
             Target::Ssh(t) => Ok(t.conn.users.load(Ordering::SeqCst)),
+            Target::Files(c) => Ok(c.users.load(Ordering::SeqCst)),
             Target::Local(_) | Target::Serial(_) | Target::Telnet(_) => {
                 Err(AppError::invalid("terminal", "not an SSH terminal"))
             }
@@ -456,6 +480,7 @@ impl TerminalHub {
                 .await
             }
             Target::Telnet(t) => t.send(&protocol_telnet::Telnet::encode(data)).await,
+            Target::Files(_) => Err(AppError::invalid("terminal", "a file browser has no shell")),
         }
     }
 
@@ -466,8 +491,8 @@ impl TerminalHub {
                 .writer
                 .resize(u32::from(size.cols()), u32::from(size.rows()))
                 .await?),
-            // A serial line has no window size.
-            Target::Serial(_) => Ok(()),
+            // A serial line (or a file browser) has no window size.
+            Target::Serial(_) | Target::Files(_) => Ok(()),
             Target::Telnet(t) => {
                 let update = t
                     .codec
@@ -485,17 +510,18 @@ impl TerminalHub {
     /// SFTP on the connection behind an SSH terminal (opened once, then
     /// reused).
     pub async fn sftp(&self, id: u64) -> Result<Arc<SftpClient>, AppError> {
-        let t = match self.target(id)? {
-            Target::Ssh(t) => t,
+        let conn = match self.target(id)? {
+            Target::Ssh(t) => Arc::clone(&t.conn),
+            Target::Files(c) => c,
             Target::Local(_) | Target::Serial(_) | Target::Telnet(_) => {
                 return Err(AppError::invalid("terminal", "not an SSH terminal"));
             }
         };
-        let mut slot = t.conn.sftp.lock().await;
+        let mut slot = conn.sftp.lock().await;
         if let Some(c) = slot.as_ref() {
             return Ok(Arc::clone(c));
         }
-        let client = Arc::new(t.conn.session.sftp().await?);
+        let client = Arc::new(conn.session.sftp().await?);
         *slot = Some(Arc::clone(&client));
         Ok(client)
     }
@@ -515,6 +541,7 @@ impl TerminalHub {
                 t.gate.ack(bytes);
                 Ok(())
             }
+            Target::Files(_) => Ok(()),
         }
     }
 
@@ -539,6 +566,12 @@ impl TerminalHub {
             Entry::Serial(t) => {
                 t.cancel.cancel();
                 t.gate.close();
+                Ok(())
+            }
+            Entry::Files(conn) => {
+                if conn.users.fetch_sub(1, Ordering::SeqCst) == 1 {
+                    let _ = conn.session.disconnect().await;
+                }
                 Ok(())
             }
             Entry::Telnet(t) => {
@@ -568,7 +601,7 @@ impl TerminalHub {
                     t.cancel.cancel();
                     t.gate.close();
                 }
-                Entry::Local(_) => {}
+                Entry::Local(_) | Entry::Files(_) => {}
             }
         }
         self.local.close_all();
@@ -588,6 +621,7 @@ impl TerminalHub {
             Some(Entry::Ssh(t)) => Ok(Target::Ssh(Arc::clone(t))),
             Some(Entry::Serial(t)) => Ok(Target::Serial(Arc::clone(t))),
             Some(Entry::Telnet(t)) => Ok(Target::Telnet(Arc::clone(t))),
+            Some(Entry::Files(c)) => Ok(Target::Files(Arc::clone(c))),
             None => Err(AppError::NotFound),
         }
     }
@@ -598,6 +632,7 @@ enum Target {
     Ssh(Arc<SshTerminal>),
     Serial(Arc<SerialTerminal>),
     Telnet(Arc<TelnetTerminal>),
+    Files(Arc<SshConnection>),
 }
 
 async fn blocking<T: Send + 'static>(

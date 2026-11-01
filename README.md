@@ -68,6 +68,7 @@ corepack pnpm test
 ## What works today (first usable version)
 
 - Local terminals in tabs (macOS, Windows, Linux) with a choice of installed shell (from /etc/shells; PowerShell, cmd, Git Bash and WSL distributions on Windows) and a default-shell setting, split side by side or top/bottom; SSH splits reuse the same connection.
+- "Open all" on a session folder (prompts for passwords, host keys and codes are queued one at a time).
 - Saved sessions with folders, favorites, tags and search (`#tag` filters by tag); quick connect.
 - Password, private-key, passphrase and ssh-agent authentication; keyboard-interactive for PAM servers and second factors (one-time codes are asked in a dialog); optional saving to the OS keychain (only after a successful login).
 - Jump hosts (ProxyJump) through another saved session; each hop's host key is verified.
@@ -85,11 +86,13 @@ corepack pnpm test
 - Command snippets with `{{variables}}`, a preview of exactly what will be typed, and an explicit "press Enter" choice.
 - Network tools tab: ping, traceroute, TCP port check, DNS lookup, IPv4 subnet calculator.
 - Terminal color schemes: Solarized Dark/Light, Nord, Gruvbox Dark, Tomorrow Night, or follow the app theme.
+- Command palette (Cmd+K / Ctrl+Shift+K) over tabs, sessions and actions; Cmd/Ctrl+Shift+1…9 switches tabs; quick connect accepts `user@host:port`.
 - Find in terminal output; shortcuts for tabs, copy/paste and font zoom (Cmd on macOS, Ctrl+Shift elsewhere); optional copy-on-select and right-click paste.
 - Broadcast input to several terminals: explicit target selection, red banner on the source, markers on targets, disconnected targets skipped and listed.
 - RDP and VNC sessions opened in the installed client (Windows App / Microsoft Remote Desktop / Screen Sharing on macOS, Remote Desktop Connection on Windows, FreeRDP / TigerVNC on Linux), optionally through an SSH tunnel; passwords are never passed on the command line.
 - Session logs: save a terminal's output as plain text (escape sequences removed) to Documents/Termalith Logs, per tab or automatically for every terminal; files are readable only by you.
 - Remote file editor: open a text file (UTF-8, up to 2 MiB) from the Files panel in an editor tab and save it back with Cmd/Ctrl+S; permissions are kept, the original is only replaced once the new content is fully written, and a save is refused if the file changed on the server meanwhile (reload or overwrite).
+- SFTP file browser tabs for saved SSH sessions without a shell (⇅ in the session list), with "Open terminal" on the same connection.
 - SFTP side panel per SSH tab: browse, create folders, rename and delete (files and empty folders; no recursive delete), download to the Downloads folder, upload by dropping files on the window, progress and cancel; up to 3 transfers at once (others queue), automatic retry of connection errors and a manual Retry button.
 
 Not yet: embedded RDP/VNC (external clients only).

@@ -5,6 +5,8 @@ import { authLabel, filterSessions, groupSessions, targetLabel } from "./session
 interface Props {
   sessions: SessionRecord[];
   onConnect: (s: SessionRecord) => void;
+  /** SSH sessions: a file browser tab without a shell. */
+  onOpenFiles: (s: SessionRecord) => void;
   onEdit: (s: SessionRecord) => void;
   onDelete: (s: SessionRecord) => void;
   onForgetSecret: (s: SessionRecord) => void;
@@ -121,7 +123,22 @@ export function Sidebar(p: Props) {
         {p.sessions.length > 0 && groups.length === 0 && <p className="empty">No matches.</p>}
         {groups.map((g) => (
           <section key={`${g.folder ?? "\u0000"}`}>
-            {g.folder ? <h3>{g.folder}</h3> : groups.length > 1 && <h3>Ungrouped</h3>}
+            {(g.folder || groups.length > 1) && (
+              <h3 className="folder-head">
+                <span>{g.folder ?? "Ungrouped"}</span>
+                {g.sessions.length > 1 && (
+                  <button
+                    type="button"
+                    className="link"
+                    title={`Open all ${g.sessions.length} sessions`}
+                    aria-label={`Open all sessions in ${g.folder ?? "Ungrouped"}`}
+                    onClick={() => g.sessions.forEach((s) => p.onConnect(s))}
+                  >
+                    Open all
+                  </button>
+                )}
+              </h3>
+            )}
             <ul>
               {g.sessions.map((s) => (
                 <li key={s.id}>
@@ -165,6 +182,17 @@ export function Sidebar(p: Props) {
                     >
                       {s.favorite ? "★" : "☆"}
                     </button>
+                    {(s.protocol ?? "ssh") === "ssh" && (
+                      <button
+                        type="button"
+                        className="icon"
+                        onClick={() => p.onOpenFiles(s)}
+                        aria-label={`Browse files on ${s.name}`}
+                        title="Browse files (SFTP)"
+                      >
+                        ⇅
+                      </button>
+                    )}
                     <button type="button" className="icon" onClick={() => p.onDuplicate(s)} aria-label={`Duplicate ${s.name}`} title="Duplicate">
                       ⧉
                     </button>

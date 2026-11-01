@@ -41,6 +41,47 @@ pub struct SshOpened {
     label: String,
 }
 
+fn connect_request(state: &AppState, request: SshOpenRequest) -> Result<ConnectRequest, IpcError> {
+    let secret = match request.password {
+        Some(p) => PasswordInput::Provided {
+            secret: Zeroizing::new(p),
+            save: request.save_password && state.secrets_available,
+        },
+        None => PasswordInput::None,
+    };
+    match (request.session_id, request.quick) {
+        (Some(id), None) => Ok(ConnectRequest::Saved {
+            id: SessionId::parse(&id)?,
+            secret,
+        }),
+        (None, Some(q)) => Ok(ConnectRequest::Quick {
+            host: q.host,
+            port: q.port,
+            username: q.username,
+            auth: q.auth,
+            secret,
+        }),
+        _ => Err(IpcError::internal(
+            "exactly one of sessionId or quick is required",
+        )),
+    }
+}
+
+/// Connects like [`ssh_open`] but without a shell: the id is used with the
+/// SFTP commands (file browser tab) and `terminal_close`.
+#[tauri::command]
+pub async fn ssh_files_open(
+    state: State<'_, AppState>,
+    request: SshOpenRequest,
+) -> Result<SshOpened, IpcError> {
+    let req = connect_request(&state, request)?;
+    let connected = state.connector.connect(req).await?;
+    Ok(SshOpened {
+        id: state.hub.open_files(connected.session),
+        label: connected.label,
+    })
+}
+
 #[tauri::command]
 pub async fn ssh_open(
     state: State<'_, AppState>,
@@ -51,31 +92,7 @@ pub async fn ssh_open(
     on_exit: Channel<ExitPayload>,
 ) -> Result<SshOpened, IpcError> {
     let size = TerminalSize::new(cols, rows)?;
-    let secret = match request.password {
-        Some(p) => PasswordInput::Provided {
-            secret: Zeroizing::new(p),
-            save: request.save_password && state.secrets_available,
-        },
-        None => PasswordInput::None,
-    };
-    let req = match (request.session_id, request.quick) {
-        (Some(id), None) => ConnectRequest::Saved {
-            id: SessionId::parse(&id)?,
-            secret,
-        },
-        (None, Some(q)) => ConnectRequest::Quick {
-            host: q.host,
-            port: q.port,
-            username: q.username,
-            auth: q.auth,
-            secret,
-        },
-        _ => {
-            return Err(IpcError::internal(
-                "exactly one of sessionId or quick is required",
-            ));
-        }
-    };
+    let req = connect_request(&state, request)?;
     let connected = state.connector.connect(req).await?;
     let (tap, sink) = logged_sink(on_output, on_exit);
     let id = state.hub.open_ssh(connected.session, size, sink).await?;

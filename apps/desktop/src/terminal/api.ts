@@ -538,3 +538,8 @@ export const telnetTerminal =
   (sessionId: string): Opener =>
   (cols, rows, onOutput, onExit) =>
     invoke<TerminalId>("telnet_open", { sessionId, cols, rows, ...channels(onOutput, onExit) });
+
+/** Connects a saved session without a shell, for a file browser tab. */
+export function openSshFiles(request: SshOpenRequest): Promise<{ id: TerminalId; label: string }> {
+  return invoke("ssh_files_open", { request });
+}

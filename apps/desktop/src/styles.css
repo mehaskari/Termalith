@@ -1170,3 +1170,102 @@ button.recording {
 .tab-kind.telnet {
   background: var(--danger);
 }
+
+.tab-kind.files {
+  background: var(--accent);
+  border-radius: 2px;
+}
+.files-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.files-tab .files-panel {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  border-left: 0;
+}
+
+.folder-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.folder-head .link {
+  font-size: 11px;
+  visibility: hidden;
+}
+.folder-head:hover .link,
+.folder-head .link:focus-visible {
+  visibility: visible;
+}
+
+.palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgb(0 0 0 / 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+}
+.palette {
+  width: min(560px, calc(100vw - 32px));
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.4);
+  overflow: hidden;
+}
+.palette input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 12px 14px;
+  font-size: 15px;
+  background: transparent;
+}
+.palette input:focus {
+  outline: none;
+}
+.palette ul {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.palette li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.palette li.selected {
+  background: var(--panel-2);
+}
+.palette-group {
+  width: 64px;
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+}
+.palette-label {
+  flex: none;
+}
+.palette-detail {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-empty {
+  color: var(--muted);
+}

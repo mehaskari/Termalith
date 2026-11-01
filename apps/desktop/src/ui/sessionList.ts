@@ -144,6 +144,25 @@ export function formFromSession(s: SessionInput): SessionFormState {
 }
 
 /**
+ * Splits `user@host:port` typed into the host field. IPv6 literals need
+ * brackets for a port (`[fe80::1]:2222`); a bare IPv6 address is a host.
+ */
+export function splitTarget(raw: string): { user?: string; host: string; port?: number } {
+  let rest = raw.trim();
+  let user: string | undefined;
+  const at = rest.lastIndexOf("@");
+  if (at > 0) {
+    user = rest.slice(0, at);
+    rest = rest.slice(at + 1);
+  }
+  const bracketed = /^\[([^\]]+)\](?::(\d+))?$/.exec(rest);
+  if (bracketed) return { user, host: bracketed[1] as string, port: bracketed[2] ? Number(bracketed[2]) : undefined };
+  const m = /^([^:]+):(\d+)$/.exec(rest);
+  if (m) return { user, host: m[1] as string, port: Number(m[2]) };
+  return { user, host: rest };
+}
+
+/**
  * Converts the form to a SessionInput, or returns a field error. The backend
  * re-validates; this only gives faster feedback.
  */
@@ -151,9 +170,12 @@ export function parseForm(
   f: SessionFormState,
   { requireName }: { requireName: boolean },
 ): { ok: true; value: SessionInput } | { ok: false; field: string; message: string } {
-  const host = f.host.trim();
-  const username = f.username.trim();
-  const port = Number(f.port);
+  // "user@host:port" in the host field fills the other two.
+  const typed = splitTarget(f.host);
+  const host = typed.host;
+  const username = f.username.trim() || typed.user?.trim() || "";
+  const port =
+    typed.port !== undefined && (f.port === "" || f.port === String(DEFAULT_PORT[f.protocol])) ? typed.port : Number(f.port);
   if (!host) return { ok: false, field: "host", message: "Host is required" };
   if (/\s/.test(host) || host.startsWith("-"))
     return { ok: false, field: "host", message: "Not a valid host name or address" };

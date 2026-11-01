@@ -1102,3 +1102,48 @@ async fn telnet_through_an_ssh_jump_host() {
     server.await.unwrap();
     assert_eq!(String::from_utf8_lossy(&text), "Switch> ok\r\n");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn file_browser_without_a_shell_and_a_shell_on_its_connection() {
+    let Some(r) = rig() else { return };
+    let session = trusted_connection(&r).await;
+    let files = r.hub.open_files(session);
+    assert!(r.hub.is_ssh(files).unwrap());
+    std::fs::write(r.sshd.path("only-files.txt"), b"x").unwrap();
+    let sftp = r.hub.sftp(files).await.unwrap();
+    let names: Vec<String> = sftp
+        .list(&r.sshd.remote(""))
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|e| e.name)
+        .collect();
+    assert!(names.iter().any(|n| n == "only-files.txt"), "{names:?}");
+    // No terminal operations on a file browser.
+    assert!(r.hub.write(files, b"ls\r").await.is_err());
+
+    // A shell on the same connection (no second login).
+    let (sink, out) = collector();
+    let shell = r
+        .hub
+        .open_ssh_sibling(files, TerminalSize::new(80, 24).unwrap(), sink)
+        .await
+        .unwrap();
+    assert_eq!(r.hub.connection_users(files).unwrap(), 2);
+    // Output the shell computes (not just the echoed input).
+    let (cmd, expect): (&[u8], &str) = if cfg!(windows) {
+        (b"set /a 6*7+1000\r", "1042")
+    } else {
+        (b"echo files-$((40+2))\r", "files-42")
+    };
+    r.hub.write(shell, cmd).await.unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !String::from_utf8_lossy(&out.0.lock().unwrap()).contains(expect) {
+        assert!(Instant::now() < deadline, "no shell output");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    // Closing the browser keeps the shell's connection alive.
+    r.hub.close(files).await.unwrap();
+    assert_eq!(r.hub.connection_users(shell).unwrap(), 1);
+    r.hub.close(shell).await.unwrap();
+}

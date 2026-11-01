@@ -68,6 +68,7 @@ corepack pnpm test
 ## What works today (first usable version)
 
 - Local terminals in tabs (macOS, Windows, Linux) with a choice of installed shell (from /etc/shells; PowerShell, cmd, Git Bash and WSL distributions on Windows) and a default-shell setting, split side by side or top/bottom; SSH splits reuse the same connection.
+- "Open all" on a session folder (prompts for passwords, host keys and codes are queued one at a time).
 - Saved sessions with folders, favorites, tags and search (`#tag` filters by tag); quick connect.
 - Password, private-key, passphrase and ssh-agent authentication; keyboard-interactive for PAM servers and second factors (one-time codes are asked in a dialog); optional saving to the OS keychain (only after a successful login).
 - Jump hosts (ProxyJump) through another saved session; each hop's host key is verified.

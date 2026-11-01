@@ -1187,3 +1187,17 @@ button.recording {
   min-width: 0;
   border-left: 0;
 }
+
+.folder-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.folder-head .link {
+  font-size: 11px;
+  visibility: hidden;
+}
+.folder-head:hover .link,
+.folder-head .link:focus-visible {
+  visibility: visible;
+}

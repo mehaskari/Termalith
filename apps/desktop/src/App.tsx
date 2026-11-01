@@ -137,7 +137,9 @@ export function App() {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [active, setActive] = useState<number | null>(null);
   const [sessionDialog, setSessionDialog] = useState<SessionDialogState | null>(null);
-  const [passwordRequest, setPasswordRequest] = useState<PasswordRequest | null>(null);
+  // Several connections may ask at once (e.g. "Open all"): one dialog at a time.
+  const [passwordRequests, setPasswordRequests] = useState<PasswordRequest[]>([]);
+  const passwordRequest = passwordRequests[0] ?? null;
   const [hostKeyPrompts, setHostKeyPrompts] = useState<HostKeyPrompt[]>([]);
   const [authPrompts, setAuthPrompts] = useState<AuthPrompt[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<SessionRecord | null>(null);
@@ -265,7 +267,7 @@ export function App() {
 
   const askPassword = useCallback(
     (req: Omit<PasswordRequest, "resolve">) =>
-      new Promise<PasswordAnswer | null>((resolve) => setPasswordRequest({ ...req, resolve })),
+      new Promise<PasswordAnswer | null>((resolve) => setPasswordRequests((q) => [...q, { ...req, resolve }])),
     [],
   );
 
@@ -1042,16 +1044,17 @@ export function App() {
       )}
       {passwordRequest && (
         <PasswordDialog
+          key={passwordRequests.length + passwordRequest.target}
           target={passwordRequest.target}
           kind={passwordRequest.kind}
           canSave={passwordRequest.canSave}
           retry={passwordRequest.retry}
           onSubmit={(a) => {
-            setPasswordRequest(null);
+            setPasswordRequests((q) => q.slice(1));
             passwordRequest.resolve(a);
           }}
           onCancel={() => {
-            setPasswordRequest(null);
+            setPasswordRequests((q) => q.slice(1));
             passwordRequest.resolve(null);
           }}
         />

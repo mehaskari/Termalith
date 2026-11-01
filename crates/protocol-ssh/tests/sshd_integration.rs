@@ -556,12 +556,15 @@ async fn interactive_shell_on_remote_pty() {
     read_until(&mut shell, &mut out, SH.marker).await;
     shell.write(SH.size_cmd).await.unwrap();
     read_until(&mut shell, &mut out, SH.size_80x24).await;
-    shell.resize(132, 43).await.unwrap();
     // window-change has no reply: the shell may run the next command
-    // before it handles SIGWINCH, so ask again until the new size shows.
+    // before it handles SIGWINCH, and on macOS CI the request has been seen
+    // to get lost. Send it with every attempt and ask again until the new
+    // size shows.
     out.clear();
     let mut resized = false;
     for _ in 0..10 {
+        shell.resize(132, 43).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
         shell.write(SH.size_cmd).await.unwrap();
         if appears_within(&mut shell, &mut out, SH.size_132x43, Duration::from_secs(1)).await {
             resized = true;

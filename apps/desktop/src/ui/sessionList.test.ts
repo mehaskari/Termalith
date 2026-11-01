@@ -9,8 +9,13 @@ import {
   parseForm,
   parseTags,
   splitTarget,
+  allFolderPaths,
   buildTree,
+  folderDropPath,
   folderPath,
+  isInside,
+  joinFolder,
+  parentFolder,
   allSessions,
   targetLabel,
   withProtocol,
@@ -247,5 +252,30 @@ describe("folder tree", () => {
     expect(t.sessions.map((x) => x.name)).toEqual(["loose"]);
     expect(allSessions(prod).map((x) => x.name).sort()).toEqual(["db1", "db2", "web"]);
     expect(folderPath(" a / /b ")).toEqual(["a", "b"]);
+  });
+
+  it("adds empty stored folders without counting them", () => {
+    const t = buildTree([s("web", "Prod")], ["Prod/Empty", "Lab / Switches"]);
+    expect(t.folders.map((f) => f.name)).toEqual(["Lab", "Prod"]);
+    expect(t.folders[0]!.folders[0]!.path).toBe("Lab/Switches");
+    expect(t.folders[0]!.total).toBe(0);
+    expect(t.folders[1]!.folders.map((f) => f.name)).toEqual(["Empty"]);
+    expect(t.folders[1]!.total).toBe(1);
+  });
+
+  it("works out folder paths and moves", () => {
+    expect(parentFolder("A/B/C")).toBe("A/B");
+    expect(parentFolder("A")).toBe("");
+    expect(joinFolder("", " x ")).toBe("x");
+    expect(joinFolder("A / B", "C")).toBe("A/B/C");
+    expect(isInside("Prod/DB", "prod")).toBe(true);
+    expect(isInside("Production", "Prod")).toBe(false);
+    expect(folderDropPath("Prod/DB", "")).toBe("DB");
+    expect(folderDropPath("Prod/DB", "Lab")).toBe("Lab/DB");
+    expect(folderDropPath("Prod", "Prod/DB")).toBeNull();
+    expect(folderDropPath("Prod", "prod")).toBeNull();
+    expect(folderDropPath("Prod/DB", "Prod")).toBeNull();
+    expect(folderDropPath("Lab", "")).toBeNull();
+    expect(allFolderPaths([s("a", "Prod / DB"), s("b", null)], ["lab/x", "prod"])).toEqual(["lab", "lab/x", "prod", "prod/DB"]);
   });
 });

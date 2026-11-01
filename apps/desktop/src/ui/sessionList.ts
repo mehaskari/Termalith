@@ -83,28 +83,71 @@ export function folderPath(folder: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
+/** "A / B" → "A/B" (the backend normalizes the same way). */
+export const normalizeFolder = (folder: string | null | undefined): string => folderPath(folder).join("/");
+
+/** Parent of "A/B/C" is "A/B"; of "A" it is "" (top level). */
+export function parentFolder(path: string): string {
+  const parts = folderPath(path);
+  return parts.slice(0, -1).join("/");
+}
+
+export const joinFolder = (parent: string, name: string): string => normalizeFolder(`${parent}/${name}`);
+
+/** True if `path` is `folder` or inside it (case-insensitive, like the tree). */
+export function isInside(path: string, folder: string): boolean {
+  const p = normalizeFolder(path).toLowerCase();
+  const f = normalizeFolder(folder).toLowerCase();
+  return p === f || p.startsWith(`${f}/`);
+}
+
+/** Where a folder ends up when dropped on `target` ("" = top level), or null if the move is not possible. */
+export function folderDropPath(from: string, target: string): string | null {
+  if (target && isInside(target, from)) return null;
+  if (parentFolder(from).toLowerCase() === normalizeFolder(target).toLowerCase()) return null;
+  return joinFolder(target, folderPath(from).at(-1) ?? "");
+}
+
+/** Every folder path, including parents and empty stored folders, sorted. */
+export function allFolderPaths(sessions: SessionRecord[], stored: string[] = []): string[] {
+  const seen = new Map<string, string>();
+  for (const f of [...stored, ...sessions.map((s) => s.folder ?? "")]) {
+    // Children keep the spelling their parent was first seen with, like the tree.
+    let parent = "";
+    for (const part of folderPath(f)) {
+      const p = parent ? `${parent}/${part}` : part;
+      if (!seen.has(p.toLowerCase())) seen.set(p.toLowerCase(), p);
+      parent = seen.get(p.toLowerCase()) as string;
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
 /**
  * Nested folders (MobaXterm-style tree). Folders sort alphabetically
- * before loose sessions at each level; sessions sort by name.
+ * before loose sessions at each level; sessions sort by name. `stored`
+ * adds folders that have no sessions (yet).
  */
-export function buildTree(sessions: SessionRecord[]): FolderNode {
+export function buildTree(sessions: SessionRecord[], stored: string[] = []): FolderNode {
   const root: FolderNode = { name: "", path: "", folders: [], sessions: [], total: 0 };
   const byName = (a: { name: string }, b: { name: string }) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-  for (const s of sessions) {
+  const walk = (folder: string | null | undefined, count: boolean): FolderNode => {
     let node = root;
-    node.total++;
-    for (const part of folderPath(s.folder)) {
+    if (count) node.total++;
+    for (const part of folderPath(folder)) {
       let child = node.folders.find((f) => f.name.toLowerCase() === part.toLowerCase());
       if (!child) {
         child = { name: part, path: node.path ? `${node.path}/${part}` : part, folders: [], sessions: [], total: 0 };
         node.folders.push(child);
       }
       node = child;
-      node.total++;
+      if (count) node.total++;
     }
-    node.sessions.push(s);
-  }
+    return node;
+  };
+  for (const f of stored) walk(f, false);
+  for (const s of sessions) walk(s.folder, true).sessions.push(s);
   const sort = (n: FolderNode) => {
     n.folders.sort(byName);
     n.sessions.sort(byName);

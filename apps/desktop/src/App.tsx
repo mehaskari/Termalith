@@ -19,6 +19,11 @@ import {
   type SessionRecord,
   type SshTarget,
   appInfo,
+  listFolders,
+  createFolder,
+  renameFolder,
+  deleteFolder,
+  moveSession,
   type CrashReport,
   crashReports,
   dismissCrashReports,
@@ -126,7 +131,7 @@ interface SplitPane {
 }
 
 type SessionDialogState =
-  | { mode: "create" }
+  | { mode: "create"; folder?: string }
   | { mode: "edit"; session: SessionRecord }
   | { mode: "quick" };
 
@@ -191,9 +196,12 @@ export function App() {
   tabsRef.current = tabs;
   const nextKey = useRef(1);
 
+  const [folders, setFolders] = useState<string[]>([]);
   const refresh = useCallback(() => {
     listSessions().then(setSessions, (e) => setNotice(`Could not load sessions: ${String(e?.message ?? e)}`));
+    listFolders().then(setFolders, () => {});
   }, []);
+  const failed = useCallback((e: unknown) => setNotice(String((e as { message?: string })?.message ?? e)), []);
 
   const addTab = useCallback((title: string, kind: Tab["kind"], open: Opener) => {
     const key = nextKey.current++;
@@ -694,6 +702,7 @@ export function App() {
     <div className="app">
       <Sidebar
         sessions={sessions}
+        folders={folders}
         onConnect={connectSaved}
         onOpenFiles={openFilesTab}
         onEdit={(s) => setSessionDialog({ mode: "edit", session: s })}
@@ -701,7 +710,16 @@ export function App() {
         onForgetSecret={(s) =>
           forgetSessionSecret(s.id).then(refresh, (e) => setNotice(String(e?.message ?? e)))
         }
-        onNew={() => setSessionDialog({ mode: "create" })}
+        onNew={(folder) => setSessionDialog({ mode: "create", folder })}
+        onCreateFolder={(path) => createFolder(path).then(refresh)}
+        onRenameFolder={(from, to) =>
+          renameFolder(from, to).then(refresh, (e) => {
+            failed(e);
+            throw e;
+          })
+        }
+        onDeleteFolder={(path) => deleteFolder(path).then(refresh, failed)}
+        onMoveSession={(s, folder) => moveSession(s.id, folder).then(refresh, failed)}
         onQuickConnect={() => setSessionDialog({ mode: "quick" })}
         shells={shells}
         onLocalTerminal={(id) => openLocal(id)}
@@ -1094,7 +1112,9 @@ export function App() {
           mode={sessionDialog.mode}
           initial={sessionDialog.mode === "edit" ? sessionDialog.session : undefined}
           editingId={sessionDialog.mode === "edit" ? sessionDialog.session.id : undefined}
+          defaultFolder={sessionDialog.mode === "create" ? sessionDialog.folder : undefined}
           sessions={sessions}
+          folders={folders}
           onSubmit={submitSession}
           onCancel={() => setSessionDialog(null)}
         />

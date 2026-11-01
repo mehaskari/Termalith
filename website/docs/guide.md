@@ -52,9 +52,13 @@ corepack pnpm --filter @termalith/desktop tauri build   # installer for this OS
 Click **+** next to *Sessions* to save a connection. A session has a type
 (SSH, RDP, VNC or Telnet), a host and port, a user name and options.
 
-- **Folders:** type a folder name; use `/` for subfolders, e.g.
-  `Production/DB`. Folders open and close with a click, show how many
-  sessions they hold, and have **Open all** on hover.
+- **Folders:** create one with the folder button next to *Sessions* (or
+  right-click the list), then right-click a folder (or use its **⋯** button)
+  for **New session here**, **New subfolder**, **Rename**, **Open all** and
+  **Delete folder** (only when it holds no sessions). Drag a session or a
+  whole folder onto another folder to move it, or onto empty space to move it
+  to the top level. In the session form, the folder field suggests existing
+  folders; `/` makes subfolders, e.g. `Production/DB`.
 - **Favorites and tags:** the ☆ button pins a session to *Favorites*; tags
   (comma-separated) appear under the session. Click a tag, or type `#name` in
   the search box, to filter.

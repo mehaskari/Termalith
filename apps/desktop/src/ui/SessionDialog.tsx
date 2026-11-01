@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import {
   type DesktopClients,
   type SessionInput,
@@ -8,7 +8,7 @@ import {
   isIpcError,
 } from "../terminal/api";
 import { Dialog } from "./Dialog";
-import { type SessionFormState, emptyForm, formFromSession, parseForm, withProtocol } from "./sessionList";
+import { type SessionFormState, allFolderPaths, emptyForm, formFromSession, parseForm, withProtocol } from "./sessionList";
 
 const INSTALL_HINT: Record<"rdp" | "vnc", string> = {
   rdp: "No RDP client found. Install Windows App (macOS), or FreeRDP (xfreerdp) on Linux; Windows has Remote Desktop Connection built in.",
@@ -22,6 +22,10 @@ interface Props {
   editingId?: string;
   /** Saved sessions that can serve as a jump host. */
   sessions: SessionRecord[];
+  /** Stored folders, offered as suggestions. */
+  folders?: string[];
+  /** Folder for a new session (created from a folder's menu). */
+  defaultFolder?: string;
   /** Persist or connect; reject with an IpcError to show it in the form. */
   onSubmit: (value: SessionInput) => Promise<void>;
   onCancel: () => void;
@@ -30,8 +34,11 @@ interface Props {
 const TITLES = { create: "New session", edit: "Edit session", quick: "Quick connect" };
 const SUBMIT = { create: "Save", edit: "Save", quick: "Connect" };
 
-export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, onCancel }: Props) {
-  const [form, setForm] = useState<SessionFormState>(initial ? formFromSession(initial) : emptyForm());
+export function SessionDialog({ mode, initial, editingId, sessions, folders = [], defaultFolder, onSubmit, onCancel }: Props) {
+  const [form, setForm] = useState<SessionFormState>(
+    initial ? formFromSession(initial) : { ...emptyForm(), folder: defaultFolder ?? "" },
+  );
+  const folderChoices = useMemo(() => allFolderPaths(sessions, folders), [sessions, folders]);
   const [error, setError] = useState<{ field?: string; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const set = (patch: Partial<SessionFormState>) => setForm((f) => ({ ...f, ...patch }));
@@ -258,9 +265,15 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
             Folder
             <input
               value={form.folder}
-              placeholder="Optional; subfolders with /, e.g. Production/DB"
+              list="folder-choices"
+              placeholder="None (top level). Subfolders with /, e.g. Production/DB"
               onChange={(e) => set({ folder: e.target.value })}
             />
+            <datalist id="folder-choices">
+              {folderChoices.map((f) => (
+                <option key={f} value={f} />
+              ))}
+            </datalist>
           </label>
         )}
         {error && (

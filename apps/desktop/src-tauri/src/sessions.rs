@@ -130,6 +130,46 @@ pub fn session_set_favorite(
     Ok(state.connector.sessions.set_favorite(&id, favorite)?)
 }
 
+/// Folders stored on their own (empty ones included).
+#[tauri::command]
+pub fn folders_list(state: State<'_, AppState>) -> Result<Vec<String>, IpcError> {
+    Ok(state.connector.sessions.folders()?)
+}
+
+#[tauri::command]
+pub fn folder_create(state: State<'_, AppState>, path: String) -> Result<String, IpcError> {
+    Ok(state.connector.sessions.create_folder(&path)?)
+}
+
+/// Renames or moves a folder with everything in it.
+#[tauri::command]
+pub fn folder_rename(
+    state: State<'_, AppState>,
+    from: String,
+    to: String,
+) -> Result<String, IpcError> {
+    Ok(state.connector.sessions.rename_folder(&from, &to)?)
+}
+
+/// Deletes an empty folder (and its empty subfolders).
+#[tauri::command]
+pub fn folder_delete(state: State<'_, AppState>, path: String) -> Result<(), IpcError> {
+    Ok(state.connector.sessions.delete_folder(&path)?)
+}
+
+#[tauri::command]
+pub fn session_move(
+    state: State<'_, AppState>,
+    id: String,
+    folder: Option<String>,
+) -> Result<(), IpcError> {
+    let id = SessionId::parse(&id)?;
+    Ok(state
+        .connector
+        .sessions
+        .move_session(&id, folder.as_deref())?)
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportResult {

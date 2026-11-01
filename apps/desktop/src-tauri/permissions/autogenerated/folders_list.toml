@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-folders-list"
+description = "Enables the folders_list command without any pre-configured scope."
+commands.allow = ["folders_list"]
+
+[[permission]]
+identifier = "deny-folders-list"
+description = "Denies the folders_list command without any pre-configured scope."
+commands.deny = ["folders_list"]

@@ -7,6 +7,7 @@ mod desktops;
 mod error;
 mod files;
 mod host_keys;
+mod logs;
 mod sessions;
 mod settings;
 mod snippets;
@@ -20,6 +21,7 @@ pub use desktops::{DesktopHub, DesktopInfo, DesktopLaunch, DesktopState};
 pub use error::AppError;
 pub use files::{DroppedFile, DroppedFiles, safe_file_name, unique_destination};
 pub use host_keys::{HostKeyPrompt, PromptBroker};
+pub use logs::{AnsiStripper, LogInfo, LogTap, TerminalLogs, tapped};
 pub use sessions::{
     AuthMethod, SessionId, SessionInput, SessionProtocol, SessionRecord, SessionStore,
 };

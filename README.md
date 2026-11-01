@@ -80,6 +80,7 @@ corepack pnpm test
 - Find in terminal output; shortcuts for tabs, copy/paste and font zoom (Cmd on macOS, Ctrl+Shift elsewhere).
 - Broadcast input to several terminals: explicit target selection, red banner on the source, markers on targets, disconnected targets skipped and listed.
 - RDP and VNC sessions opened in the installed client (Windows App / Microsoft Remote Desktop / Screen Sharing on macOS, Remote Desktop Connection on Windows, FreeRDP / TigerVNC on Linux), optionally through an SSH tunnel; passwords are never passed on the command line.
+- Session logs: save a terminal's output as plain text (escape sequences removed) to Documents/Termalith Logs, per tab or automatically for every terminal; files are readable only by you.
 - SFTP side panel per SSH tab: browse, download to the Downloads folder, upload by dropping files on the window, progress and cancel.
 
 Not yet: embedded RDP/VNC (external clients only), tags, transfer retry.

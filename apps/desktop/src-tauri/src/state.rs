@@ -4,8 +4,8 @@ use std::time::Duration;
 use std::path::PathBuf;
 
 use app_core::{
-    Connector, DesktopHub, DroppedFiles, PromptBroker, SessionStore, TerminalHub, Transfers,
-    Tunnels,
+    Connector, DesktopHub, DroppedFiles, PromptBroker, SessionStore, TerminalHub, TerminalLogs,
+    Transfers, Tunnels,
 };
 use credential_store::{MemorySecretStore, NativeSecretStore, SecretStore};
 use protocol_ssh::FileKnownHosts;
@@ -34,6 +34,7 @@ pub struct AppState {
     pub home_dir: Option<PathBuf>,
     pub agent_available: bool,
     pub desktops: Arc<DesktopHub>,
+    pub logs: Arc<TerminalLogs>,
 }
 
 /// The user's SSH agent: `SSH_AUTH_SOCK` on Unix (set for GUI apps by
@@ -104,6 +105,13 @@ impl AppState {
             .join("remote-desktop");
         std::fs::create_dir_all(&desktop_dir)?;
 
+        // Session logs go where users look for documents.
+        let logs_dir = app
+            .path()
+            .document_dir()
+            .map(|d| d.join("Termalith Logs"))
+            .unwrap_or_else(|_| data_dir.join("logs"));
+
         Ok(Self {
             hub: Arc::new(TerminalHub::with_default_flow()),
             connector,
@@ -117,6 +125,7 @@ impl AppState {
             home_dir: app.path().home_dir().ok(),
             agent_available,
             desktops: Arc::new(DesktopHub::new(desktop_dir)),
+            logs: Arc::new(TerminalLogs::new(logs_dir)),
         })
     }
 }

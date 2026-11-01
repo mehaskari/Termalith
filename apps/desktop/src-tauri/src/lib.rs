@@ -53,6 +53,9 @@ pub fn run() {
             terminal::terminal_ack,
             terminal::terminal_close,
             terminal::terminal_split,
+            terminal::terminal_log_start,
+            terminal::terminal_log_stop,
+            terminal::terminal_log_status,
             terminal::tunnel_start,
             terminal::tunnel_list,
             terminal::tunnel_stop,
@@ -101,6 +104,7 @@ pub fn run() {
         {
             state.hub.close_all();
             state.desktops.close_all();
+            state.logs.stop_all();
         }
     });
 }

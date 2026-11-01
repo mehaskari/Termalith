@@ -33,6 +33,9 @@ import {
   splitTerminal,
   updateSession,
   type DesktopInfo,
+  type LogInfo,
+  startLog,
+  stopLog,
   closeDesktop,
   listDesktops,
   openDesktop,
@@ -81,6 +84,8 @@ interface Tab {
   desktop?: DesktopInfo | null;
   desktopError?: string | null;
   sessionId?: string;
+  /** Active session log of the main terminal. */
+  log?: LogInfo | null;
 }
 
 interface SplitPane {
@@ -424,6 +429,22 @@ export function App() {
     }
   };
 
+  async function toggleLog(tab: Tab) {
+    if (tab.terminalId === undefined) return;
+    try {
+      if (tab.log) {
+        await stopLog(tab.terminalId);
+        patchTab(tab.key, { log: null });
+        setNotice(`Session log saved: ${tab.log.path}`);
+      } else {
+        const log = await startLog(tab.terminalId, tab.title);
+        patchTab(tab.key, { log });
+      }
+    } catch (e) {
+      setNotice(`Session log: ${isIpcError(e) ? e.message : String(e)}`);
+    }
+  }
+
   const currentPrompt = hostKeyPrompts[0];
   const activeTab = tabs.find((t) => t.key === active);
   activeRef.current = activeTab;
@@ -585,6 +606,16 @@ export function App() {
                     )}
                     <button
                       type="button"
+                      aria-pressed={!!t.log}
+                      className={t.log ? "recording" : undefined}
+                      title={t.log ? `Logging to ${t.log.path}. Click to stop.` : "Save this terminal's output to a text file"}
+                      disabled={t.terminalId === undefined || t.ended}
+                      onClick={() => void toggleLog(t)}
+                    >
+                      {t.log ? "● Log" : "Log"}
+                    </button>
+                    <button
+                      type="button"
                       aria-pressed={!!t.snippetsOpen}
                       disabled={t.terminalId === undefined || t.ended}
                       onClick={() => patchTab(t.key, { snippetsOpen: !t.snippetsOpen, filesOpen: false, tunnelsOpen: false })}
@@ -636,12 +667,21 @@ export function App() {
                     <TerminalView
                       open={t.open}
                       active={t.key === active}
-                      onReady={(id) => patchTab(t.key, { terminalId: id })}
+                      onReady={(id) => {
+                        patchTab(t.key, { terminalId: id });
+                        if (settings.logSessions)
+                          startLog(id, t.title).then(
+                            (log) => patchTab(t.key, { log }),
+                            (e) => setNotice(`Session log: ${isIpcError(e) ? e.message : String(e)}`),
+                          );
+                      }}
                       onFailed={(e) => {
                         patchTab(t.key, { ended: true });
                         onTabFailed(t, e);
                       }}
-                      onExited={() => patchTab(t.key, { ended: true, filesOpen: false, tunnelsOpen: false, snippetsOpen: false })}
+                      onExited={() =>
+                        patchTab(t.key, { ended: true, filesOpen: false, tunnelsOpen: false, snippetsOpen: false, log: null })
+                      }
                       settings={settings}
                       theme={theme}
                       command={t.command}

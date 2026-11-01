@@ -34,7 +34,8 @@ const mockSnippets: Array<{ id: string; name: string; command: string; folder: s
   { id: "snp-1", name: "Interface status", command: "show interfaces {{iface}} status", folder: "Cisco" },
   { id: "snp-2", name: "Disk usage", command: "df -h\ndu -sh {{path}}", folder: null },
 ];
-const mockSettings: Record<string, unknown> = { theme: "system", fontSize: 13, fontFamily: "", cursorStyle: "block", cursorBlink: true, scrollback: 5000 };
+const mockSettings: Record<string, unknown> = { theme: "system", fontSize: 13, fontFamily: "", cursorStyle: "block", cursorBlink: true, scrollback: 5000, logSessions: false };
+const logging = new Set<number>();
 let nextTunnel = 1;
 const tunnels: Array<Record<string, unknown> & { id: number; terminalId: number }> = [];
 function progressThen(ch: ChannelLike, total: number, done: unknown) {
@@ -116,6 +117,12 @@ mockIPC(
         }
         return { created, skipped: [], unresolvedJumps: [] };
       }
+      case "terminal_log_start":
+        logging.add(Number(a.id));
+        return { path: `/Users/me/Documents/Termalith Logs/2026-11-01_10-00-00_${String(a.label)}.log`, bytes: 0, dropped: 0 };
+      case "terminal_log_stop":
+        logging.delete(Number(a.id));
+        return null;
       case "desktop_clients":
         return { rdp: { name: "Microsoft Remote Desktop", asksPasswordFirst: false }, vnc: { name: "Screen Sharing", asksPasswordFirst: false } };
       case "desktop_open": {

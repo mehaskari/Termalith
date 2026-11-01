@@ -229,6 +229,32 @@ impl SftpClient {
         }
     }
 
+    /// Sets Unix permission bits.
+    pub async fn set_mode(&self, remote: &str, mode: u32) -> Result<(), SshError> {
+        let attrs = russh_sftp::protocol::FileAttributes {
+            permissions: Some(mode & 0o7777),
+            ..Default::default()
+        };
+        Ok(self.inner.set_metadata(remote, attrs).await?)
+    }
+
+    /// Creates a new file with `data` and permission bits `mode`; fails if
+    /// it exists.
+    pub async fn create_file(&self, remote: &str, data: &[u8], mode: u32) -> Result<(), SshError> {
+        let mut f = self
+            .inner
+            .open_with_flags(
+                remote,
+                OpenFlags::CREATE | OpenFlags::EXCLUDE | OpenFlags::WRITE,
+            )
+            .await?;
+        f.write_all(data).await?;
+        f.shutdown().await?;
+        drop(f);
+        // Set after writing: the create-time mode is subject to the umask.
+        self.set_mode(remote, mode).await
+    }
+
     /// Creates a directory. Fails if anything exists at `remote`.
     pub async fn create_dir(&self, remote: &str) -> Result<(), SshError> {
         if self.inner.try_exists(remote).await? {

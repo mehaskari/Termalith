@@ -21,6 +21,7 @@ interface Props {
   onSettings: () => void;
   onSerial: () => void;
   onTools: () => void;
+  onKeys: () => void;
 }
 
 export function Sidebar(p: Props) {
@@ -202,6 +203,9 @@ export function Sidebar(p: Props) {
         </button>
         <button type="button" className="link" onClick={p.onTools}>
           Network tools
+        </button>
+        <button type="button" className="link" onClick={p.onKeys}>
+          SSH keys
         </button>
         <button type="button" className="icon" onClick={p.onSettings} aria-label="Settings" title="Settings">
           ⚙

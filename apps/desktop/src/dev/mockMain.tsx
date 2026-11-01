@@ -51,6 +51,11 @@ function progressThen(ch: ChannelLike, total: number, done: unknown) {
   setTimeout(step, 100);
 }
 const retryNames = new Map<number, string>();
+const mockKeys = [
+  { name: "id_ed25519", algorithm: "ssh-ed25519", fingerprint: "SHA256:Zx0b7m1kQe3lF8yT2vR9cN4pW6sJ5hA1uD3oG7iK0aE", comment: "me@laptop", encrypted: true, hasPrivate: true },
+  { name: "id_rsa_old", algorithm: "rsa-sha2-512", fingerprint: "SHA256:Q2w3E4r5T6y7U8i9O0pA1s2D3f4G5h6J7k8L9z0X1c2", comment: "", encrypted: false, hasPrivate: true },
+];
+const installedKeys = new Set<string>();
 const exitChannels = new Map<number, ChannelLike>();
 // Dev helper: end SSH terminal `id` as if the connection dropped (no exit status).
 (window as unknown as Record<string, unknown>).__dropConnection = (id: number) => {
@@ -142,6 +147,18 @@ mockIPC(
       case "terminal_log_stop":
         logging.delete(Number(a.id));
         return null;
+      case "keys_list":
+        return mockKeys;
+      case "key_generate": {
+        if (mockKeys.some((k) => k.name === a.name)) throw { code: "destination_exists", message: `destination already exists: ~/.ssh/${a.name}` };
+        const k = { name: a.name as string, algorithm: "ssh-ed25519", fingerprint: "SHA256:newKeyNewKeyNewKeyNewKeyNewKeyNewKey000", comment: a.comment as string, encrypted: !!a.passphrase, hasPrivate: true };
+        mockKeys.push(k);
+        return k;
+      }
+      case "key_public":
+        return `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMockMockMock ${a.name}`;
+      case "key_install":
+        return { added: !installedKeys.has(a.name as string) && !!installedKeys.add(a.name as string), path: "/home/deploy/.ssh/authorized_keys" };
       case "terminal_shells":
         return [
           { id: "/bin/zsh", name: "zsh" },

@@ -48,6 +48,7 @@ import {
 import { DesktopPane } from "./ui/DesktopPane";
 import { EditorPane } from "./ui/EditorPane";
 import { AuthPromptDialog } from "./ui/AuthPromptDialog";
+import { KeysDialog } from "./ui/KeysDialog";
 import { Dialog } from "./ui/Dialog";
 import { FilesPanel } from "./ui/FilesPanel";
 import { HostKeyDialog } from "./ui/HostKeyDialog";
@@ -134,6 +135,7 @@ export function App() {
   const [authPrompts, setAuthPrompts] = useState<AuthPrompt[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<SessionRecord | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState<Tab | null>(null);
+  const [keysOpen, setKeysOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [dropped, setDropped] = useState<DroppedFile[] | null>(null);
   const [confirmForget, setConfirmForget] = useState<Tab | null>(null);
@@ -591,6 +593,7 @@ export function App() {
         onImportSessions={() => setTransferMode("import")}
         onSettings={() => setSettingsOpen(true)}
         onSerial={() => setSerialOpen(true)}
+        onKeys={() => setKeysOpen(true)}
         onTools={() => {
           const existing = tabs.find((t) => t.kind === "tools");
           if (existing) setActive(existing.key);
@@ -982,6 +985,14 @@ export function App() {
           </dl>
           <p className="hint">After removing it, reconnect: you will be asked to verify the new key.</p>
         </Dialog>
+      )}
+      {keysOpen && (
+        <KeysDialog
+          targets={tabs
+            .filter((t) => t.kind === "ssh" && t.terminalId !== undefined && !t.ended)
+            .map((t) => ({ terminalId: t.terminalId as TerminalId, title: t.title }))}
+          onClose={() => setKeysOpen(false)}
+        />
       )}
       {confirmDiscard && (
         <Dialog

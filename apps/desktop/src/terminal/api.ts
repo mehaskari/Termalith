@@ -435,3 +435,21 @@ export function saveRemoteText(
 ): Promise<EditVersion> {
   return invoke("sftp_save_text", { terminalId, dir, name, content, version });
 }
+
+// ---------------------------------------------------------------- keyboard-interactive
+
+export interface AuthPrompt {
+  requestId: number;
+  host: string;
+  port: number;
+  user: string;
+  name: string;
+  instructions: string;
+  /** `echo: false` means a secret (masked input). */
+  fields: { text: string; echo: boolean }[];
+}
+
+/** Sends the answers (or `null` to cancel the login). */
+export function respondAuthPrompt(requestId: number, answers: string[] | null): Promise<boolean> {
+  return invoke("auth_prompt_respond", { requestId, answers });
+}

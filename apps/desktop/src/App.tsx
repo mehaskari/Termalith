@@ -34,6 +34,8 @@ import {
   updateSession,
   type DesktopInfo,
   type LogInfo,
+  type AuthPrompt,
+  respondAuthPrompt,
   startLog,
   stopLog,
   closeDesktop,
@@ -42,6 +44,7 @@ import {
 } from "./terminal/api";
 import { DesktopPane } from "./ui/DesktopPane";
 import { EditorPane } from "./ui/EditorPane";
+import { AuthPromptDialog } from "./ui/AuthPromptDialog";
 import { Dialog } from "./ui/Dialog";
 import { FilesPanel } from "./ui/FilesPanel";
 import { HostKeyDialog } from "./ui/HostKeyDialog";
@@ -121,6 +124,7 @@ export function App() {
   const [sessionDialog, setSessionDialog] = useState<SessionDialogState | null>(null);
   const [passwordRequest, setPasswordRequest] = useState<PasswordRequest | null>(null);
   const [hostKeyPrompts, setHostKeyPrompts] = useState<HostKeyPrompt[]>([]);
+  const [authPrompts, setAuthPrompts] = useState<AuthPrompt[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<SessionRecord | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState<Tab | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -365,6 +369,7 @@ export function App() {
     const unlisten = listen<HostKeyPrompt>("host-key-prompt", (e) =>
       setHostKeyPrompts((q) => [...q, e.payload]),
     );
+    const unlistenAuth = listen<AuthPrompt>("auth-prompt", (e) => setAuthPrompts((q) => [...q, e.payload]));
     const unlistenDrop = listen<DroppedFile[]>("files-dropped", (e) => {
       const tab = activeRef.current;
       if (tab?.filesOpen && tab.terminalId !== undefined) setDropped(e.payload);
@@ -373,6 +378,7 @@ export function App() {
     return () => {
       void unlisten.then((f) => f());
       void unlistenDrop.then((f) => f());
+      void unlistenAuth.then((f) => f());
     };
   }, [refresh, openLocal]);
 
@@ -792,6 +798,18 @@ export function App() {
           onCancel={() => {
             setPasswordRequest(null);
             passwordRequest.resolve(null);
+          }}
+        />
+      )}
+      {!currentPrompt && authPrompts[0] && (
+        <AuthPromptDialog
+          key={authPrompts[0].requestId}
+          prompt={authPrompts[0]}
+          onAnswer={(answers) => {
+            const p = authPrompts[0];
+            if (!p) return;
+            setAuthPrompts((q) => q.filter((x) => x.requestId !== p.requestId));
+            void respondAuthPrompt(p.requestId, answers);
           }}
         />
       )}

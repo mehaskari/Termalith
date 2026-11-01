@@ -4,8 +4,8 @@ use std::time::Duration;
 use std::path::PathBuf;
 
 use app_core::{
-    Connector, DesktopHub, DroppedFiles, PromptBroker, SessionStore, TerminalHub, TerminalLogs,
-    Transfers, Tunnels,
+    AuthPromptBroker, Connector, DesktopHub, DroppedFiles, PromptBroker, SessionStore, TerminalHub,
+    TerminalLogs, Transfers, Tunnels,
 };
 use credential_store::{MemorySecretStore, NativeSecretStore, SecretStore};
 use protocol_ssh::FileKnownHosts;
@@ -21,6 +21,7 @@ pub struct AppState {
     pub hub: Arc<TerminalHub>,
     pub connector: Arc<Connector>,
     pub broker: Arc<PromptBroker>,
+    pub auth_prompts: Arc<AuthPromptBroker>,
     /// False when the OS credential store is unavailable; passwords are
     /// then never persisted.
     pub secrets_available: bool,
@@ -80,6 +81,14 @@ impl AppState {
             HOST_KEY_PROMPT_TIMEOUT,
         ));
 
+        let emitter = app.clone();
+        let auth_prompts = Arc::new(AuthPromptBroker::new(
+            move |prompt| {
+                let _ = emitter.emit("auth-prompt", prompt);
+            },
+            HOST_KEY_PROMPT_TIMEOUT,
+        ));
+
         let agent = agent_socket();
         let agent_available = agent.is_some();
         let connector = Arc::new(Connector {
@@ -89,6 +98,7 @@ impl AppState {
             broker: broker.clone(),
             timeout: CONNECT_TIMEOUT + HOST_KEY_PROMPT_TIMEOUT,
             agent,
+            kbd: Some(auth_prompts.clone()),
         });
 
         let downloads_dir = app
@@ -116,6 +126,7 @@ impl AppState {
             hub: Arc::new(TerminalHub::with_default_flow()),
             connector,
             broker,
+            auth_prompts,
             secrets_available,
             transfers: Arc::new(Transfers::default()),
             tunnels: Arc::new(Tunnels::default()),

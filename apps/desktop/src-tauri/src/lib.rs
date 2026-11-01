@@ -71,6 +71,7 @@ pub fn run() {
             desktop::desktop_list,
             desktop::desktop_close,
             ssh::host_key_respond,
+            ssh::auth_prompt_respond,
             sessions::app_info,
             sessions::sessions_list,
             sessions::session_create,

@@ -51,6 +51,7 @@ function progressThen(ch: ChannelLike, total: number, done: unknown) {
   setTimeout(step, 100);
 }
 const retryNames = new Map<number, string>();
+const authWaiters = new Map<number, (answers: string[] | null) => void>();
 const remoteText: Record<string, string> = {};
 const remoteVersions: Record<string, number> = {};
 // Dev helper: simulate someone else editing a file on the server.
@@ -266,10 +267,34 @@ mockIPC(
             if (s) s.hasSavedSecret = true;
           }
         }
+        // db-primary simulates a server asking for a one-time code.
+        if (target.host === "10.0.0.9") {
+          const requestId = nextPrompt++;
+          const answers = await new Promise<string[] | null>((resolve) => {
+            authWaiters.set(requestId, resolve);
+            void emit("auth-prompt", {
+              requestId,
+              host: target.host,
+              port: target.port,
+              user: target.username,
+              name: "Two-factor authentication",
+              instructions: "Open your authenticator app.\nCodes change every 30 seconds.",
+              fields: [{ text: "Verification code:", echo: true }],
+            });
+          });
+          if (!answers) throw { code: "cancelled", message: "cancelled" };
+          if (answers[0] !== "123456") throw { code: "auth_failed", message: "authentication failed" };
+        }
         const id = nextTerm++;
         outputs.set(id, { ch: a.onOutput as ChannelLike, index: 0 });
         setTimeout(() => send(id, `Connected to ${target.host} (mock)\r\n${target.username}@${target.host}:~$ `), 50);
         return { id, label: target.name || `${target.username}@${target.host}` };
+      }
+      case "auth_prompt_respond": {
+        const w = authWaiters.get(a.requestId as number);
+        authWaiters.delete(a.requestId as number);
+        w?.((a.answers as string[] | null) ?? null);
+        return w !== undefined;
       }
       case "host_key_respond": {
         const w = hostKeyWaiters.get(a.requestId as number);

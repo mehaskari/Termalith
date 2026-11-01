@@ -27,6 +27,7 @@ fn main() {
             "desktop_list",
             "desktop_close",
             "host_key_respond",
+            "auth_prompt_respond",
             "app_info",
             "sessions_list",
             "session_create",

@@ -1007,3 +1007,9 @@ button.recording {
 .editor-text:focus {
   outline: none;
 }
+
+.auth-instructions {
+  white-space: pre-wrap;
+  color: var(--muted);
+  margin: 0;
+}

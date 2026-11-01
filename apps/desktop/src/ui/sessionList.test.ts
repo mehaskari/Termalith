@@ -9,6 +9,9 @@ import {
   parseForm,
   parseTags,
   splitTarget,
+  buildTree,
+  folderPath,
+  allSessions,
   targetLabel,
   withProtocol,
 } from "./sessionList";
@@ -227,5 +230,22 @@ describe("command palette filter", () => {
     expect(filterPalette(items, "web deploy").map((i) => i.id)).toEqual(["1"]);
     expect(filterPalette(items, "actions set").map((i) => i.id)).toEqual(["2"]);
     expect(filterPalette(items, "").length).toBe(2);
+  });
+});
+
+describe("folder tree", () => {
+  it("nests folders by / and counts sessions", () => {
+    const list = [s("db1", "Production / DB"), s("web", "Production"), s("db2", "production/db"), s("loose", null), s("lab", "Lab")];
+    const t = buildTree(list);
+    expect(t.total).toBe(5);
+    expect(t.folders.map((f) => f.name)).toEqual(["Lab", "Production"]);
+    const prod = t.folders[1]!;
+    expect(prod.total).toBe(3);
+    expect(prod.sessions.map((x) => x.name)).toEqual(["web"]);
+    expect(prod.folders[0]!.path).toBe("Production/DB");
+    expect(prod.folders[0]!.sessions.map((x) => x.name)).toEqual(["db1", "db2"]);
+    expect(t.sessions.map((x) => x.name)).toEqual(["loose"]);
+    expect(allSessions(prod).map((x) => x.name).sort()).toEqual(["db1", "db2", "web"]);
+    expect(folderPath(" a / /b ")).toEqual(["a", "b"]);
   });
 });

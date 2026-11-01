@@ -52,6 +52,7 @@ import { DesktopPane } from "./ui/DesktopPane";
 import { EditorPane } from "./ui/EditorPane";
 import { AuthPromptDialog } from "./ui/AuthPromptDialog";
 import { KeysDialog } from "./ui/KeysDialog";
+import { AboutDialog } from "./ui/AboutDialog";
 import { CommandPalette, type PaletteItem } from "./ui/CommandPalette";
 import { Dialog } from "./ui/Dialog";
 import { FilesPanel } from "./ui/FilesPanel";
@@ -147,6 +148,7 @@ export function App() {
   const [confirmDiscard, setConfirmDiscard] = useState<Tab | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [tabMenu, setTabMenu] = useState<{ key: number; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -697,6 +699,7 @@ export function App() {
         onSettings={() => setSettingsOpen(true)}
         onSerial={() => setSerialOpen(true)}
         onKeys={() => setKeysOpen(true)}
+        onAbout={() => setAboutOpen(true)}
         onTools={() => {
           const existing = tabs.find((t) => t.kind === "tools");
           if (existing) setActive(existing.key);
@@ -1220,6 +1223,7 @@ export function App() {
                 ["Serial console…", () => setSerialOpen(true)],
                 ["SSH keys…", () => setKeysOpen(true)],
                 ["Settings…", () => setSettingsOpen(true)],
+                ["About Termalith", () => setAboutOpen(true)],
                 ["Import ~/.ssh/config…", () => setImporting(true)],
                 ["Import sessions…", () => setTransferMode("import")],
                 ["Export sessions…", () => setTransferMode("export")],
@@ -1228,6 +1232,7 @@ export function App() {
           ]}
         />
       )}
+      {aboutOpen && <AboutDialog info={info} onClose={() => setAboutOpen(false)} />}
       {keysOpen && (
         <KeysDialog
           targets={tabs

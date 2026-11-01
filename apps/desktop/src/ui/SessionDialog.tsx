@@ -258,7 +258,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
             Folder
             <input
               value={form.folder}
-              placeholder="Optional, e.g. Production"
+              placeholder="Optional; subfolders with /, e.g. Production/DB"
               onChange={(e) => set({ folder: e.target.value })}
             />
           </label>

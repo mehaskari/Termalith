@@ -36,7 +36,7 @@ Termalith is an open-source, cross-platform remote administration workstation fo
 - Network tools: ping, traceroute, TCP port check, port scan, DNS lookup, subnet calculator, Wake-on-LAN.
 
 **Sessions**
-- Folders, favorites, tags and search; "open all" for a folder.
+- Collapsible folder tree with subfolders (`Production/DB`), favorites, tags and search; "open all" for a folder.
 - Import from `~/.ssh/config` and from MobaXterm `.mxtsessions` exports; export/import as JSON (never containing secrets).
 
 Not yet: embedded RDP/VNC (external clients are used), code-signed installers.

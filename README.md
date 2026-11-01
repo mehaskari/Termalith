@@ -93,4 +93,6 @@ corepack pnpm test
 
 Not yet: embedded RDP/VNC (external clients only).
 
+Installers (unsigned): the "Release builds" GitHub Actions workflow builds a macOS DMG, Windows NSIS/MSI installers and a Linux AppImage/deb on native runners; run it manually or push a `v*` tag.
+
 UI preview without a backend (development only): run `corepack pnpm --filter @termalith/desktop dev` and open `http://localhost:1420/mock.html`.

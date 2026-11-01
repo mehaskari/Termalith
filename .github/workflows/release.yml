@@ -101,7 +101,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          ls -la dist
-          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --draft --prerelease \
+          # Installers keep their per-format folders (dmg/, nsis/, appimage/…).
+          mapfile -t files < <(find dist -type f | sort)
+          printf '%s\n' "${files[@]}"
+          gh release create "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --draft --prerelease \
             --title "Termalith $TAG (preview)" --generate-notes
 

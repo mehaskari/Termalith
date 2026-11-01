@@ -305,8 +305,12 @@ export const getSettings = () => invoke<Settings>("settings_get");
 export const saveSettings = (settings: Settings) => invoke<void>("settings_save", { settings });
 export const setFavorite = (id: string, favorite: boolean) => invoke<void>("session_set_favorite", { id, favorite });
 export const exportSessions = () => invoke<{ json: string; savedTo: string | null }>("sessions_export");
-export const importSessions = (json: string) =>
-  invoke<{ created: string[]; skipped: string[]; unresolvedJumps: string[] }>("sessions_import", { json });
+/** Accepts a Termalith export or a MobaXterm `.mxtsessions` file. */
+export const importSessions = (text: string) =>
+  invoke<{ created: string[]; skipped: string[]; unresolvedJumps: string[]; notImported: string[] }>(
+    "sessions_import",
+    { json: text },
+  );
 
 // ---------------------------------------------------------------- serial
 

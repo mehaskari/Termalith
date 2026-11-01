@@ -36,6 +36,8 @@ pub struct ImportReport {
     pub skipped: Vec<String>,
     /// `alias -> jump` links that could not be made (no such session).
     pub unresolved_jumps: Vec<String>,
+    /// Entries of the source file that were not imported, with the reason.
+    pub not_imported: Vec<String>,
 }
 
 struct Block {

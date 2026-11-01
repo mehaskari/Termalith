@@ -150,6 +150,13 @@ pub fn sessions_export(state: State<'_, AppState>) -> Result<ExportResult, IpcEr
 /// Imports sessions from pasted export JSON.
 #[tauri::command]
 pub fn sessions_import(state: State<'_, AppState>, json: String) -> Result<ImportReport, IpcError> {
+    // The same box accepts a Termalith export or a MobaXterm .mxtsessions file.
+    if app_core::is_mobaxterm(&json) {
+        return Ok(app_core::import_mobaxterm(
+            &state.connector.sessions,
+            &json,
+        )?);
+    }
     Ok(app_core::import_sessions(&state.connector.sessions, &json)?)
 }
 

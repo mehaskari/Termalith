@@ -100,6 +100,8 @@ interface Tab {
   dirty?: boolean;
   /** Connection lost: time (ms since epoch) of the automatic reconnect. */
   reconnectAt?: number;
+  /** Local tabs: the shell id they were opened with (null = default). */
+  shellId?: string | null;
 }
 
 const RECONNECT_DELAY_MS = 5000;
@@ -136,6 +138,8 @@ export function App() {
   const [confirmDelete, setConfirmDelete] = useState<SessionRecord | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState<Tab | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
+  const [tabMenu, setTabMenu] = useState<{ key: number; x: number; y: number } | null>(null);
+  const [renaming, setRenaming] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [dropped, setDropped] = useState<DroppedFile[] | null>(null);
   const [confirmForget, setConfirmForget] = useState<Tab | null>(null);
@@ -247,9 +251,11 @@ export function App() {
       const id = shellId ?? (list.some((s) => s.id === defaultShell) ? defaultShell : null);
       // No choice: the system default, which the backend lists first.
       const name = (id ? list.find((s) => s.id === id) : list[0])?.name ?? "Local";
-      return addTab(name, "local", localTerminal(id));
+      const key = addTab(name, "local", localTerminal(id));
+      patchTab(key, { shellId: id });
+      return key;
     },
-    [addTab],
+    [addTab, patchTab],
   );
 
   const askPassword = useCallback(
@@ -508,6 +514,33 @@ export function App() {
     }
   }, [now, tabs, closeTab]);
 
+  useEffect(() => {
+    if (!tabMenu) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as Element).closest?.(".tab-menu")) setTabMenu(null);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setTabMenu(null);
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", esc);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", esc);
+    };
+  }, [tabMenu]);
+
+  /** A new tab like `t`: another local shell, or a new connection to the same session. */
+  function duplicateTab(t: Tab) {
+    if (t.kind === "local") openLocal(t.shellId ?? undefined);
+    else if (t.kind === "ssh" && t.reconnect) t.reconnect();
+  }
+
+  function closeOthers(keep: number) {
+    const dirty = tabs.filter((t) => t.key !== keep && t.dirty);
+    for (const t of tabs) if (t.key !== keep && !t.dirty) closeTab(t.key);
+    setActive(keep);
+    if (dirty.length) setNotice(`Kept ${dirty.map((t) => t.title).join(", ")}: unsaved changes.`);
+  }
+
   // Stop broadcasting when the source tab closes or its session ends.
   useEffect(() => {
     if (!broadcast) return;
@@ -607,22 +640,75 @@ export function App() {
               key={t.key}
               className={`tab ${t.key === active ? "active" : ""} ${broadcast && (broadcast.source === t.key || broadcast.targets.includes(t.key)) ? "broadcasting" : ""}`}
               role="presentation"
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setTabMenu({ key: t.key, x: e.clientX, y: e.clientY });
+              }}
             >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={t.key === active}
-                className="tab-title"
-                onClick={() => setActive(t.key)}
-              >
-                <span className={`tab-kind ${t.kind}`} aria-hidden="true" />
-                {t.title}
-              </button>
+              {renaming === t.key ? (
+                <input
+                  className="tab-rename"
+                  autoFocus
+                  defaultValue={t.title}
+                  aria-label="Tab name"
+                  onFocus={(e) => e.target.select()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                    if (e.key === "Escape") {
+                      e.currentTarget.value = t.title;
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const name = e.target.value.trim().slice(0, 80);
+                    if (name) renameTab(t.key, name);
+                    setRenaming(null);
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={t.key === active}
+                  className="tab-title"
+                  onClick={() => setActive(t.key)}
+                  onDoubleClick={() => setRenaming(t.key)}
+                >
+                  <span className={`tab-kind ${t.kind}`} aria-hidden="true" />
+                  {t.title}
+                </button>
+              )}
               <button type="button" className="tab-close" aria-label={`Close ${t.title}`} onClick={() => requestClose(t.key)}>
                 ×
               </button>
             </div>
           ))}
+          {tabMenu && tabs.find((t) => t.key === tabMenu.key) && (() => {
+            const t = tabs.find((x) => x.key === tabMenu.key) as Tab;
+            const canDuplicate = t.kind === "local" || (t.kind === "ssh" && !!t.reconnect);
+            const act = (f: () => void) => () => {
+              setTabMenu(null);
+              f();
+            };
+            return (
+              <div className="menu tab-menu" role="menu" style={{ position: "fixed", left: tabMenu.x, top: tabMenu.y }}>
+                <button type="button" role="menuitem" onClick={act(() => setRenaming(t.key))}>
+                  Rename…
+                </button>
+                {canDuplicate && (
+                  <button type="button" role="menuitem" onClick={act(() => duplicateTab(t))}>
+                    Duplicate
+                  </button>
+                )}
+                <button type="button" role="menuitem" disabled={tabs.length < 2} onClick={act(() => closeOthers(t.key))}>
+                  Close others
+                </button>
+                <button type="button" role="menuitem" onClick={act(() => requestClose(t.key))}>
+                  Close
+                </button>
+              </div>
+            );
+          })()}
           <button type="button" className="tab-new" aria-label="New local terminal" title="New local terminal" onClick={() => openLocal()}>
             +
           </button>

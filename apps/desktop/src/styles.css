@@ -1155,3 +1155,14 @@ button.recording {
   border-top: 1px solid var(--line);
   padding-top: 10px;
 }
+
+.tab-rename {
+  width: 140px;
+  font: inherit;
+  padding: 2px 6px;
+  margin: 3px 4px;
+}
+.menu button:disabled {
+  color: var(--muted);
+  background: transparent;
+}

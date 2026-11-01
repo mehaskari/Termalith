@@ -83,6 +83,7 @@ export interface SessionInput {
   protocol?: SessionProtocol;
   /** Windows domain (RDP only). */
   domain?: string | null;
+  tags?: string[];
 }
 
 export interface SessionRecord extends SessionInput {

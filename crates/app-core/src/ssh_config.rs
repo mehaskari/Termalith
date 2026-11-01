@@ -214,6 +214,7 @@ pub fn parse_ssh_config(text: &str, home: &Path, default_user: &str) -> Vec<Impo
                     jump_via: None,
                     protocol: SessionProtocol::Ssh,
                     domain: None,
+                    tags: Vec::new(),
                 },
                 alias,
                 warnings,

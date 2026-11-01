@@ -52,7 +52,7 @@ export function Sidebar(p: Props) {
       <input
         className="search"
         type="search"
-        placeholder="Search"
+        placeholder="Search (#tag)"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         aria-label="Search sessions"
@@ -87,6 +87,21 @@ export function Sidebar(p: Props) {
                       {s.jumpVia && ` · via ${p.sessions.find((j) => j.id === s.jumpVia)?.name ?? "?"}`}
                     </span>
                   </button>
+                  {(s.tags?.length ?? 0) > 0 && (
+                    <span className="session-tags">
+                      {s.tags?.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          className="tag"
+                          title={`Show sessions tagged ${t}`}
+                          onClick={() => setQuery(`#${t}`)}
+                        >
+                          #{t}
+                        </button>
+                      ))}
+                    </span>
+                  )}
                   <span className="row-actions">
                     <button
                       type="button"

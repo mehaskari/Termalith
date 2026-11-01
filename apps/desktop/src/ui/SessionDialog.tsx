@@ -192,6 +192,19 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
         )}
         {mode !== "quick" && (
           <label className="span-2">
+            Tags
+            <input
+              value={form.tags}
+              placeholder="Optional, comma-separated, e.g. prod, web"
+              spellCheck={false}
+              autoCapitalize="off"
+              aria-invalid={invalid("tags")}
+              onChange={(e) => set({ tags: e.target.value })}
+            />
+          </label>
+        )}
+        {mode !== "quick" && (
+          <label className="span-2">
             Folder
             <input
               value={form.folder}

@@ -67,8 +67,8 @@ function seed(input: SessionInput, hasSavedSecret = false) {
   sessions.set(id, { ...input, id, hasSavedSecret, updatedAt: 0 });
 }
 
-seed({ name: "web-01", host: "web1.example.com", port: 22, username: "deploy", auth: { kind: "password" }, folder: "Production" });
-seed({ name: "db-primary", host: "10.0.0.9", port: 2222, username: "postgres", auth: { kind: "keyFile", path: "/Users/me/.ssh/id_ed25519" }, folder: "Production" });
+seed({ name: "web-01", host: "web1.example.com", port: 22, username: "deploy", auth: { kind: "password" }, folder: "Production", tags: ["prod", "web"] });
+seed({ name: "db-primary", host: "10.0.0.9", port: 2222, username: "postgres", auth: { kind: "keyFile", path: "/Users/me/.ssh/id_ed25519" }, folder: "Production", tags: ["prod", "web"] });
 seed({ name: "lab router", host: "192.168.1.1", port: 22, username: "admin", auth: { kind: "password" }, folder: null }, true);
 
 seed({ name: "win-jump", host: "10.0.5.20", port: 3389, username: "", auth: { kind: "password" }, folder: "Production", jumpVia: "ses-000000000000000000000001", protocol: "rdp", domain: "CORP" });

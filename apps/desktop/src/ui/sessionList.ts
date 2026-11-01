@@ -5,15 +5,34 @@ export interface SessionGroup {
   sessions: SessionRecord[];
 }
 
-/** Case-insensitive match on name, host, user and folder. */
+/**
+ * Case-insensitive search. Words starting with `#` must match a tag (prefix);
+ * other words must appear in the name, host, user, folder or a tag.
+ */
 export function filterSessions(sessions: SessionRecord[], query: string): SessionRecord[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return sessions;
-  return sessions.filter((s) =>
-    [s.name, s.host, s.username, s.folder ?? "", `${s.username}@${s.host}`].some((f) =>
-      f.toLowerCase().includes(q),
-    ),
-  );
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return sessions;
+  return sessions.filter((s) => {
+    const tags = (s.tags ?? []).map((t) => t.toLowerCase());
+    const fields = [s.name, s.host, s.username, s.folder ?? "", `${s.username}@${s.host}`, ...tags].map((f) =>
+      f.toLowerCase(),
+    );
+    return words.every((w) =>
+      w.startsWith("#") && w.length > 1
+        ? tags.some((t) => t.startsWith(w.slice(1)))
+        : fields.some((f) => f.includes(w)),
+    );
+  });
+}
+
+/** Splits "prod, web #db" style input into tags (backend normalizes again). */
+export function parseTags(input: string): string[] {
+  const out: string[] = [];
+  for (const raw of input.split(",")) {
+    const t = raw.trim().replace(/^#+/, "").trim();
+    if (t && !out.some((o) => o.toLowerCase() === t.toLowerCase())) out.push(t);
+  }
+  return out;
 }
 
 /** Groups by folder: named folders alphabetically, then ungrouped. */
@@ -72,6 +91,8 @@ export interface SessionFormState {
   jumpVia: string;
   /** RDP only. */
   domain: string;
+  /** Comma-separated. */
+  tags: string;
 }
 
 /** Switches protocol, moving the port along if it was the old default. */
@@ -92,6 +113,7 @@ export function emptyForm(): SessionFormState {
     folder: "",
     jumpVia: "",
     domain: "",
+    tags: "",
   };
 }
 
@@ -107,6 +129,7 @@ export function formFromSession(s: SessionInput): SessionFormState {
     folder: s.folder ?? "",
     jumpVia: s.jumpVia ?? "",
     domain: s.domain ?? "",
+    tags: (s.tags ?? []).join(", "),
   };
 }
 
@@ -135,6 +158,9 @@ export function parseForm(
     return { ok: false, field: "port", message: "Port must be 1-65535" };
   const name = f.name.trim() || (requireName ? "" : username ? `${username}@${host}` : host);
   if (!name) return { ok: false, field: "name", message: "Name is required" };
+  const tags = parseTags(f.tags);
+  if (tags.length > 20) return { ok: false, field: "tags", message: "At most 20 tags" };
+  if (tags.some((t) => t.length > 40)) return { ok: false, field: "tags", message: "Tags are at most 40 characters" };
   let auth: SessionInput["auth"];
   if (desktop) {
     auth = { kind: "password" };
@@ -161,6 +187,7 @@ export function parseForm(
       jumpVia: f.jumpVia || null,
       protocol: f.protocol,
       domain: domain || null,
+      tags,
     },
   };
 }

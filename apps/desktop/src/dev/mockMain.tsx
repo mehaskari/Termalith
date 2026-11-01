@@ -35,7 +35,7 @@ const mockSnippets: Array<{ id: string; name: string; command: string; folder: s
   { id: "snp-1", name: "Interface status", command: "show interfaces {{iface}} status", folder: "Cisco" },
   { id: "snp-2", name: "Disk usage", command: "df -h\ndu -sh {{path}}", folder: null },
 ];
-const mockSettings: Record<string, unknown> = { theme: "system", fontSize: 13, fontFamily: "", cursorStyle: "block", cursorBlink: true, scrollback: 5000, logSessions: false, defaultShell: null, copyOnSelect: false, rightClickPaste: false };
+const mockSettings: Record<string, unknown> = { theme: "system", fontSize: 13, fontFamily: "", cursorStyle: "block", cursorBlink: true, scrollback: 5000, logSessions: false, defaultShell: null, copyOnSelect: false, rightClickPaste: false, autoReconnect: true };
 const logging = new Set<number>();
 let nextTunnel = 1;
 const tunnels: Array<Record<string, unknown> & { id: number; terminalId: number }> = [];
@@ -51,6 +51,16 @@ function progressThen(ch: ChannelLike, total: number, done: unknown) {
   setTimeout(step, 100);
 }
 const retryNames = new Map<number, string>();
+const exitChannels = new Map<number, ChannelLike>();
+// Dev helper: end SSH terminal `id` as if the connection dropped (no exit status).
+(window as unknown as Record<string, unknown>).__dropConnection = (id: number) => {
+  const ch = exitChannels.get(id);
+  if (ch) window.__TAURI_INTERNALS__.runCallback(ch.id, { index: 0, message: { exit: null } });
+};
+(window as unknown as Record<string, unknown>).__exitShell = (id: number) => {
+  const ch = exitChannels.get(id);
+  if (ch) window.__TAURI_INTERNALS__.runCallback(ch.id, { index: 0, message: { exit: { code: 0, signal: null } } });
+};
 const authWaiters = new Map<number, (answers: string[] | null) => void>();
 const remoteText: Record<string, string> = {};
 const remoteVersions: Record<string, number> = {};
@@ -293,6 +303,7 @@ mockIPC(
         }
         const id = nextTerm++;
         outputs.set(id, { ch: a.onOutput as ChannelLike, index: 0 });
+        exitChannels.set(id, a.onExit as ChannelLike);
         setTimeout(() => send(id, `Connected to ${target.host} (mock)\r\n${target.username}@${target.host}:~$ `), 50);
         return { id, label: target.name || `${target.username}@${target.host}` };
       }

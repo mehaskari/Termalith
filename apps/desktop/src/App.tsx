@@ -97,7 +97,11 @@ interface Tab {
   edit?: { terminalId: TerminalId; dir: string; name: string };
   /** Editor has unsaved changes. */
   dirty?: boolean;
+  /** Connection lost: time (ms since epoch) of the automatic reconnect. */
+  reconnectAt?: number;
 }
+
+const RECONNECT_DELAY_MS = 5000;
 
 interface SplitPane {
   key: number;
@@ -484,6 +488,24 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [openLocal, requestClose, patchTab]);
 
+  // Automatic reconnect of dropped SSH tabs, with a visible countdown.
+  const [now, setNow] = useState(() => Date.now());
+  const pendingReconnect = tabs.some((t) => t.reconnectAt !== undefined);
+  useEffect(() => {
+    if (!pendingReconnect) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 500);
+    return () => window.clearInterval(timer);
+  }, [pendingReconnect]);
+  useEffect(() => {
+    for (const t of tabs) {
+      if (t.reconnectAt !== undefined && now >= t.reconnectAt && t.reconnect) {
+        const again = t.reconnect;
+        closeTab(t.key);
+        again();
+      }
+    }
+  }, [now, tabs, closeTab]);
+
   // Stop broadcasting when the source tab closes or its session ends.
   useEffect(() => {
     if (!broadcast) return;
@@ -646,7 +668,14 @@ export function App() {
               ) : (
               <>
               <div className="pane-toolbar">
-                  {t.changedKey ? (
+                  {t.reconnectAt !== undefined ? (
+                    <span className="pane-warning" role="status">
+                      Connection lost. Reconnecting in {Math.max(0, Math.ceil((t.reconnectAt - now) / 1000))} s…
+                      <button type="button" onClick={() => patchTab(t.key, { reconnectAt: undefined })}>
+                        Cancel
+                      </button>
+                    </span>
+                  ) : t.changedKey ? (
                     <span className="pane-warning">
                       Host key changed for {t.changedKey.host}.
                       <button type="button" className="danger" onClick={() => setConfirmForget(t)}>
@@ -764,8 +793,19 @@ export function App() {
                         patchTab(t.key, { ended: true });
                         onTabFailed(t, e);
                       }}
-                      onExited={() =>
-                        patchTab(t.key, { ended: true, filesOpen: false, tunnelsOpen: false, snippetsOpen: false, log: null })
+                      onExited={(payload) =>
+                        patchTab(t.key, {
+                          ended: true,
+                          filesOpen: false,
+                          tunnelsOpen: false,
+                          snippetsOpen: false,
+                          log: null,
+                          // No exit status: the connection dropped, the shell did not exit.
+                          reconnectAt:
+                            t.kind === "ssh" && !payload.exit && t.reconnect && settings.autoReconnect
+                              ? Date.now() + RECONNECT_DELAY_MS
+                              : undefined,
+                        })
                       }
                       settings={settings}
                       theme={theme}

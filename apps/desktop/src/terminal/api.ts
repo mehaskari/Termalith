@@ -283,6 +283,8 @@ export interface Settings {
   copyOnSelect: boolean;
   /** Right-click in a terminal pastes the clipboard. */
   rightClickPaste: boolean;
+  /** Reconnect SSH tabs whose connection was lost (not on `exit`). */
+  autoReconnect: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -296,6 +298,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultShell: null,
   copyOnSelect: false,
   rightClickPaste: false,
+  autoReconnect: true,
 };
 
 export const getSettings = () => invoke<Settings>("settings_get");

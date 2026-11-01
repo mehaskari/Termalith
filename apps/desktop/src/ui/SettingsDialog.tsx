@@ -87,6 +87,10 @@ export function SettingsDialog({ initial, shells, onSave, onCancel }: Props) {
           <input type="checkbox" checked={s.rightClickPaste} onChange={(e) => set({ rightClickPaste: e.target.checked })} />
           Right-click in a terminal pastes
         </label>
+        <label className="checkbox span-2">
+          <input type="checkbox" checked={s.autoReconnect} onChange={(e) => set({ autoReconnect: e.target.checked })} />
+          Reconnect SSH tabs automatically when the connection drops
+        </label>
         {shells.length > 1 && (
           <label className="span-2">
             Shell for new local terminals

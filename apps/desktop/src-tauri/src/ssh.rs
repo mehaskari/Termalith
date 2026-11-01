@@ -108,6 +108,18 @@ pub fn host_key_respond(
     state.broker.respond(request_id, decision)
 }
 
+/// Answers a keyboard-interactive prompt; `None` cancels the login.
+/// Answers are zeroized after being handed over.
+#[tauri::command]
+pub fn auth_prompt_respond(
+    state: State<'_, AppState>,
+    request_id: u64,
+    answers: Option<Vec<String>>,
+) -> bool {
+    let answers = answers.map(|a| a.into_iter().map(Zeroizing::new).collect());
+    state.auth_prompts.respond(request_id, answers)
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ForgetResult {

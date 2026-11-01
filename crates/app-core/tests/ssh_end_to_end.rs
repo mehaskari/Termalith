@@ -44,6 +44,7 @@ fn rig() -> Option<Rig> {
         broker: broker.clone(),
         timeout: Duration::from_secs(20),
         agent: None,
+        kbd: None,
     });
     Some(Rig {
         sshd,

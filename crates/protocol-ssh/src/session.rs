@@ -12,6 +12,7 @@ use russh_sftp::client::SftpSession;
 use zeroize::Zeroizing;
 
 use crate::host_key::{HostKeyDecider, HostKeyDecision, HostKeyInfo, HostKeyStatus};
+use crate::kbd::{KbdInteractive, offers_kbd};
 use crate::known_hosts::KnownHostsStore;
 use crate::{SftpClient, SshError, algorithms};
 
@@ -67,6 +68,9 @@ pub struct ConnectOptions {
     /// authentication.
     pub timeout: Duration,
     pub keepalive: Option<Duration>,
+    /// Answers keyboard-interactive prompts (one-time codes etc.). Without
+    /// one, only a plain password prompt can be answered.
+    pub kbd: Option<Arc<dyn KbdInteractive>>,
 }
 
 impl ConnectOptions {
@@ -76,11 +80,12 @@ impl ConnectOptions {
             decider,
             timeout: Duration::from_secs(30),
             keepalive: Some(Duration::from_secs(30)),
+            kbd: None,
         }
     }
 }
 
-struct ClientHandler {
+pub(crate) struct ClientHandler {
     host: String,
     port: u16,
     known_hosts: Arc<dyn KnownHostsStore>,
@@ -288,7 +293,7 @@ impl SshSession {
             }
         };
 
-        let result = match auth {
+        let mut result = match auth {
             Auth::Password(pw) => {
                 handle
                     .authenticate_password(target.user.as_str(), pw.as_str())
@@ -318,6 +323,24 @@ impl SshSession {
                 agent::authenticate(&mut handle, &target.user, socket).await?
             }
         };
+        if kbd_follows(auth, &result) {
+            let password = match auth {
+                Auth::Password(pw) => Some(pw),
+                _ => None,
+            };
+            let ok = crate::kbd::authenticate(
+                &mut handle,
+                &target.host,
+                target.port,
+                &target.user,
+                password,
+                opts.kbd.as_deref(),
+            )
+            .await?;
+            if ok {
+                result = client::AuthResult::Success;
+            }
+        }
         if !result.success() {
             return Err(SshError::AuthFailed);
         }
@@ -602,4 +625,22 @@ impl ShellWriter {
         self.inner.close().await?;
         Ok(())
     }
+}
+
+/// Whether to continue with keyboard-interactive after the first method:
+/// a second factor was requested (partial success), or the server takes
+/// passwords only through keyboard-interactive. A password the server
+/// rejected outright is not retried this way.
+fn kbd_follows(auth: &Auth, result: &client::AuthResult) -> bool {
+    let client::AuthResult::Failure {
+        remaining_methods,
+        partial_success,
+    } = result
+    else {
+        return false;
+    };
+    offers_kbd(result)
+        && (*partial_success
+            || (matches!(auth, Auth::Password(_))
+                && !remaining_methods.contains(&russh::MethodKind::Password)))
 }

@@ -7,6 +7,7 @@ mod algorithms;
 mod error;
 mod forward;
 mod host_key;
+mod kbd;
 mod known_hosts;
 mod session;
 mod sftp;
@@ -14,6 +15,7 @@ mod sftp;
 pub use error::SshError;
 pub use forward::{ForwardHandle, ForwardKind, MAX_FORWARD_CONNECTIONS, start_forward};
 pub use host_key::{HostKeyDecider, HostKeyDecision, HostKeyInfo, HostKeyStatus, RejectUnknown};
+pub use kbd::{KbdAnswers, KbdInteractive, KbdPrompt, KbdRequest};
 pub use known_hosts::{FileKnownHosts, KnownHostsStore, RemovedHostKeys};
 pub use russh::keys::PublicKey;
 pub use session::{

@@ -9,7 +9,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use credential_store::{CredentialRef, SecretStore};
-use protocol_ssh::{Auth, ConnectOptions, KnownHostsStore, SshError, SshSession, Target};
+use protocol_ssh::{
+    Auth, ConnectOptions, KbdInteractive, KnownHostsStore, SshError, SshSession, Target,
+};
 use zeroize::Zeroizing;
 
 use crate::sessions::{
@@ -50,6 +52,8 @@ pub struct Connector {
     pub timeout: Duration,
     /// SSH agent socket (Unix) or named pipe (Windows), if one is available.
     pub agent: Option<PathBuf>,
+    /// Asks the user keyboard-interactive questions (one-time codes).
+    pub kbd: Option<Arc<dyn KbdInteractive>>,
 }
 
 /// Result of a successful connection.
@@ -183,6 +187,7 @@ impl Connector {
         };
         let mut opts = ConnectOptions::new(Arc::clone(&self.known_hosts), self.broker.clone());
         opts.timeout = self.timeout;
+        opts.kbd = self.kbd.clone();
         Ok(match via {
             Some(jump) => SshSession::connect_via(jump, &target, &auth, &opts).await?,
             None => SshSession::connect(&target, &auth, &opts).await?,

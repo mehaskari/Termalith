@@ -50,7 +50,7 @@ pub enum SshError {
     #[error("destination already exists: {0}")]
     DestinationExists(String),
 
-    #[error("transfer cancelled")]
+    #[error("cancelled")]
     Cancelled,
 
     #[error("file is larger than {limit} bytes")]

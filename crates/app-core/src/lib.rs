@@ -2,6 +2,7 @@
 //! (local PTY and SSH behind one id space), SSH connection setup and
 //! host-key prompts. No Tauri or React dependencies.
 
+mod auth_prompts;
 mod connect;
 mod desktops;
 mod error;
@@ -16,6 +17,7 @@ mod terminals;
 mod transfers;
 mod tunnels;
 
+pub use auth_prompts::{AuthPrompt, AuthPromptBroker, AuthPromptField};
 pub use connect::{ConnectRequest, Connected, Connector, PasswordInput};
 pub use desktops::{DesktopHub, DesktopInfo, DesktopLaunch, DesktopState};
 pub use error::AppError;

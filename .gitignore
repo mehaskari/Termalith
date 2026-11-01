@@ -11,3 +11,6 @@ apps/desktop/src-tauri/gen/
 # Project documentation stays local; only the README is published.
 *.md
 !README.md
+# The public website and its documentation are published.
+!website/**/*.md
+/site

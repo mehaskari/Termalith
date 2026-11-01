@@ -1,0 +1,65 @@
+# Security
+
+Termalith is a tool for remote access, so it is built to be conservative by
+default. This page explains what it does with your credentials and
+connections, and how to report a problem.
+
+## Reporting a vulnerability
+
+Please report security issues **privately** through GitHub:
+[Report a vulnerability](https://github.com/mehaskari/Termalith/security/advisories/new)
+(Security tab of the repository). Do not open a public issue for them.
+
+## Credentials
+
+- Passwords and key passphrases are stored **only in the operating system's
+  credential store** (macOS Keychain, Windows Credential Manager, Secret
+  Service on Linux), and only after a login with them succeeded and you
+  asked to save them.
+- The session database holds only an opaque reference to a stored secret.
+  Exports never contain secrets or references.
+- Secrets are never written to logs, and are not passed to other programs
+  on a command line.
+- Without a working credential store, passwords are asked each time and
+  never persisted.
+
+## Host keys
+
+- Unknown host keys are shown with their fingerprint for confirmation.
+- A **changed** key is refused; there is no "connect anyway". Removing the
+  recorded key is a separate, deliberate step.
+- SHA-1-based `ssh-rsa` host key signatures are not accepted.
+- Every hop of a jump-host chain is verified.
+
+## Connections
+
+- Tunnels listen on the loopback address unless you explicitly allow other
+  machines.
+- Agent forwarding and X11 forwarding are off unless enabled per session,
+  and never apply to jump hosts. X11 forwarding gives the server a random
+  fake cookie; the real one stays on your computer.
+- Channels the server opens without being asked (sessions, X11, agent,
+  forwarded ports) are refused unless the matching feature is enabled.
+- Telnet is marked as unencrypted wherever it appears; through a jump host
+  only the last leg is unencrypted.
+- Links in terminal output open only with a modifier click, and only
+  `http`/`https` links are accepted.
+
+## The app itself
+
+- The user interface cannot run arbitrary commands: every operation is a
+  typed, permission-listed command in the Rust backend. Local terminals
+  start only installed shells, network tools run fixed programs with
+  validated arguments.
+- Remote file names are validated before anything is written locally;
+  downloads never overwrite existing files.
+- Dependencies are checked for known vulnerabilities and license problems
+  in CI (`cargo-deny`), and GitHub's code scanning and Dependabot alerts are
+  enabled for the repository.
+
+## Current limitations
+
+- Installers are not code-signed yet.
+- RDP/VNC run in external clients; their security depends on those
+  clients. FreeRDP on Linux trusts a server certificate on first use.
+- SOCKS/HTTP proxy authentication is not supported yet.

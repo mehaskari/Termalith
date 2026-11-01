@@ -4,8 +4,27 @@
     {
       "name": "ui-mock",
       "runtimeExecutable": "corepack",
-      "runtimeArgs": ["pnpm", "--filter", "@termalith/desktop", "dev"],
+      "runtimeArgs": [
+        "pnpm",
+        "--filter",
+        "@termalith/desktop",
+        "dev"
+      ],
       "port": 1420
+    },
+    {
+      "name": "website",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "site"
+      ],
+      "port": 8765
     }
   ]
 }

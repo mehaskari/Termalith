@@ -106,6 +106,7 @@ impl From<AppError> for IpcError {
                 Self::new("desktop_no_client", e.to_string())
             }
             AppError::Desktop(_) => Self::new("desktop_error", e.to_string()),
+            AppError::Network(_) => Self::new("connect_failed", e.to_string()),
         }
     }
 }

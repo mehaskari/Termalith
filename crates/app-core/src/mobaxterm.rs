@@ -2,7 +2,7 @@
 //!
 //! The file is INI-like: `[Bookmarks…]` sections with `SubRep=` (folder)
 //! and one `name= #type#flags%host%port%user%…` line per session. Only the
-//! first fields are used; everything else (fonts, colours, terminal
+//! first fields are used (SSH, RDP, VNC and Telnet); everything else (fonts, colours, terminal
 //! options) is MobaXterm-specific. Passwords are never in these files.
 
 use crate::AppError;
@@ -50,6 +50,7 @@ pub fn parse_mobaxterm(text: &str) -> (Vec<ImportCandidate>, Vec<String>) {
             "109" => SessionProtocol::Ssh,
             "91" => SessionProtocol::Rdp,
             "128" => SessionProtocol::Vnc,
+            "98" => SessionProtocol::Telnet,
             _ => {
                 notes.push(format!(
                     "{key}: this MobaXterm session type is not supported"
@@ -63,6 +64,7 @@ pub fn parse_mobaxterm(text: &str) -> (Vec<ImportCandidate>, Vec<String>) {
             SessionProtocol::Ssh => 22,
             SessionProtocol::Rdp => 3389,
             SessionProtocol::Vnc => 5900,
+            SessionProtocol::Telnet => 23,
         };
         let port = fields
             .get(2)
@@ -141,13 +143,19 @@ web01= #109#0%10.9.9.9%22%root%#MobaFont#0# #-1
         assert!(!is_mobaxterm("{\"format\":\"termalith-sessions\"}"));
         let (c, notes) = parse_mobaxterm(SAMPLE);
         let names: Vec<_> = c.iter().map(|x| x.alias.as_str()).collect();
-        assert_eq!(names, ["web01", "db primary", "win", "vnc lab"]);
+        assert_eq!(
+            names,
+            ["web01", "telnet box", "db primary", "win", "vnc lab"]
+        );
         let web = &c[0].input;
         assert_eq!(
             (web.host.as_str(), web.port, web.username.as_str()),
             ("192.168.1.10", 22, "root")
         );
         assert_eq!(web.folder, None);
+        assert_eq!(c[1].input.protocol, SessionProtocol::Telnet);
+        assert_eq!((c[1].input.port, c[1].input.username.as_str()), (23, ""));
+        let c: Vec<_> = c.into_iter().filter(|x| x.alias != "telnet box").collect();
         let db = &c[1].input;
         assert_eq!(db.folder.as_deref(), Some("Prod / DB"));
         assert_eq!(db.port, 2222);
@@ -155,10 +163,6 @@ web01= #109#0%10.9.9.9%22%root%#MobaFont#0# #-1
         assert_eq!(c[2].input.username, "admin");
         assert_eq!(c[3].input.protocol, SessionProtocol::Vnc);
         assert_eq!(c[3].input.port, 5901);
-        assert!(
-            notes.iter().any(|n| n.starts_with("telnet box")),
-            "{notes:?}"
-        );
         assert!(notes.iter().any(|n| n.starts_with("nouser")), "{notes:?}");
         assert!(
             notes.iter().any(|n| n == "web01: duplicate name"),
@@ -170,10 +174,10 @@ web01= #109#0%10.9.9.9%22%root%#MobaFont#0# #-1
     fn import_creates_sessions_and_reports_the_rest() {
         let store = SessionStore::open_in_memory().unwrap();
         let r = import_mobaxterm(&store, SAMPLE).unwrap();
-        assert_eq!(r.created.len(), 4);
-        assert_eq!(r.not_imported.len(), 3);
+        assert_eq!(r.created.len(), 5);
+        assert_eq!(r.not_imported.len(), 2);
         let again = import_mobaxterm(&store, SAMPLE).unwrap();
         assert!(again.created.is_empty());
-        assert_eq!(again.skipped.len(), 4);
+        assert_eq!(again.skipped.len(), 5);
     }
 }

@@ -174,6 +174,37 @@ pub async fn terminal_split(
     Ok(id)
 }
 
+/// Opens saved Telnet session `session_id` (unencrypted; the UI says so).
+#[tauri::command]
+pub async fn telnet_open(
+    state: State<'_, AppState>,
+    session_id: String,
+    cols: u16,
+    rows: u16,
+    on_output: Channel<InvokeResponseBody>,
+    on_exit: Channel<ExitPayload>,
+) -> Result<u64, IpcError> {
+    let size = TerminalSize::new(cols, rows)?;
+    let rec = state
+        .connector
+        .sessions
+        .get(&app_core::SessionId::parse(&session_id)?)?;
+    if rec.input.protocol != app_core::SessionProtocol::Telnet {
+        return Err(app_core::AppError::Invalid {
+            field: "session",
+            reason: "not a Telnet session".into(),
+        }
+        .into());
+    }
+    let (tap, sink) = logged_sink(on_output, on_exit);
+    let id = state
+        .hub
+        .open_telnet(rec.input.host.trim(), rec.input.port, size, sink)
+        .await?;
+    state.logs.register(id, tap);
+    Ok(id)
+}
+
 /// Starts saving terminal `id`'s output to a new plain-text file in the
 /// logs folder (chosen by the backend). `label` only names the file.
 #[tauri::command]

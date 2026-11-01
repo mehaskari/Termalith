@@ -83,7 +83,7 @@ export function closeTerminal(id: TerminalId): Promise<void> {
 
 export type AuthMethod = { kind: "password" } | { kind: "keyFile"; path: string } | { kind: "agent" };
 
-export type SessionProtocol = "ssh" | "rdp" | "vnc";
+export type SessionProtocol = "ssh" | "rdp" | "vnc" | "telnet";
 
 export interface SessionInput {
   name: string;
@@ -527,3 +527,11 @@ export const publicKeyText = (name: string) => invoke<string>("key_public", { na
 /** Adds the public key to authorized_keys on the server behind an SSH terminal. */
 export const installKey = (terminalId: TerminalId, name: string) =>
   invoke<{ added: boolean; path: string }>("key_install", { terminalId, name });
+
+// ---------------------------------------------------------------- telnet
+
+/** Opens a saved Telnet session (unencrypted). */
+export const telnetTerminal =
+  (sessionId: string): Opener =>
+  (cols, rows, onOutput, onExit) =>
+    invoke<TerminalId>("telnet_open", { sessionId, cols, rows, ...channels(onOutput, onExit) });

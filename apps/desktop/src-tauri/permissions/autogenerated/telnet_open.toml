@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-telnet-open"
+description = "Enables the telnet_open command without any pre-configured scope."
+commands.allow = ["telnet_open"]
+
+[[permission]]
+identifier = "deny-telnet-open"
+description = "Denies the telnet_open command without any pre-configured scope."
+commands.deny = ["telnet_open"]

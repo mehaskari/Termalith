@@ -58,7 +58,7 @@ export function groupSessions(sessions: SessionRecord[]): SessionGroup[] {
   return groups;
 }
 
-export const DEFAULT_PORT: Record<SessionProtocol, number> = { ssh: 22, rdp: 3389, vnc: 5900 };
+export const DEFAULT_PORT: Record<SessionProtocol, number> = { ssh: 22, rdp: 3389, vnc: 5900, telnet: 23 };
 
 export function isDesktop(s: Pick<SessionInput, "protocol">): boolean {
   return s.protocol === "rdp" || s.protocol === "vnc";
@@ -67,6 +67,7 @@ export function isDesktop(s: Pick<SessionInput, "protocol">): boolean {
 export function authLabel(s: Pick<SessionRecord, "auth" | "hasSavedSecret" | "protocol">): string {
   if (s.protocol === "rdp") return "RDP";
   if (s.protocol === "vnc") return "VNC";
+  if (s.protocol === "telnet") return "Telnet";
   if (s.auth.kind === "keyFile") return "key";
   if (s.auth.kind === "agent") return "agent";
   return s.hasSavedSecret ? "saved" : "";
@@ -156,6 +157,7 @@ export function parseForm(
   if (!host) return { ok: false, field: "host", message: "Host is required" };
   if (/\s/.test(host) || host.startsWith("-"))
     return { ok: false, field: "host", message: "Not a valid host name or address" };
+  // Everything but SSH: optional user name, no keys, no SSH-only options.
   const desktop = f.protocol !== "ssh";
   if (!username && !desktop) return { ok: false, field: "username", message: "Username is required" };
   if (/\s/.test(username)) return { ok: false, field: "username", message: "No spaces allowed" };
@@ -195,7 +197,7 @@ export function parseForm(
       username,
       auth,
       folder: f.folder.trim() || null,
-      jumpVia: f.jumpVia || null,
+      jumpVia: (f.protocol !== "telnet" && f.jumpVia) || null,
       protocol: f.protocol,
       domain: domain || null,
       tags,

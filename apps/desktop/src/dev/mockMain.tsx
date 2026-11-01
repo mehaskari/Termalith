@@ -94,6 +94,7 @@ seed({ name: "db-primary", host: "10.0.0.9", port: 2222, username: "postgres", a
 seed({ name: "lab router", host: "192.168.1.1", port: 22, username: "admin", auth: { kind: "password" }, folder: null }, true);
 
 seed({ name: "win-jump", host: "10.0.5.20", port: 3389, username: "", auth: { kind: "password" }, folder: "Production", jumpVia: "ses-000000000000000000000001", protocol: "rdp", domain: "CORP" });
+seed({ name: "core switch", host: "10.0.0.254", port: 23, username: "", auth: { kind: "password" }, folder: "Network", protocol: "telnet" });
 seed({ name: "lab vnc", host: "192.168.1.40", port: 5900, username: "", auth: { kind: "password" }, folder: null, protocol: "vnc" });
 
 const desktops = new Map<number, Record<string, unknown>>();
@@ -161,6 +162,12 @@ mockIPC(
         return `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMockMockMock ${a.name}`;
       case "key_install":
         return { added: !installedKeys.has(a.name as string) && !!installedKeys.add(a.name as string), path: "/home/deploy/.ssh/authorized_keys" };
+      case "telnet_open": {
+        const id = nextTerm++;
+        outputs.set(id, { ch: a.onOutput as ChannelLike, index: 0 });
+        setTimeout(() => send(id, "\r\nUser Access Verification\r\n\r\nUsername: "), 50);
+        return id;
+      }
       case "terminal_shells":
         return [
           { id: "/bin/zsh", name: "zsh" },

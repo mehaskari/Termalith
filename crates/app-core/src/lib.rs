@@ -8,6 +8,7 @@ mod desktops;
 mod error;
 mod files;
 mod host_keys;
+mod keys;
 mod logs;
 mod sessions;
 mod settings;
@@ -25,6 +26,7 @@ pub use files::{
     DroppedFile, DroppedFiles, MAX_EDIT_BYTES, decode_text, safe_file_name, unique_destination,
 };
 pub use host_keys::{HostKeyPrompt, PromptBroker};
+pub use keys::{KeyInstall, install_public_key};
 pub use logs::{AnsiStripper, LogInfo, LogTap, TerminalLogs, tapped};
 pub use sessions::{
     AuthMethod, SessionId, SessionInput, SessionProtocol, SessionRecord, SessionStore,

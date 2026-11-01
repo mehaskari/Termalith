@@ -495,3 +495,27 @@ export const sftpRename = (terminalId: TerminalId, dir: string, from: string, to
 /** Deletes a file, symlink or empty folder. */
 export const sftpDelete = (terminalId: TerminalId, dir: string, name: string) =>
   invoke<void>("sftp_delete", { terminalId, dir, name });
+
+// ---------------------------------------------------------------- SSH keys
+
+export interface KeyView {
+  name: string;
+  algorithm: string;
+  fingerprint: string;
+  comment: string;
+  /** null when the private key file is missing or unreadable. */
+  encrypted: boolean | null;
+  hasPrivate: boolean;
+}
+
+export const listKeys = () => invoke<KeyView[]>("keys_list");
+
+/** Generates `~/.ssh/<name>` (Ed25519); an empty passphrase leaves it unencrypted. */
+export const generateKey = (name: string, comment: string, passphrase: string | null) =>
+  invoke<KeyView>("key_generate", { name, comment, passphrase });
+
+export const publicKeyText = (name: string) => invoke<string>("key_public", { name });
+
+/** Adds the public key to authorized_keys on the server behind an SSH terminal. */
+export const installKey = (terminalId: TerminalId, name: string) =>
+  invoke<{ added: boolean; path: string }>("key_install", { terminalId, name });

@@ -997,3 +997,50 @@ async fn remote_tunnel_through_the_manager() {
     assert!(tunnels.stop(info.id));
     r.hub.close_all();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn public_key_is_installed_once_with_safe_permissions() {
+    use app_core::{KeyInstall, install_public_key};
+    let Some(r) = rig() else { return };
+    let session = trusted_connection(&r).await;
+    let (sink, _c) = collector();
+    let id = r
+        .hub
+        .open_ssh(session, TerminalSize::new(80, 24).unwrap(), sink)
+        .await
+        .unwrap();
+    let sftp = r.hub.sftp(id).await.unwrap();
+    // A stand-in home under the test server's directory (never the real ~).
+    std::fs::create_dir_all(r.sshd.path("home")).unwrap();
+    let home = r.sshd.remote("home");
+    let keys = tempfile::tempdir().unwrap();
+    let k = protocol_ssh::generate_ed25519(keys.path(), "id_test", "tester", None).unwrap();
+    let line = std::fs::read_to_string(&k.public_path).unwrap();
+
+    let first = install_public_key(&sftp, &home, &line).await.unwrap();
+    assert!(matches!(first, KeyInstall::Added { .. }), "{first:?}");
+    let ak = r.sshd.path("home").join(".ssh").join("authorized_keys");
+    assert_eq!(std::fs::read_to_string(&ak).unwrap(), line);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |p: &std::path::Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&ak), 0o600);
+        assert_eq!(mode(ak.parent().unwrap()), 0o700);
+    }
+    assert!(matches!(
+        install_public_key(&sftp, &home, &line).await.unwrap(),
+        KeyInstall::AlreadyPresent { .. }
+    ));
+
+    // Existing content without a trailing newline is kept.
+    let other = protocol_ssh::generate_ed25519(keys.path(), "id_other", "", None).unwrap();
+    std::fs::write(&ak, "# managed by hand").unwrap();
+    let other_line = std::fs::read_to_string(&other.public_path).unwrap();
+    install_public_key(&sftp, &home, &other_line).await.unwrap();
+    assert_eq!(
+        std::fs::read_to_string(&ak).unwrap(),
+        format!("# managed by hand\n{other_line}")
+    );
+    assert!(install_public_key(&sftp, &home, "not a key").await.is_err());
+}

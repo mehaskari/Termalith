@@ -99,6 +99,8 @@ export interface SessionInput {
   /** Windows domain (RDP only). */
   domain?: string | null;
   tags?: string[];
+  /** Forward the local SSH agent to this host (SSH only). */
+  forwardAgent?: boolean;
 }
 
 export interface SessionRecord extends SessionInput {

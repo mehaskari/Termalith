@@ -93,6 +93,7 @@ export interface SessionFormState {
   domain: string;
   /** Comma-separated. */
   tags: string;
+  forwardAgent: boolean;
 }
 
 /** Switches protocol, moving the port along if it was the old default. */
@@ -114,6 +115,7 @@ export function emptyForm(): SessionFormState {
     jumpVia: "",
     domain: "",
     tags: "",
+    forwardAgent: false,
   };
 }
 
@@ -130,6 +132,7 @@ export function formFromSession(s: SessionInput): SessionFormState {
     jumpVia: s.jumpVia ?? "",
     domain: s.domain ?? "",
     tags: (s.tags ?? []).join(", "),
+    forwardAgent: s.forwardAgent ?? false,
   };
 }
 
@@ -188,6 +191,7 @@ export function parseForm(
       protocol: f.protocol,
       domain: domain || null,
       tags,
+      forwardAgent: !desktop && f.forwardAgent,
     },
   };
 }

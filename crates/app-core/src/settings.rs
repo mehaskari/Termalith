@@ -153,6 +153,8 @@ struct ExportedSession {
     domain: Option<String>,
     #[serde(default)]
     tags: Vec<String>,
+    #[serde(default)]
+    forward_agent: bool,
 }
 
 /// Serializes every session as versioned JSON. Never includes secrets.
@@ -180,6 +182,7 @@ pub fn export_sessions(store: &SessionStore) -> Result<String, AppError> {
                 protocol: s.input.protocol,
                 domain: s.input.domain.clone(),
                 tags: s.input.tags.clone(),
+                forward_agent: s.input.forward_agent,
             })
             .collect(),
     };
@@ -268,6 +271,7 @@ fn to_input(s: &ExportedSession) -> SessionInput {
         protocol: s.protocol,
         domain: s.domain.clone(),
         tags: s.tags.clone(),
+        forward_agent: s.forward_agent,
     }
 }
 
@@ -309,6 +313,7 @@ mod tests {
             protocol: SessionProtocol::Ssh,
             domain: None,
             tags: Vec::new(),
+            forward_agent: false,
         }
     }
 

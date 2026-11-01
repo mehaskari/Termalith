@@ -1219,3 +1219,43 @@ async fn remote_forward_reaches_a_local_service() {
     }
     sess.disconnect().await.unwrap();
 }
+
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn agent_forwarding_is_opt_in() {
+    let s = sshd_or_skip!(SshdConfig::default());
+    let kh = known_hosts(&s);
+    kh.add("127.0.0.1", s.port, &host_key(&s)).unwrap();
+    let agent = TestAgent::start(s.dir.path());
+    agent.add(&s.user_key);
+
+    // Off by default: the remote shell has no agent.
+    let o = opts(kh.clone(), Arc::new(RejectUnknown));
+    let sess = SshSession::connect(&target(&s), &key_auth(&s), &o)
+        .await
+        .unwrap();
+    let out = sess.exec("printf '%s' \"$SSH_AUTH_SOCK\"").await.unwrap();
+    assert!(out.stdout.is_empty(), "no agent without opting in");
+    sess.disconnect().await.unwrap();
+
+    // On: the remote side reaches the local agent and sees its key.
+    let mut o = opts(kh, Arc::new(RejectUnknown));
+    o.agent_forward = Some(agent.socket.clone());
+    let sess = SshSession::connect(&target(&s), &key_auth(&s), &o)
+        .await
+        .unwrap();
+    let out = sess.exec("ssh-add -l").await.unwrap();
+    let listed = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(
+        out.exit_status,
+        Some(0),
+        "{listed} {}\n{}",
+        String::from_utf8_lossy(&out.stderr),
+        s.log()
+    );
+    assert!(
+        listed.contains("ED25519") || listed.contains("SHA256:"),
+        "{listed}"
+    );
+    sess.disconnect().await.unwrap();
+}

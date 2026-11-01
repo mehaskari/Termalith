@@ -171,9 +171,11 @@ export interface RemoteEntry {
 }
 
 export type TransferEvent =
+  | { kind: "queued" }
   | { kind: "progress"; transferred: number; total: number | null }
+  | { kind: "retrying"; attempt: number; max: number; message: string }
   | { kind: "done"; destination: string }
-  | { kind: "failed"; message: string }
+  | { kind: "failed"; message: string; retryable: boolean }
   | { kind: "cancelled" };
 
 export interface DroppedFile {
@@ -215,6 +217,10 @@ export const sftpUpload = (
 ) => invoke<number>("sftp_upload", { terminalId, token, dir, onEvent: transferChannel(onEvent) });
 
 export const cancelTransfer = (id: number) => invoke<boolean>("transfer_cancel", { id });
+
+/** Runs a failed or cancelled transfer again; resolves to the new id. */
+export const retryTransfer = (id: number, onEvent: (e: TransferEvent) => void) =>
+  invoke<number>("transfer_retry", { id, onEvent: transferChannel(onEvent) });
 
 export const forgetHostKey = (host: string, port: number) =>
   invoke<{ removed: number; remainingInUserFile: number }>("known_host_forget", { host, port });

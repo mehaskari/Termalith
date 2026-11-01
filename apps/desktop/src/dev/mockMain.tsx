@@ -24,6 +24,7 @@ const remoteFiles: Record<string, Array<{ name: string; kind: string; size: numb
     { name: "releases", kind: "dir", size: null },
     { name: "logs", kind: "dir", size: null },
     { name: "app.env", kind: "file", size: 312 },
+    { name: "flaky-export.csv", kind: "file", size: 9_000 },
     { name: "backup-2026-10-30.tar.gz", kind: "file", size: 48_234_112 },
   ],
   "/home/deploy/logs": [{ name: "app.log", kind: "file", size: 1_204_331 }],
@@ -49,6 +50,7 @@ function progressThen(ch: ChannelLike, total: number, done: unknown) {
   };
   setTimeout(step, 100);
 }
+const retryNames = new Map<number, string>();
 let nextTerm = 1;
 let nextPrompt = 1;
 let nextSession = 1;
@@ -278,8 +280,24 @@ mockIPC(
       }
       case "sftp_download": {
         const size = (a.size as number | null) ?? 1000;
-        progressThen(a.onEvent as ChannelLike, size, { kind: "done", destination: `/Users/me/Downloads/${a.name}` });
-        return { id: nextTransfer++, downloadsDir: "/Users/me/Downloads" };
+        const fails = String(a.name).includes("flaky");
+        const id = nextTransfer++;
+        if (fails) retryNames.set(id, String(a.name));
+        progressThen(
+          a.onEvent as ChannelLike,
+          size,
+          fails
+            ? { kind: "failed", message: "SFTP error: connection lost", retryable: true }
+            : { kind: "done", destination: `/Users/me/Downloads/${a.name}` },
+        );
+        return { id, downloadsDir: "/Users/me/Downloads" };
+      }
+      case "transfer_retry": {
+        const name = retryNames.get(Number(a.id));
+        if (!name) throw { code: "not_found", message: "not found" };
+        retryNames.delete(Number(a.id));
+        progressThen(a.onEvent as ChannelLike, 1000, { kind: "done", destination: `/Users/me/Downloads/${name}` });
+        return nextTransfer++;
       }
       case "sftp_upload": {
         const dir = a.dir as string;

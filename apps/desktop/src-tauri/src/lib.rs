@@ -93,6 +93,7 @@ pub fn run() {
             files::sftp_download,
             files::sftp_upload,
             files::transfer_cancel,
+            files::transfer_retry,
             ssh::known_host_forget,
         ])
         .build(tauri::generate_context!())

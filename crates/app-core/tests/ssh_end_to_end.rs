@@ -429,7 +429,12 @@ async fn wait_event(
             .await
             .expect("transfer event")
             .expect("channel open");
-        if !matches!(ev, app_core::TransferEvent::Progress { .. }) {
+        if !matches!(
+            ev,
+            app_core::TransferEvent::Progress { .. }
+                | app_core::TransferEvent::Queued
+                | app_core::TransferEvent::Retrying { .. }
+        ) {
             return ev;
         }
     }
@@ -535,7 +540,7 @@ async fn file_browser_transfers_over_the_terminal_connection() {
         .start_upload(sftp.clone(), up, &remote_dir, sink)
         .unwrap();
     match wait_event(&mut rx).await {
-        TransferEvent::Failed { message } => {
+        TransferEvent::Failed { message, .. } => {
             assert!(message.contains("already exists"), "{message}")
         }
         other => panic!("{other:?}"),

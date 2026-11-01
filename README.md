@@ -68,7 +68,7 @@ corepack pnpm test
 ## What works today (first usable version)
 
 - Local terminals in tabs (macOS, Windows, Linux), split side by side or top/bottom; SSH splits reuse the same connection.
-- Saved SSH sessions with folders and search; quick connect.
+- Saved sessions with folders, favorites, tags and search (`#tag` filters by tag); quick connect.
 - Password, private-key, passphrase and ssh-agent authentication; optional saving to the OS keychain (only after a successful login).
 - Jump hosts (ProxyJump) through another saved session; each hop's host key is verified.
 - Import sessions from `~/.ssh/config` (supported subset, including single-hop ProxyJump; unsupported options are listed per entry).
@@ -83,6 +83,6 @@ corepack pnpm test
 - Session logs: save a terminal's output as plain text (escape sequences removed) to Documents/Termalith Logs, per tab or automatically for every terminal; files are readable only by you.
 - SFTP side panel per SSH tab: browse, download to the Downloads folder, upload by dropping files on the window, progress and cancel; up to 3 transfers at once (others queue), automatic retry of connection errors and a manual Retry button.
 
-Not yet: embedded RDP/VNC (external clients only), tags.
+Not yet: embedded RDP/VNC (external clients only).
 
 UI preview without a backend (development only): run `corepack pnpm --filter @termalith/desktop dev` and open `http://localhost:1420/mock.html`.

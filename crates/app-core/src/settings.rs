@@ -136,6 +136,8 @@ struct ExportedSession {
     protocol: SessionProtocol,
     #[serde(default)]
     domain: Option<String>,
+    #[serde(default)]
+    tags: Vec<String>,
 }
 
 /// Serializes every session as versioned JSON. Never includes secrets.
@@ -162,6 +164,7 @@ pub fn export_sessions(store: &SessionStore) -> Result<String, AppError> {
                 jump_via: s.input.jump_via.as_ref().and_then(name_of),
                 protocol: s.input.protocol,
                 domain: s.input.domain.clone(),
+                tags: s.input.tags.clone(),
             })
             .collect(),
     };
@@ -249,6 +252,7 @@ fn to_input(s: &ExportedSession) -> SessionInput {
         jump_via: None,
         protocol: s.protocol,
         domain: s.domain.clone(),
+        tags: s.tags.clone(),
     }
 }
 
@@ -289,6 +293,7 @@ mod tests {
             jump_via: None,
             protocol: SessionProtocol::Ssh,
             domain: None,
+            tags: Vec::new(),
         }
     }
 
@@ -299,6 +304,9 @@ mod tests {
         let cred = CredentialRef::generate().unwrap();
         src.set_credential(&bastion.id, Some(&cred)).unwrap();
         src.set_favorite(&bastion.id, true).unwrap();
+        let mut tagged = bastion.input.clone();
+        tagged.tags = vec!["edge".into()];
+        src.update(&bastion.id, &tagged).unwrap();
         let mut app = input("app");
         app.jump_via = Some(bastion.id.clone());
         src.create(&app).unwrap();
@@ -315,6 +323,7 @@ mod tests {
         let b = all.iter().find(|s| s.input.name == "bastion").unwrap();
         let a = all.iter().find(|s| s.input.name == "app").unwrap();
         assert!(b.favorite);
+        assert_eq!(b.input.tags, ["edge"]);
         assert!(!b.has_saved_secret, "secrets are never imported");
         assert_eq!(a.input.jump_via.as_ref(), Some(&b.id));
 

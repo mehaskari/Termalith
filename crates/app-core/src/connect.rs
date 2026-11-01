@@ -80,6 +80,7 @@ impl Connector {
                     jump_via: None,
                     protocol: SessionProtocol::Ssh,
                     domain: None,
+                    tags: Vec::new(),
                 };
                 input.validate()?;
                 let typed = match secret {

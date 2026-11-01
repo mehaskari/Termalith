@@ -7,6 +7,7 @@ import {
   formFromSession,
   groupSessions,
   parseForm,
+  parseTags,
   targetLabel,
   withProtocol,
 } from "./sessionList";
@@ -55,7 +56,7 @@ describe("parseForm", () => {
     const r = parseForm(base, { requireName: true });
     expect(r).toEqual({
       ok: true,
-      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null },
+      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [] },
     });
   });
 
@@ -92,7 +93,7 @@ describe("parseForm", () => {
     const rec = s("web", "prod");
     const r = parseForm(formFromSession(rec), { requireName: true });
     expect(r.ok && r.value).toEqual({
-      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null,
+      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [],
     });
   });
 });
@@ -143,5 +144,26 @@ describe("remote desktop sessions", () => {
     expect(targetLabel({ username: "", host: "h", port: 3389, protocol: "rdp" })).toBe("h");
     expect(targetLabel({ username: "u", host: "h", port: 5901, protocol: "vnc" })).toBe("u@h:5901");
     expect(authLabel({ auth: { kind: "password" }, hasSavedSecret: false, protocol: "vnc" })).toBe("VNC");
+  });
+});
+
+describe("tags", () => {
+  const tagged = (name: string, tags: string[]): SessionRecord => ({ ...s(name, null), tags });
+
+  it("filters by #tag prefix and by plain words in tags", () => {
+    const list = [tagged("a", ["prod", "web"]), tagged("b", ["staging"]), tagged("c", [])];
+    expect(filterSessions(list, "#pro").map((x) => x.name)).toEqual(["a"]);
+    expect(filterSessions(list, "staging").map((x) => x.name)).toEqual(["b"]);
+    expect(filterSessions(list, "#prod a").map((x) => x.name)).toEqual(["a"]);
+    expect(filterSessions(list, "#prod zzz")).toEqual([]);
+    expect(filterSessions(list, "#").length).toBe(0);
+  });
+
+  it("parses, dedupes and collects tags", () => {
+    expect(parseTags(" prod, #web ,, PROD,db ")).toEqual(["prod", "web", "db"]);
+    const f = { ...emptyForm(), name: "n", host: "h", username: "u", tags: "x, y" };
+    const r = parseForm(f, { requireName: true });
+    expect(r.ok && r.value.tags).toEqual(["x", "y"]);
+    expect(formFromSession({ ...s("t", null), tags: ["x", "y"] }).tags).toBe("x, y");
   });
 });

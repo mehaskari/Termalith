@@ -102,6 +102,26 @@ pub struct SessionInput {
     /// Windows domain (RDP only).
     #[serde(default)]
     pub domain: Option<String>,
+    /// Free-form labels for search and filtering; stored normalized
+    /// (trimmed, case-insensitively unique).
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+pub const MAX_TAGS: usize = 20;
+const MAX_TAG_LEN: usize = 40;
+
+/// Trims, drops empties and case-insensitive duplicates (first spelling wins).
+pub fn normalize_tags(tags: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for t in tags {
+        let t = t.trim().trim_start_matches('#').trim();
+        let lower = t.to_lowercase();
+        if !t.is_empty() && !out.iter().any(|o| o.to_lowercase() == lower) {
+            out.push(t.to_owned());
+        }
+    }
+    out
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -163,6 +183,17 @@ impl SessionInput {
                 "authentication",
                 "remote desktop sessions use the client's own login",
             ));
+        }
+        if normalize_tags(&self.tags).len() > MAX_TAGS {
+            return Err(AppError::invalid("tags", format!("at most {MAX_TAGS}")));
+        }
+        for t in &self.tags {
+            if t.chars().count() > MAX_TAG_LEN || t.chars().any(|c| c.is_control() || c == ',') {
+                return Err(AppError::invalid(
+                    "tags",
+                    format!("each tag must be at most {MAX_TAG_LEN} characters, without commas"),
+                ));
+            }
         }
         match (&self.domain, self.protocol) {
             (None, _) => {}
@@ -246,6 +277,8 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE sessions ADD COLUMN protocol TEXT NOT NULL DEFAULT 'ssh'
         CHECK (protocol IN ('ssh', 'rdp', 'vnc'));
     ALTER TABLE sessions ADD COLUMN domain TEXT;",
+    // v7: tags (JSON array of strings).
+    "ALTER TABLE sessions ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';",
 ];
 
 pub struct SessionStore {
@@ -305,7 +338,7 @@ impl SessionStore {
     pub fn list(&self) -> Result<Vec<SessionRecord>, AppError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags
              FROM sessions ORDER BY folder IS NOT NULL, folder COLLATE NOCASE, name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], row_to_record)?;
@@ -316,7 +349,7 @@ impl SessionStore {
     pub fn get(&self, id: &SessionId) -> Result<SessionRecord, AppError> {
         let conn = self.conn();
         conn.query_row(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags
              FROM sessions WHERE id = ?1",
             [id.as_str()],
             row_to_record,
@@ -332,8 +365,8 @@ impl SessionStore {
         let (kind, key) = auth_columns(&input.auth);
         let t = now();
         self.conn().execute(
-            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12)",
+            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13)",
             params![
                 id.as_str(),
                 input.name.trim(),
@@ -346,7 +379,8 @@ impl SessionStore {
                 t,
                 input.jump_via.as_ref().map(SessionId::as_str),
                 input.protocol.column(),
-                input.domain
+                input.domain,
+                tags_json(&input.tags)
             ],
         )?;
         self.get(&id)
@@ -408,7 +442,7 @@ impl SessionStore {
         self.conn().execute(
             "UPDATE sessions SET name = ?2, host = ?3, port = ?4, username = ?5, auth_kind = ?6,
              key_path = ?7, folder = ?8, credential_ref = ?9, updated_at = ?10, jump_session_id = ?11,
-             protocol = ?12, domain = ?13
+             protocol = ?12, domain = ?13, tags = ?14
              WHERE id = ?1",
             params![
                 id.as_str(),
@@ -423,7 +457,8 @@ impl SessionStore {
                 now(),
                 input.jump_via.as_ref().map(SessionId::as_str),
                 input.protocol.column(),
-                input.domain
+                input.domain,
+                tags_json(&input.tags)
             ],
         )?;
         Ok((self.get(id)?, stale))
@@ -463,6 +498,10 @@ impl SessionStore {
             .execute("DELETE FROM sessions WHERE id = ?1", [id.as_str()])?;
         Ok(old.credential)
     }
+}
+
+fn tags_json(tags: &[String]) -> String {
+    serde_json::to_string(&normalize_tags(tags)).unwrap_or_else(|_| "[]".into())
 }
 
 fn auth_columns(a: &AuthMethod) -> (&'static str, Option<String>) {
@@ -511,6 +550,8 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
             jump_via: r.get::<_, Option<String>>(10)?.map(SessionId),
             protocol,
             domain: r.get(13)?,
+            // Unreadable tags must not hide the session.
+            tags: serde_json::from_str(&r.get::<_, String>(14)?).unwrap_or_default(),
         },
         updated_at: r.get(9)?,
     }))
@@ -531,6 +572,7 @@ mod tests {
             jump_via: None,
             protocol: SessionProtocol::Ssh,
             domain: None,
+            tags: Vec::new(),
         }
     }
 
@@ -716,6 +758,7 @@ mod tests {
             jump_via: Some(bastion.id.clone()),
             protocol: SessionProtocol::Rdp,
             domain: Some("CORP".into()),
+            tags: vec!["windows".into()],
         };
         let rec = store.create(&rdp).unwrap();
         assert_eq!(store.get(&rec.id).unwrap().input, rdp);
@@ -739,6 +782,41 @@ mod tests {
         let mut s = input();
         s.username = String::new();
         assert!(s.validate().is_err(), "SSH needs a user name");
+    }
+
+    #[test]
+    fn tags_are_normalized_validated_and_persisted() {
+        assert_eq!(
+            normalize_tags(&[
+                " prod ".into(),
+                "#web".into(),
+                "PROD".into(),
+                "".into(),
+                "Ünï".into(),
+                "ünï".into()
+            ]),
+            ["prod", "web", "Ünï"]
+        );
+        let store = SessionStore::open_in_memory().unwrap();
+        let mut s = input();
+        s.tags = vec!["prod".into(), " Prod".into(), "db".into()];
+        let rec = store.create(&s).unwrap();
+        assert_eq!(store.get(&rec.id).unwrap().input.tags, ["prod", "db"]);
+        s.tags = vec!["a,b".into()];
+        assert!(s.validate().is_err());
+        s.tags = (0..=MAX_TAGS).map(|i| format!("t{i}")).collect();
+        assert!(s.validate().is_err());
+        s.tags = vec!["x".repeat(41)];
+        assert!(s.validate().is_err());
+        // A corrupt value doesn't hide the session.
+        store
+            .conn()
+            .execute(
+                "UPDATE sessions SET tags = 'nope' WHERE id = ?1",
+                [rec.id.as_str()],
+            )
+            .unwrap();
+        assert!(store.get(&rec.id).unwrap().input.tags.is_empty());
     }
 
     #[test]

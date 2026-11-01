@@ -930,3 +930,28 @@ button.recording {
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 50%, transparent);
 }
+
+.session-list li {
+  flex-wrap: wrap;
+}
+.session-tags {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 8px 6px;
+  margin-top: -2px;
+}
+.tag {
+  font-size: 10.5px;
+  line-height: 1.5;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+}
+.tag:hover {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}

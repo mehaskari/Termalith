@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "allow-terminal-open",
+    "allow-terminal-shells",
     "allow-terminal-write",
     "allow-terminal-resize",
     "allow-terminal-ack",

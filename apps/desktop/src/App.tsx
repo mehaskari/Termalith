@@ -39,6 +39,9 @@ import {
   startLog,
   stopLog,
   closeDesktop,
+  type ShellChoice,
+  listShells,
+  localTerminal,
   listDesktops,
   openDesktop,
 } from "./terminal/api";
@@ -226,7 +229,22 @@ export function App() {
     [addTab, patchTab],
   );
 
-  const openLocal = useCallback(() => addTab("Local", "local", openLocalTerminal), [addTab]);
+  // Read through a ref so shortcut handlers keep a stable openLocal.
+  const localPrefs = useRef<{ shells: ShellChoice[]; defaultShell: string | null }>({ shells: [], defaultShell: null });
+  const [shells, setShells] = useState<ShellChoice[]>([]);
+  localPrefs.current = { shells, defaultShell: settings.defaultShell };
+
+  /** Opens a local terminal with `shellId`, else the preferred shell. */
+  const openLocal = useCallback(
+    (shellId?: string) => {
+      const { shells: list, defaultShell } = localPrefs.current;
+      const id = shellId ?? (list.some((s) => s.id === defaultShell) ? defaultShell : null);
+      // No choice: the system default, which the backend lists first.
+      const name = (id ? list.find((s) => s.id === id) : list[0])?.name ?? "Local";
+      return addTab(name, "local", localTerminal(id));
+    },
+    [addTab],
+  );
 
   const askPassword = useCallback(
     (req: Omit<PasswordRequest, "resolve">) =>
@@ -359,13 +377,30 @@ export function App() {
   const didOpenInitialTab = useRef(false);
   useEffect(() => {
     appInfo().then(setInfo, () => setInfo({ version: "?", secretsAvailable: false, agentAvailable: false }));
-    getSettings().then(setSettings, () => {});
     refresh();
-    // StrictMode runs effects twice in development; open one tab only.
-    if (!didOpenInitialTab.current) {
-      didOpenInitialTab.current = true;
-      openLocal();
-    }
+    // The first tab uses the preferred shell, so wait for settings and the
+    // shell list. StrictMode runs effects twice in development; open once.
+    void Promise.all([
+      getSettings().then(
+        (s) => {
+          setSettings(s);
+          localPrefs.current.defaultShell = s.defaultShell;
+        },
+        () => {},
+      ),
+      listShells().then(
+        (list) => {
+          setShells(list);
+          localPrefs.current.shells = list;
+        },
+        () => {},
+      ),
+    ]).then(() => {
+      if (!didOpenInitialTab.current) {
+        didOpenInitialTab.current = true;
+        openLocal();
+      }
+    });
     const unlisten = listen<HostKeyPrompt>("host-key-prompt", (e) =>
       setHostKeyPrompts((q) => [...q, e.payload]),
     );
@@ -522,7 +557,8 @@ export function App() {
         }
         onNew={() => setSessionDialog({ mode: "create" })}
         onQuickConnect={() => setSessionDialog({ mode: "quick" })}
-        onLocalTerminal={openLocal}
+        shells={shells}
+        onLocalTerminal={(id) => openLocal(id)}
         onImport={() => setImporting(true)}
         onToggleFavorite={(s) => setFavorite(s.id, !s.favorite).then(refresh, (e) => setNotice(String(e?.message ?? e)))}
         onDuplicate={(s) => {
@@ -562,7 +598,7 @@ export function App() {
               </button>
             </div>
           ))}
-          <button type="button" className="tab-new" aria-label="New local terminal" title="New local terminal" onClick={openLocal}>
+          <button type="button" className="tab-new" aria-label="New local terminal" title="New local terminal" onClick={() => openLocal()}>
             +
           </button>
         </div>
@@ -844,6 +880,7 @@ export function App() {
       {settingsOpen && (
         <SettingsDialog
           initial={settings}
+          shells={shells}
           onCancel={() => setSettingsOpen(false)}
           onSave={async (next) => {
             await saveSettings(next);

@@ -39,8 +39,23 @@ function channels(onOutput: (data: Uint8Array) => void, onExit: (p: ExitPayload)
   return { onOutput: output, onExit: exit };
 }
 
-export const openLocalTerminal: Opener = (cols, rows, onOutput, onExit) =>
-  invoke<TerminalId>("terminal_open", { cols, rows, ...channels(onOutput, onExit) });
+/** A local shell; `shell` is an id from `listShells` (default: system shell). */
+export const localTerminal =
+  (shell?: string | null): Opener =>
+  (cols, rows, onOutput, onExit) =>
+    invoke<TerminalId>("terminal_open", { cols, rows, shell: shell ?? null, ...channels(onOutput, onExit) });
+
+export const openLocalTerminal: Opener = localTerminal();
+
+export interface ShellChoice {
+  id: string;
+  name: string;
+}
+
+/** Installed shells, the system default first. */
+export function listShells(): Promise<ShellChoice[]> {
+  return invoke("terminal_shells");
+}
 
 /** Another terminal next to `source`: a local shell, or a shell on the same SSH connection. */
 export const splitTerminal =
@@ -260,6 +275,8 @@ export interface Settings {
   scrollback: number;
   /** Start a session log for every new terminal. */
   logSessions: boolean;
+  /** Shell id for new local terminals; null = system default. */
+  defaultShell: string | null;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -270,6 +287,7 @@ export const DEFAULT_SETTINGS: Settings = {
   cursorBlink: true,
   scrollback: 5000,
   logSessions: false,
+  defaultShell: null,
 };
 
 export const getSettings = () => invoke<Settings>("settings_get");

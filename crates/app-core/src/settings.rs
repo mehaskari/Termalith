@@ -35,6 +35,9 @@ pub struct Settings {
     pub scrollback: u32,
     /// Start a session log for every new terminal.
     pub log_sessions: bool,
+    /// Shell id (see `terminal_pty::available_shells`) for new local
+    /// terminals; `None` uses the system default.
+    pub default_shell: Option<String>,
 }
 
 impl Default for Settings {
@@ -47,6 +50,7 @@ impl Default for Settings {
             cursor_blink: true,
             scrollback: 5000,
             log_sessions: false,
+            default_shell: None,
         }
     }
 }
@@ -62,6 +66,11 @@ impl Settings {
                 "font family",
                 "too long or contains control characters",
             ));
+        }
+        if let Some(s) = &self.default_shell
+            && (s.is_empty() || s.chars().count() > 1024 || s.chars().any(char::is_control))
+        {
+            return Err(AppError::invalid("default shell", "not a valid shell id"));
         }
         if !(100..=100_000).contains(&self.scrollback) {
             return Err(AppError::invalid("scrollback", "must be 100-100000 lines"));

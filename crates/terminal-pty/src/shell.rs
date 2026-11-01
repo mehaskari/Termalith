@@ -52,6 +52,59 @@ pub fn default_shell() -> Result<ShellSpec, PtyError> {
     platform::default_shell().map(ShellSpec::with_terminal_env)
 }
 
+/// A shell installed on this machine that the user may pick.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShellProfile {
+    /// Stable identifier (the program path, or `wsl:<distro>`).
+    pub id: String,
+    pub name: String,
+    pub spec: ShellSpec,
+}
+
+/// Installed shells, the default one first. Only these can be started:
+/// the UI picks an id, never a command line.
+pub fn available_shells() -> Vec<ShellProfile> {
+    let default = platform::default_shell().ok();
+    let mut out = platform::installed_shells();
+    if let Some(d) = default {
+        let id = d.program.to_string_lossy().into_owned();
+        match out.iter().position(|p| p.id == id) {
+            Some(i) => {
+                let p = out.remove(i);
+                out.insert(0, p);
+            }
+            None => out.insert(
+                0,
+                ShellProfile {
+                    name: display_name(&d.program),
+                    id,
+                    spec: d,
+                },
+            ),
+        }
+    }
+    for p in &mut out {
+        p.spec = std::mem::replace(&mut p.spec, ShellSpec::new("")).with_terminal_env();
+    }
+    out
+}
+
+/// The installed shell with this id.
+pub fn shell_by_id(id: &str) -> Result<ShellSpec, PtyError> {
+    available_shells()
+        .into_iter()
+        .find(|p| p.id == id)
+        .map(|p| p.spec)
+        .ok_or(PtyError::NoShell)
+}
+
+fn display_name(program: &std::path::Path) -> String {
+    program
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| program.display().to_string())
+}
+
 #[cfg(unix)]
 mod platform {
     use super::*;
@@ -75,6 +128,77 @@ mod platform {
             spec = spec.cwd(home);
         }
         Ok(spec)
+    }
+
+    /// Existing shells listed in `/etc/shells` (same file reached through
+    /// a symlink is listed once), as login shells in the home directory.
+    pub(super) fn installed_shells() -> Vec<ShellProfile> {
+        let etc_shells = std::fs::read_to_string("/etc/shells").unwrap_or_default();
+        let home = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .filter(|h| h.is_absolute() && h.is_dir());
+        let profiles = list(
+            &etc_shells,
+            |p| p.is_file(),
+            |p| std::fs::canonicalize(p).ok(),
+        )
+        .into_iter()
+        .map(|program| {
+            let mut spec = ShellSpec::new(program.clone()).arg("-l");
+            if let Some(h) = &home {
+                spec = spec.cwd(h.clone());
+            }
+            ShellProfile {
+                id: program.to_string_lossy().into_owned(),
+                name: String::new(),
+                spec,
+            }
+        })
+        .collect();
+        with_names(profiles)
+    }
+
+    /// "zsh", or "bash (/usr/local/bin/bash)" when names repeat.
+    fn with_names(mut profiles: Vec<ShellProfile>) -> Vec<ShellProfile> {
+        let names: Vec<String> = profiles
+            .iter()
+            .map(|p| display_name(&p.spec.program))
+            .collect();
+        for (p, n) in profiles.iter_mut().zip(&names) {
+            p.name = if names.iter().filter(|x| *x == n).count() > 1 {
+                format!("{n} ({})", p.spec.program.display())
+            } else {
+                n.clone()
+            };
+        }
+        profiles
+    }
+
+    /// Absolute, existing entries of `/etc/shells`, without duplicates of
+    /// the same file. `nologin`-style entries are skipped.
+    pub(super) fn list(
+        etc_shells: &str,
+        exists: impl Fn(&Path) -> bool,
+        canonical: impl Fn(&Path) -> Option<PathBuf>,
+    ) -> Vec<PathBuf> {
+        let mut seen: Vec<PathBuf> = Vec::new();
+        let mut out = Vec::new();
+        for l in etc_shells.lines().map(str::trim) {
+            if l.is_empty() || l.starts_with('#') {
+                continue;
+            }
+            let p = Path::new(l);
+            if !p.is_absolute() || !exists(p) || l.ends_with("nologin") || l.ends_with("/false") {
+                continue;
+            }
+            let real = canonical(p).unwrap_or_else(|| p.to_path_buf());
+            if seen.contains(&real) {
+                continue;
+            }
+            seen.push(real);
+            out.push(p.to_path_buf());
+        }
+        out
     }
 
     /// Accepts `$SHELL` only if it is absolute, listed in `/etc/shells` and
@@ -151,6 +275,24 @@ mod platform {
         }
 
         #[test]
+        fn lists_existing_unique_shells() {
+            let shells =
+                "/bin/bash\n/usr/bin/bash\n/bin/zsh\n/usr/sbin/nologin\nrel/sh\n/missing\n";
+            let got = list(
+                shells,
+                |p| p != Path::new("/missing"),
+                |p| {
+                    Some(if p == Path::new("/usr/bin/bash") {
+                        PathBuf::from("/bin/bash")
+                    } else {
+                        p.to_path_buf()
+                    })
+                },
+            );
+            assert_eq!(got, [PathBuf::from("/bin/bash"), PathBuf::from("/bin/zsh")]);
+        }
+
+        #[test]
         fn errors_when_nothing_usable() {
             assert!(matches!(
                 resolve(None, "", all_exist),
@@ -175,11 +317,133 @@ mod platform {
             })
             .ok_or(PtyError::NoShell)?;
         let mut spec = ShellSpec::new(program);
-        if let Some(home) = std::env::var_os("USERPROFILE").map(PathBuf::from)
-            && home.is_dir()
-        {
+        if let Some(home) = home() {
             spec = spec.cwd(home);
         }
         Ok(spec)
+    }
+
+    fn home() -> Option<PathBuf> {
+        std::env::var_os("USERPROFILE")
+            .map(PathBuf::from)
+            .filter(|h| h.is_dir())
+    }
+
+    fn system32() -> PathBuf {
+        std::env::var_os("SystemRoot")
+            .map(PathBuf::from)
+            .filter(|p| p.is_absolute())
+            .unwrap_or_else(|| PathBuf::from(r"C:\Windows"))
+            .join("System32")
+    }
+
+    /// PowerShell 7, Windows PowerShell, cmd, Git Bash and WSL distributions
+    /// that exist on this machine. Not yet verified on a real Windows
+    /// desktop (CI only).
+    pub(super) fn installed_shells() -> Vec<ShellProfile> {
+        let program_files = std::env::var_os("ProgramFiles")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(r"C:\Program Files"));
+        let sys = system32();
+        let candidates: [(&str, PathBuf, &[&str]); 4] = [
+            (
+                "PowerShell",
+                program_files.join(r"PowerShell\7\pwsh.exe"),
+                &["-NoLogo"],
+            ),
+            (
+                "Windows PowerShell",
+                sys.join(r"WindowsPowerShell\v1.0\powershell.exe"),
+                &["-NoLogo"],
+            ),
+            ("Command Prompt", sys.join("cmd.exe"), &[]),
+            (
+                "Git Bash",
+                program_files.join(r"Git\bin\bash.exe"),
+                &["--login", "-i"],
+            ),
+        ];
+        let mut out: Vec<ShellProfile> = candidates
+            .into_iter()
+            .filter(|(_, p, _)| p.is_file())
+            .map(|(name, program, args)| {
+                let mut spec = ShellSpec::new(program.clone());
+                for a in args {
+                    spec = spec.arg(*a);
+                }
+                if let Some(h) = home() {
+                    spec = spec.cwd(h);
+                }
+                ShellProfile {
+                    id: program.to_string_lossy().into_owned(),
+                    name: name.to_owned(),
+                    spec,
+                }
+            })
+            .collect();
+        let wsl = sys.join("wsl.exe");
+        if wsl.is_file() {
+            for distro in wsl_distros(&wsl) {
+                out.push(ShellProfile {
+                    id: format!("wsl:{distro}"),
+                    name: format!("WSL: {distro}"),
+                    spec: ShellSpec::new(wsl.clone())
+                        .arg("-d")
+                        .arg(distro.clone())
+                        .arg("--cd")
+                        .arg("~"),
+                });
+            }
+        }
+        out
+    }
+
+    /// `wsl.exe -l -q` prints UTF-16LE names, one per line.
+    fn wsl_distros(wsl: &std::path::Path) -> Vec<String> {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let Ok(out) = std::process::Command::new(wsl)
+            .args(["-l", "-q"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+        else {
+            return Vec::new();
+        };
+        parse_wsl_list(&out.stdout)
+    }
+
+    pub(super) fn parse_wsl_list(bytes: &[u8]) -> Vec<String> {
+        let units: Vec<u16> = bytes
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        String::from_utf16_lossy(&units)
+            .lines()
+            .map(|l| {
+                l.trim()
+                    .trim_matches('\u{feff}')
+                    .trim_matches('\0')
+                    .to_owned()
+            })
+            .filter(|l| {
+                !l.is_empty()
+                    && l.len() <= 64
+                    && l.chars()
+                        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+            })
+            .collect()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        #[test]
+        fn parses_wsl_list_output() {
+            let text = "Ubuntu-22.04\r\ndocker-desktop\r\nbad name\r\n\r\n";
+            let bytes: Vec<u8> = text.encode_utf16().flat_map(u16::to_le_bytes).collect();
+            assert_eq!(
+                super::parse_wsl_list(&bytes),
+                ["Ubuntu-22.04", "docker-desktop"]
+            );
+        }
     }
 }

@@ -35,7 +35,7 @@ const mockSnippets: Array<{ id: string; name: string; command: string; folder: s
   { id: "snp-1", name: "Interface status", command: "show interfaces {{iface}} status", folder: "Cisco" },
   { id: "snp-2", name: "Disk usage", command: "df -h\ndu -sh {{path}}", folder: null },
 ];
-const mockSettings: Record<string, unknown> = { theme: "system", fontSize: 13, fontFamily: "", cursorStyle: "block", cursorBlink: true, scrollback: 5000, logSessions: false };
+const mockSettings: Record<string, unknown> = { theme: "system", fontSize: 13, fontFamily: "", cursorStyle: "block", cursorBlink: true, scrollback: 5000, logSessions: false, defaultShell: null };
 const logging = new Set<number>();
 let nextTunnel = 1;
 const tunnels: Array<Record<string, unknown> & { id: number; terminalId: number }> = [];
@@ -132,6 +132,12 @@ mockIPC(
       case "terminal_log_stop":
         logging.delete(Number(a.id));
         return null;
+      case "terminal_shells":
+        return [
+          { id: "/bin/zsh", name: "zsh" },
+          { id: "/bin/bash", name: "bash" },
+          { id: "/opt/homebrew/bin/fish", name: "fish" },
+        ];
       case "desktop_clients":
         return { rdp: { name: "Microsoft Remote Desktop", asksPasswordFirst: false }, vnc: { name: "Screen Sharing", asksPasswordFirst: false } };
       case "desktop_open": {

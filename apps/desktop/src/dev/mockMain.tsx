@@ -162,6 +162,14 @@ mockIPC(
         return `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMockMockMock ${a.name}`;
       case "key_install":
         return { added: !installedKeys.has(a.name as string) && !!installedKeys.add(a.name as string), path: "/home/deploy/.ssh/authorized_keys" };
+      case "ssh_files_open": {
+        const req = a.request as { sessionId?: string; password?: string };
+        const s = req.sessionId ? sessions.get(req.sessionId) : undefined;
+        if (!s) throw { code: "not_found", message: "not found" };
+        if (s.auth.kind === "password" && !s.hasSavedSecret && req.password !== "secret")
+          throw { code: req.password ? "auth_failed" : "password_required", message: "a password is required" };
+        return { id: nextTerm++, label: s.name };
+      }
       case "telnet_open": {
         const id = nextTerm++;
         outputs.set(id, { ch: a.onOutput as ChannelLike, index: 0 });

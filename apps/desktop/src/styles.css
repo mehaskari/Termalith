@@ -1170,3 +1170,20 @@ button.recording {
 .tab-kind.telnet {
   background: var(--danger);
 }
+
+.tab-kind.files {
+  background: var(--accent);
+  border-radius: 2px;
+}
+.files-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.files-tab .files-panel {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  border-left: 0;
+}

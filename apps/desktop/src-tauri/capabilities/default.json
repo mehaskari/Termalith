@@ -26,6 +26,7 @@
     "allow-net-probe-start",
     "allow-net-probe-cancel",
     "allow-ssh-open",
+    "allow-ssh-files-open",
     "allow-desktop-clients",
     "allow-desktop-open",
     "allow-desktop-list",

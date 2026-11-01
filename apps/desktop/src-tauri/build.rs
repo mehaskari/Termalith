@@ -24,6 +24,7 @@ fn main() {
             "net_probe_start",
             "net_probe_cancel",
             "ssh_open",
+            "ssh_files_open",
             "desktop_clients",
             "desktop_open",
             "desktop_list",

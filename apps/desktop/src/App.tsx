@@ -40,6 +40,8 @@ import {
   stopLog,
   closeDesktop,
   telnetTerminal,
+  openSshFiles,
+  closeTerminal,
   type ShellChoice,
   listShells,
   localTerminal,
@@ -73,7 +75,7 @@ import { isDesktop, targetLabel } from "./ui/sessionList";
 interface Tab {
   key: number;
   title: string;
-  kind: "local" | "ssh" | "serial" | "tools" | "desktop" | "editor" | "telnet";
+  kind: "local" | "ssh" | "serial" | "tools" | "desktop" | "editor" | "telnet" | "files";
   open: Opener;
   terminalId?: TerminalId;
   /** Connection over (failed, or the remote shell exited). */
@@ -267,6 +269,46 @@ export function App() {
     [],
   );
 
+  /**
+   * Runs a login (`attempt`), asking for a password or key passphrase when
+   * the backend needs one and retrying; saving happens only after success.
+   */
+  const withLogin = useCallback(
+    async <T,>(
+      label: string,
+      opts: { canSave: boolean; keyAuth: boolean; savedSecret: boolean },
+      attempt: (password: string | undefined, save: boolean) => Promise<T>,
+    ): Promise<T> => {
+      let secret: string | undefined;
+      let save = false;
+      let retry = false;
+      for (;;) {
+        try {
+          const r = await attempt(secret, save);
+          if (save) refresh();
+          return r;
+        } catch (e) {
+          if (!isIpcError(e)) throw e;
+          const needsPassword =
+            e.code === "password_required" || (e.code === "auth_failed" && secret !== undefined && !opts.keyAuth);
+          const needsPassphrase = opts.keyAuth && e.code === "key_error";
+          if (!needsPassword && !needsPassphrase) throw e;
+          const answer = await askPassword({
+            target: label,
+            kind: needsPassphrase ? "passphrase" : "password",
+            canSave: opts.canSave,
+            retry: retry ? "wrong" : e.code === "password_required" && opts.savedSecret ? "savedRejected" : null,
+          });
+          if (!answer) throw cancelled();
+          secret = answer.password;
+          save = answer.save;
+          retry = true;
+        }
+      }
+    },
+    [askPassword, refresh],
+  );
+
   const connect = useCallback(
     (
       target: SshTarget,
@@ -275,49 +317,33 @@ export function App() {
     ) => {
       let tabKey = 0;
       const open: Opener = async (cols, rows, onOutput, onExit) => {
-        let secret: string | undefined;
-        let save = false;
-        let retry = false;
-        for (;;) {
-          try {
-            const r = await openSsh(
-              { ...target, password: secret, savePassword: save },
-              cols,
-              rows,
-              onOutput,
-              onExit,
-            );
-            secret = undefined;
-            renameTab(tabKey, r.label);
-            if (save) refresh();
-            return r.id;
-          } catch (e) {
-            if (!isIpcError(e)) throw e;
-            const needsPassword =
-              e.code === "password_required" || (e.code === "auth_failed" && secret !== undefined && !opts.keyAuth);
-            const needsPassphrase = opts.keyAuth && e.code === "key_error";
-            if (!needsPassword && !needsPassphrase) throw e;
-            const answer = await askPassword({
-              target: label,
-              kind: needsPassphrase ? "passphrase" : "password",
-              canSave: opts.canSave,
-              retry: retry
-                ? "wrong"
-                : e.code === "password_required" && opts.savedSecret
-                  ? "savedRejected"
-                  : null,
-            });
-            if (!answer) throw cancelled();
-            secret = answer.password;
-            save = answer.save;
-            retry = true;
-          }
-        }
+        const r = await withLogin(label, opts, (password, savePassword) =>
+          openSsh({ ...target, password, savePassword }, cols, rows, onOutput, onExit),
+        );
+        renameTab(tabKey, r.label);
+        return r.id;
       };
       tabKey = addTab(label, "ssh", open);
       patchTab(tabKey, { reconnect: () => connect(target, label, opts), startup: opts.startup ?? undefined });
     },
-    [addTab, askPassword, refresh, renameTab, patchTab],
+    [addTab, withLogin, renameTab, patchTab],
+  );
+
+  /** A file browser tab on a saved SSH session (no shell). */
+  const openFilesTab = useCallback(
+    (s: SessionRecord) => {
+      const key = addTab(`${s.name} (files)`, "files", openLocalTerminal);
+      patchTab(key, { sessionId: s.id });
+      withLogin(
+        s.name,
+        { canSave: info?.secretsAvailable ?? false, keyAuth: s.auth.kind === "keyFile", savedSecret: s.hasSavedSecret },
+        (password, savePassword) => openSshFiles({ sessionId: s.id, password, savePassword }),
+      ).then(
+        (r) => patchTab(key, { terminalId: r.id }),
+        (e) => patchTab(key, { ended: true, desktopError: isIpcError(e) ? e.message : String(e) }),
+      );
+    },
+    [addTab, info, patchTab, withLogin],
   );
 
   /** Opens an RDP/VNC session in its external client, in tab `key`. */
@@ -391,6 +417,14 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [watchDesktops]);
 
+  // Closing a file browser tab releases its SSH connection.
+  const openFileIds = useRef(new Set<number>());
+  useEffect(() => {
+    const now = new Set(tabs.flatMap((t) => (t.kind === "files" && t.terminalId !== undefined ? [t.terminalId] : [])));
+    for (const id of openFileIds.current) if (!now.has(id)) void closeTerminal(id).catch(() => {});
+    openFileIds.current = now;
+  }, [tabs]);
+
   // Closing a desktop tab (by any route) stops its client and tunnel.
   const openDesktopIds = useRef(new Set<number>());
   useEffect(() => {
@@ -432,7 +466,7 @@ export function App() {
     const unlistenAuth = listen<AuthPrompt>("auth-prompt", (e) => setAuthPrompts((q) => [...q, e.payload]));
     const unlistenDrop = listen<DroppedFile[]>("files-dropped", (e) => {
       const tab = activeRef.current;
-      if (tab?.filesOpen && tab.terminalId !== undefined) setDropped(e.payload);
+      if ((tab?.filesOpen || tab?.kind === "files") && tab.terminalId !== undefined) setDropped(e.payload);
       else setNotice("To upload, open Files on a connected SSH tab and drop the files again.");
     });
     return () => {
@@ -620,6 +654,7 @@ export function App() {
       <Sidebar
         sessions={sessions}
         onConnect={connectSaved}
+        onOpenFiles={openFilesTab}
         onEdit={(s) => setSessionDialog({ mode: "edit", session: s })}
         onDelete={setConfirmDelete}
         onForgetSecret={(s) =>
@@ -755,6 +790,47 @@ export function App() {
                     if (dirty !== !!t.dirty) patchTab(t.key, { dirty });
                   }}
                 />
+              ) : t.kind === "files" ? (
+                <div className="files-tab">
+                  {t.terminalId !== undefined ? (
+                    <>
+                      <div className="pane-toolbar">
+                        <span />
+                        <span className="pane-actions">
+                          <button
+                            type="button"
+                            title="Open a terminal on this connection (no second login)"
+                            onClick={() => {
+                              if (t.terminalId !== undefined)
+                                addTab(t.title.replace(/ \(files\)$/, ""), "ssh", splitTerminal(t.terminalId));
+                            }}
+                          >
+                            Open terminal
+                          </button>
+                        </span>
+                      </div>
+                      <FilesPanel
+                        terminalId={t.terminalId}
+                        dropped={t.key === active ? dropped : null}
+                        onDroppedHandled={() => setDropped(null)}
+                        onClose={() => closeTab(t.key)}
+                        onEdit={(dir, name) => t.terminalId !== undefined && openEditor(t.terminalId, dir, name)}
+                      />
+                    </>
+                  ) : (
+                    <div className="desktop-pane">
+                      <div className="desktop-card">
+                        {t.desktopError ? (
+                          <p className="form-error" role="alert">
+                            {t.desktopError}
+                          </p>
+                        ) : (
+                          <p>Connecting…</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : t.kind === "desktop" ? (
                 <DesktopPane
                   info={t.desktop ?? null}

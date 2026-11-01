@@ -5,6 +5,8 @@ import { authLabel, filterSessions, groupSessions, targetLabel } from "./session
 interface Props {
   sessions: SessionRecord[];
   onConnect: (s: SessionRecord) => void;
+  /** SSH sessions: a file browser tab without a shell. */
+  onOpenFiles: (s: SessionRecord) => void;
   onEdit: (s: SessionRecord) => void;
   onDelete: (s: SessionRecord) => void;
   onForgetSecret: (s: SessionRecord) => void;
@@ -165,6 +167,17 @@ export function Sidebar(p: Props) {
                     >
                       {s.favorite ? "★" : "☆"}
                     </button>
+                    {(s.protocol ?? "ssh") === "ssh" && (
+                      <button
+                        type="button"
+                        className="icon"
+                        onClick={() => p.onOpenFiles(s)}
+                        aria-label={`Browse files on ${s.name}`}
+                        title="Browse files (SFTP)"
+                      >
+                        ⇅
+                      </button>
+                    )}
                     <button type="button" className="icon" onClick={() => p.onDuplicate(s)} aria-label={`Duplicate ${s.name}`} title="Duplicate">
                       ⧉
                     </button>

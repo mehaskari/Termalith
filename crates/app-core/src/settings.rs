@@ -33,6 +33,8 @@ pub struct Settings {
     pub cursor_style: CursorStyle,
     pub cursor_blink: bool,
     pub scrollback: u32,
+    /// Start a session log for every new terminal.
+    pub log_sessions: bool,
 }
 
 impl Default for Settings {
@@ -44,6 +46,7 @@ impl Default for Settings {
             cursor_style: CursorStyle::Block,
             cursor_blink: true,
             scrollback: 5000,
+            log_sessions: false,
         }
     }
 }

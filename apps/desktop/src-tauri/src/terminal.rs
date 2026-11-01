@@ -5,9 +5,12 @@
 //! environment. The backend resolves the shell from OS configuration.
 
 use serde::Serialize;
+use std::sync::Arc;
 use tauri::State;
 use tauri::ipc::{Channel, InvokeResponseBody};
-use terminal_pty::{ExitInfo, TerminalEvent, TerminalSize};
+
+use app_core::{LogInfo, LogTap, tapped};
+use terminal_pty::{ExitInfo, TerminalEvent, TerminalEventSink, TerminalSize};
 
 use crate::error::IpcError;
 use crate::state::AppState;
@@ -36,6 +39,17 @@ impl From<Option<ExitInfo>> for ExitPayload {
     }
 }
 
+/// [`channel_sink`] with a log tap in front; register the tap under the
+/// terminal id once it is known.
+pub fn logged_sink(
+    on_output: Channel<InvokeResponseBody>,
+    on_exit: Channel<ExitPayload>,
+) -> (Arc<LogTap>, impl TerminalEventSink) {
+    let tap = Arc::new(LogTap::default());
+    let sink = tapped(Arc::clone(&tap), channel_sink(on_output, on_exit));
+    (tap, sink)
+}
+
 /// Forwards terminal events to the two frontend channels.
 pub fn channel_sink(
     on_output: Channel<InvokeResponseBody>,
@@ -57,12 +71,15 @@ pub async fn terminal_open(
 ) -> Result<u64, IpcError> {
     let size = TerminalSize::new(cols, rows)?;
     let hub = state.hub.clone();
-    tauri::async_runtime::spawn_blocking(move || {
+    let (tap, sink) = logged_sink(on_output, on_exit);
+    let id = tauri::async_runtime::spawn_blocking(move || -> Result<u64, IpcError> {
         let shell = terminal_pty::default_shell()?;
-        Ok(hub.open_local(&shell, size, channel_sink(on_output, on_exit))?)
+        Ok(hub.open_local(&shell, size, sink)?)
     })
     .await
-    .map_err(|_| IpcError::internal("terminal task failed"))?
+    .map_err(|_| IpcError::internal("terminal task failed"))??;
+    state.logs.register(id, tap);
+    Ok(id)
 }
 
 #[tauri::command]
@@ -93,6 +110,7 @@ pub async fn terminal_ack(state: State<'_, AppState>, id: u64, bytes: u32) -> Re
 #[tauri::command]
 pub async fn terminal_close(state: State<'_, AppState>, id: u64) -> Result<(), IpcError> {
     state.tunnels.stop_for_terminal(id);
+    state.logs.forget(id);
     match state.hub.close(id).await {
         Ok(()) | Err(app_core::AppError::NotFound) => Ok(()),
         Err(e) => Err(e.into()),
@@ -111,17 +129,44 @@ pub async fn terminal_split(
     on_exit: Channel<ExitPayload>,
 ) -> Result<u64, IpcError> {
     let size = TerminalSize::new(cols, rows)?;
-    let sink = channel_sink(on_output, on_exit);
-    if state.hub.is_ssh(source)? {
-        return Ok(state.hub.open_ssh_sibling(source, size, sink).await?);
-    }
-    let hub = state.hub.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let shell = terminal_pty::default_shell()?;
-        Ok(hub.open_local(&shell, size, sink)?)
-    })
-    .await
-    .map_err(|_| IpcError::internal("terminal task failed"))?
+    let (tap, sink) = logged_sink(on_output, on_exit);
+    let id = if state.hub.is_ssh(source)? {
+        state.hub.open_ssh_sibling(source, size, sink).await?
+    } else {
+        let hub = state.hub.clone();
+        tauri::async_runtime::spawn_blocking(move || -> Result<u64, IpcError> {
+            let shell = terminal_pty::default_shell()?;
+            Ok(hub.open_local(&shell, size, sink)?)
+        })
+        .await
+        .map_err(|_| IpcError::internal("terminal task failed"))??
+    };
+    state.logs.register(id, tap);
+    Ok(id)
+}
+
+/// Starts saving terminal `id`'s output to a new plain-text file in the
+/// logs folder (chosen by the backend). `label` only names the file.
+#[tauri::command]
+pub fn terminal_log_start(
+    state: State<'_, AppState>,
+    id: u64,
+    label: String,
+) -> Result<LogInfo, IpcError> {
+    Ok(state.logs.start(id, &label)?)
+}
+
+#[tauri::command]
+pub fn terminal_log_stop(state: State<'_, AppState>, id: u64) -> Result<Option<LogInfo>, IpcError> {
+    Ok(state.logs.stop(id)?)
+}
+
+#[tauri::command]
+pub fn terminal_log_status(
+    state: State<'_, AppState>,
+    id: u64,
+) -> Result<Option<LogInfo>, IpcError> {
+    Ok(state.logs.status(id)?)
 }
 
 #[tauri::command]
@@ -159,9 +204,12 @@ pub async fn serial_open(
     on_exit: Channel<ExitPayload>,
 ) -> Result<u64, IpcError> {
     let hub = state.hub.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        Ok(hub.open_serial(&config, channel_sink(on_output, on_exit))?)
+    let (tap, sink) = logged_sink(on_output, on_exit);
+    let id = tauri::async_runtime::spawn_blocking(move || -> Result<u64, IpcError> {
+        Ok(hub.open_serial(&config, sink)?)
     })
     .await
-    .map_err(|_| IpcError::internal("serial task failed"))?
+    .map_err(|_| IpcError::internal("serial task failed"))??;
+    state.logs.register(id, tap);
+    Ok(id)
 }

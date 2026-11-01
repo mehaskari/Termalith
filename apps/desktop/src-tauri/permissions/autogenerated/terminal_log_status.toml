@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-terminal-log-status"
+description = "Enables the terminal_log_status command without any pre-configured scope."
+commands.allow = ["terminal_log_status"]
+
+[[permission]]
+identifier = "deny-terminal-log-status"
+description = "Denies the terminal_log_status command without any pre-configured scope."
+commands.deny = ["terminal_log_status"]

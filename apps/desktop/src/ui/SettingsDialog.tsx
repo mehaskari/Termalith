@@ -77,6 +77,10 @@ export function SettingsDialog({ initial, onSave, onCancel }: Props) {
           <input type="checkbox" checked={s.cursorBlink} onChange={(e) => set({ cursorBlink: e.target.checked })} />
           Blinking cursor
         </label>
+        <label className="checkbox span-2">
+          <input type="checkbox" checked={s.logSessions} onChange={(e) => set({ logSessions: e.target.checked })} />
+          Log every new terminal to Documents/Termalith Logs (plain text; may contain sensitive output)
+        </label>
         {error && <p className="form-error span-2" role="alert">{error}</p>}
       </form>
     </Dialog>

@@ -251,6 +251,8 @@ export interface Settings {
   cursorStyle: "block" | "bar" | "underline";
   cursorBlink: boolean;
   scrollback: number;
+  /** Start a session log for every new terminal. */
+  logSessions: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -260,6 +262,7 @@ export const DEFAULT_SETTINGS: Settings = {
   cursorStyle: "block",
   cursorBlink: true,
   scrollback: 5000,
+  logSessions: false,
 };
 
 export const getSettings = () => invoke<Settings>("settings_get");
@@ -379,4 +382,21 @@ export function listDesktops(): Promise<DesktopInfo[]> {
 
 export function closeDesktop(id: number): Promise<void> {
   return invoke("desktop_close", { id });
+}
+
+// ---------------------------------------------------------------- session logs
+
+export interface LogInfo {
+  /** Plain-text log file, in the logs folder chosen by the backend. */
+  path: string;
+  bytes: number;
+  dropped: number;
+}
+
+export function startLog(id: TerminalId, label: string): Promise<LogInfo> {
+  return invoke("terminal_log_start", { id, label });
+}
+
+export function stopLog(id: TerminalId): Promise<LogInfo | null> {
+  return invoke("terminal_log_stop", { id });
 }

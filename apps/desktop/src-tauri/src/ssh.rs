@@ -11,7 +11,7 @@ use zeroize::Zeroizing;
 
 use crate::error::IpcError;
 use crate::state::AppState;
-use crate::terminal::{ExitPayload, channel_sink};
+use crate::terminal::{ExitPayload, logged_sink};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -77,10 +77,9 @@ pub async fn ssh_open(
         }
     };
     let connected = state.connector.connect(req).await?;
-    let id = state
-        .hub
-        .open_ssh(connected.session, size, channel_sink(on_output, on_exit))
-        .await?;
+    let (tap, sink) = logged_sink(on_output, on_exit);
+    let id = state.hub.open_ssh(connected.session, size, sink).await?;
+    state.logs.register(id, tap);
     Ok(SshOpened {
         id,
         label: connected.label,

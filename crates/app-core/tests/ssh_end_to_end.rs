@@ -1087,20 +1087,16 @@ async fn telnet_through_an_ssh_jump_host() {
         .unwrap();
     let mut text = Vec::new();
     let mut typed = false;
-    loop {
-        match tokio::time::timeout(Duration::from_secs(10), rx.recv())
+    while let Some(TerminalEvent::Output(b)) =
+        tokio::time::timeout(Duration::from_secs(10), rx.recv())
             .await
             .expect("telnet output")
-        {
-            Some(TerminalEvent::Output(b)) => {
-                r.hub.ack(id, b.len()).ok();
-                text.extend_from_slice(&b);
-                if !typed && text.ends_with(b"Switch> ") {
-                    typed = true;
-                    r.hub.write(id, b"show\r").await.unwrap();
-                }
-            }
-            Some(TerminalEvent::Exited(_)) | None => break,
+    {
+        r.hub.ack(id, b.len()).ok();
+        text.extend_from_slice(&b);
+        if !typed && text.ends_with(b"Switch> ") {
+            typed = true;
+            r.hub.write(id, b"show\r").await.unwrap();
         }
     }
     server.await.unwrap();

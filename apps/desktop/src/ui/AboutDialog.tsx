@@ -67,7 +67,9 @@ export function AboutDialog({ info, onClose }: { info: AppInfo | null; onClose: 
               </li>
             ))}
           </ul>
-          <p className="hint">The complete list of dependencies and their licenses is in the source repository.</p>
+          <p className="hint">
+            Every component and its license text: <Link href={`${SITE}third-party/`}>Third-party licenses</Link>
+          </p>
         </details>
         <p className="hint">Released under the MIT License. © 2026 mehaskari and contributors.</p>
       </div>

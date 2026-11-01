@@ -180,12 +180,6 @@ impl SessionInput {
         }
         // Remote desktop clients ask for the user name themselves if it is
         // left empty; SSH needs one.
-        if self.protocol == SessionProtocol::Telnet && self.jump_via.is_some() {
-            return Err(AppError::invalid(
-                "jump host",
-                "Telnet sessions connect directly",
-            ));
-        }
         if self.protocol == SessionProtocol::Ssh || !self.username.is_empty() {
             validate_text("username", &self.username, 128)?;
         }
@@ -991,8 +985,6 @@ mod tests {
             store.get(&rec.id).unwrap().input.protocol,
             SessionProtocol::Telnet
         );
-        t.jump_via = Some(a.id.clone());
-        assert!(t.validate().is_err(), "telnet connects directly");
         // Foreign keys are enforced again after migrating.
         store.delete(&SessionId(bastion.into())).unwrap();
         assert!(store.get(&a.id).unwrap().input.jump_via.is_none());

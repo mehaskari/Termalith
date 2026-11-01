@@ -107,6 +107,18 @@ pub async fn sftp_upload(
     })?)
 }
 
+/// Runs a failed or cancelled transfer again; returns the new id.
+#[tauri::command]
+pub fn transfer_retry(
+    state: State<'_, AppState>,
+    id: u64,
+    on_event: Channel<TransferEvent>,
+) -> Result<u64, IpcError> {
+    Ok(state.transfers.retry(id, move |e| {
+        let _ = on_event.send(e);
+    })?)
+}
+
 #[tauri::command]
 pub fn transfer_cancel(state: State<'_, AppState>, id: u64) -> bool {
     state.transfers.cancel(id)

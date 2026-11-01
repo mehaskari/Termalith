@@ -6,6 +6,7 @@ import {
   type TransferEvent,
   cancelTransfer,
   isIpcError,
+  retryTransfer,
   sftpDownload,
   sftpHome,
   sftpList,
@@ -20,8 +21,10 @@ interface Transfer {
   name: string;
   transferred: number;
   total: number | null;
-  state: "running" | "done" | "failed" | "cancelled";
+  state: "queued" | "running" | "retrying" | "done" | "failed" | "cancelled";
   detail?: string;
+  /** The backend can run it again (failed transiently, or cancelled). */
+  retryable?: boolean;
 }
 
 interface Props {
@@ -72,21 +75,36 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose }: P
 
   const onEvent = (key: number, refreshAfter: boolean) => (e: TransferEvent) => {
     switch (e.kind) {
+      case "queued":
+        update(key, { state: "queued" });
+        break;
       case "progress":
-        update(key, { transferred: e.transferred, total: e.total });
+        update(key, { state: "running", transferred: e.transferred, total: e.total });
+        break;
+      case "retrying":
+        update(key, { state: "retrying", transferred: 0, detail: `${e.message} (retry ${e.attempt} of ${e.max})` });
         break;
       case "done":
         update(key, { state: "done", detail: e.destination });
         if (refreshAfter && path) void load(path);
         break;
       case "failed":
-        update(key, { state: "failed", detail: e.message });
+        update(key, { state: "failed", detail: e.message, retryable: e.retryable });
         break;
       case "cancelled":
-        update(key, { state: "cancelled" });
+        update(key, { state: "cancelled", retryable: true });
         break;
     }
   };
+
+  function retry(t: Transfer) {
+    if (t.id === null) return;
+    update(t.key, { state: "running", transferred: 0, detail: undefined, retryable: false });
+    retryTransfer(t.id, onEvent(t.key, t.direction === "up")).then(
+      (id) => update(t.key, { id }),
+      (e) => update(t.key, { state: "failed", detail: message(e), retryable: false }),
+    );
+  }
 
   function download(entry: RemoteEntry) {
     if (!path) return;
@@ -183,7 +201,13 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose }: P
                 <div className="transfer-line">
                   <span aria-hidden="true">{t.direction === "down" ? "↓" : "↑"}</span>
                   <span className="file-name" title={t.name}>{t.name}</span>
-                  {t.state === "running" && t.id !== null && (
+                  {t.retryable && t.id !== null && (t.state === "failed" || t.state === "cancelled") && (
+                    <button type="button" className="icon" aria-label={`Retry ${t.name}`} title="Retry"
+                      onClick={() => retry(t)}>
+                      ↻
+                    </button>
+                  )}
+                  {(t.state === "running" || t.state === "queued" || t.state === "retrying") && t.id !== null && (
                     <button type="button" className="icon" aria-label={`Cancel ${t.name}`} title="Cancel"
                       onClick={() => t.id !== null && void cancelTransfer(t.id)}>
                       ×
@@ -195,7 +219,15 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose }: P
                 )}
                 {t.state !== "running" && (
                   <span className="transfer-detail" title={t.detail}>
-                    {t.state === "done" ? (t.direction === "down" ? `Saved to ${t.detail}` : "Uploaded") : t.state === "cancelled" ? "Cancelled" : t.detail}
+                    {t.state === "done"
+                      ? t.direction === "down"
+                        ? `Saved to ${t.detail}`
+                        : "Uploaded"
+                      : t.state === "cancelled"
+                        ? "Cancelled"
+                        : t.state === "queued"
+                          ? "Waiting for a free slot…"
+                          : t.detail}
                   </span>
                 )}
               </li>

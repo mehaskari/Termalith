@@ -12,6 +12,7 @@ mod keys;
 mod known_hosts;
 mod session;
 mod sftp;
+mod x11;
 
 pub use error::SshError;
 pub use forward::{ForwardHandle, ForwardKind, MAX_FORWARD_CONNECTIONS, start_forward};
@@ -26,3 +27,4 @@ pub use session::{
 };
 pub use sftp::{RemoteEntry, RemoteKind, RemoteStat, SftpClient, TransferOptions};
 pub use tokio_util::sync::CancellationToken;
+pub use x11::{X11Display, X11Forward, cookie_from_xauth_list, local_cookie, parse_display};

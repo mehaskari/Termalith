@@ -137,6 +137,7 @@ export function Sidebar(p: Props) {
                       {authLabel(s) && ` · ${authLabel(s)}`}
                       {s.jumpVia && ` · via ${p.sessions.find((j) => j.id === s.jumpVia)?.name ?? "?"}`}
                       {s.forwardAgent && " · agent fwd"}
+                      {s.x11Forward && " · X11"}
                     </span>
                   </button>
                   {(s.tags?.length ?? 0) > 0 && (

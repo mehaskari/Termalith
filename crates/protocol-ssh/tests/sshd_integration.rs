@@ -1288,3 +1288,116 @@ async fn agent_forwarding_is_opt_in() {
     );
     sess.disconnect().await.unwrap();
 }
+
+/// X11 forwarding end to end: sshd (with a stand-in xauth that records the
+/// fake cookie) forwards a remote X client to a fake local X server, which
+/// must receive the real cookie, never the fake one.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn x11_forwarding_swaps_in_the_real_cookie() {
+    use std::os::unix::fs::PermissionsExt;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    if std::process::Command::new("python3")
+        .arg("-V")
+        .output()
+        .is_err()
+    {
+        eprintln!("skipping: python3 not available");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let recorded = dir.path().join("xauth-input");
+    let xauth = dir.path().join("xauth");
+    std::fs::write(
+        &xauth,
+        format!("#!/bin/sh\ncat > '{}'\n", recorded.display()),
+    )
+    .unwrap();
+    std::fs::set_permissions(&xauth, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let s = sshd_or_skip!(SshdConfig {
+        extra: vec![
+            "X11Forwarding yes".into(),
+            "X11UseLocalhost yes".into(),
+            format!("XAuthLocation {}", xauth.display()),
+        ],
+        ..SshdConfig::default()
+    });
+
+    // Fake local X server: checks the cookie and answers.
+    let sock = dir.path().join("X.sock");
+    let listener = tokio::net::UnixListener::bind(&sock).unwrap();
+    const REAL: &[u8] = b"real-cookie-1234";
+    let server = tokio::spawn(async move {
+        let (mut c, _) = listener.accept().await.unwrap();
+        let mut head = [0u8; 12];
+        c.read_exact(&mut head).await.unwrap();
+        let n = u16::from_le_bytes([head[6], head[7]]) as usize;
+        let d = u16::from_le_bytes([head[8], head[9]]) as usize;
+        let mut rest = vec![0u8; n + (4 - n % 4) % 4 + d + (4 - d % 4) % 4];
+        c.read_exact(&mut rest).await.unwrap();
+        let data_at = n + (4 - n % 4) % 4;
+        let got = rest[data_at..data_at + d].to_vec();
+        c.write_all(if got == REAL { b"X11-OK" } else { b"X11-BAD" })
+            .await
+            .unwrap();
+        got
+    });
+
+    let client = dir.path().join("client.py");
+    std::fs::write(
+        &client,
+        format!(
+            r#"import os, socket
+d = os.environ["DISPLAY"]
+n = int(d.split(":")[1].split(".")[0])
+cookie = bytes.fromhex(open("{}").read().split()[-1])
+s = socket.create_connection(("127.0.0.1", 6000 + n))
+name = b"MIT-MAGIC-COOKIE-1"
+s.sendall(b"l\x00\x0b\x00\x00\x00" + len(name).to_bytes(2, "little") + len(cookie).to_bytes(2, "little") + b"\x00\x00" + name + b"\x00\x00" + cookie)
+print("reply:" + s.recv(100).decode())
+"#,
+            recorded.display()
+        ),
+    )
+    .unwrap();
+
+    let kh = known_hosts(&s);
+    kh.add("127.0.0.1", s.port, &host_key(&s)).unwrap();
+    let mut o = opts(kh, Arc::new(RejectUnknown));
+    o.x11 = Some(protocol_ssh::X11Forward {
+        display: protocol_ssh::X11Display::Unix(sock.clone()),
+        screen: 0,
+        cookie: Some(REAL.to_vec()),
+    });
+    let sess = SshSession::connect(&target(&s), &key_auth(&s), &o)
+        .await
+        .unwrap();
+    let mut shell = sess.open_shell(80, 24).await.unwrap();
+    let mut out = String::new();
+    shell
+        .write(format!("python3 '{}'\r", client.display()).as_bytes())
+        .await
+        .unwrap();
+    let found = appears_within(&mut shell, &mut out, "reply:X11-", Duration::from_secs(15)).await;
+    assert!(
+        found,
+        "no reply; shell output {out:?}\nsshd log:\n{}",
+        s.log()
+    );
+    let got = tokio::time::timeout(Duration::from_secs(5), server)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(got, REAL, "the local server must get the real cookie");
+    assert!(out.contains("reply:X11-OK"), "{out:?}");
+    // The fake cookie the server knows is not the real one.
+    let fake = std::fs::read_to_string(&recorded).unwrap();
+    assert!(!fake.contains(&protocol_ssh_hex(REAL)));
+    sess.disconnect().await.unwrap();
+}
+
+#[cfg(unix)]
+fn protocol_ssh_hex(b: &[u8]) -> String {
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}

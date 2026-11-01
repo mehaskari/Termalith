@@ -200,6 +200,18 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
             Forward my SSH agent to this host
           </label>
         )}
+        {mode !== "quick" && !desktop && (
+          <label className="checkbox span-2">
+            <input type="checkbox" checked={form.x11Forward} onChange={(e) => set({ x11Forward: e.target.checked })} />
+            Forward X11 (show the server&apos;s graphical programs here)
+          </label>
+        )}
+        {mode !== "quick" && !desktop && form.x11Forward && (
+          <p className="hint span-2">
+            Needs a local X server: XQuartz on macOS, VcXsrv or Xming on Windows. Programs on the server can
+            then open windows on your screen.
+          </p>
+        )}
         {mode !== "quick" && !desktop && form.forwardAgent && (
           <p className="hint span-2">
             Only for hosts you trust: while connected, anyone with root access on the server can use your

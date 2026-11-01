@@ -52,7 +52,6 @@ const UNSUPPORTED: &[&str] = &[
     "localforward",
     "remoteforward",
     "dynamicforward",
-    "forwardx11",
     "certificatefile",
     "pkcs11provider",
     "hostkeyalias",
@@ -201,6 +200,9 @@ pub fn parse_ssh_config(text: &str, home: &Path, default_user: &str) -> Vec<Impo
                     false
                 }
             };
+            let x11_forward = opts
+                .get("forwardx11")
+                .is_some_and(|v| v.eq_ignore_ascii_case("yes"));
             let auth = match opts.get("identityfile") {
                 Some(f) => {
                     let expanded = expand_path(f, home, &user, &alias);
@@ -228,6 +230,7 @@ pub fn parse_ssh_config(text: &str, home: &Path, default_user: &str) -> Vec<Impo
                     domain: None,
                     tags: Vec::new(),
                     forward_agent,
+                    x11_forward,
                 },
                 alias,
                 warnings,
@@ -396,6 +399,9 @@ Match host foo
         assert!(!b.input.forward_agent);
         assert!(b.warnings.iter().any(|w| w.contains("ForwardAgent")));
         assert!(!by_alias(&c, "c").input.forward_agent);
+        let x = parse_ssh_config("Host x\n ForwardX11 yes\n", &home(), "me");
+        assert!(x[0].input.x11_forward);
+        assert!(x[0].warnings.is_empty(), "{:?}", x[0].warnings);
     }
 
     #[test]

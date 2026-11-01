@@ -56,7 +56,7 @@ describe("parseForm", () => {
     const r = parseForm(base, { requireName: true });
     expect(r).toEqual({
       ok: true,
-      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false },
+      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false },
     });
   });
 
@@ -93,7 +93,7 @@ describe("parseForm", () => {
     const rec = s("web", "prod");
     const r = parseForm(formFromSession(rec), { requireName: true });
     expect(r.ok && r.value).toEqual({
-      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false,
+      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false,
     });
   });
 });

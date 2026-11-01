@@ -116,6 +116,8 @@ export interface SessionRecord extends SessionInput {
 
 export interface AppInfo {
   version: string;
+  /** OS and architecture, e.g. "macos aarch64". */
+  platform?: string;
   secretsAvailable: boolean;
   agentAvailable: boolean;
 }

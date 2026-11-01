@@ -12,6 +12,8 @@ use crate::state::AppState;
 #[serde(rename_all = "camelCase")]
 pub struct AppInfo {
     version: &'static str,
+    /// Operating system and CPU architecture, e.g. "macos aarch64".
+    platform: String,
     secrets_available: bool,
     agent_available: bool,
 }
@@ -20,6 +22,7 @@ pub struct AppInfo {
 pub fn app_info(state: State<'_, AppState>) -> AppInfo {
     AppInfo {
         version: env!("CARGO_PKG_VERSION"),
+        platform: format!("{} {}", std::env::consts::OS, std::env::consts::ARCH),
         secrets_available: state.secrets_available,
         agent_available: state.agent_available,
     }

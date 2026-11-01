@@ -95,6 +95,8 @@ seed({ name: "lab router", host: "192.168.1.1", port: 22, username: "admin", aut
 
 seed({ name: "win-jump", host: "10.0.5.20", port: 3389, username: "", auth: { kind: "password" }, folder: "Production", jumpVia: "ses-000000000000000000000001", protocol: "rdp", domain: "CORP" });
 seed({ name: "core switch", host: "10.0.0.254", port: 23, username: "", auth: { kind: "password" }, folder: "Network", protocol: "telnet" });
+seed({ name: "edge-fw", host: "10.0.0.1", port: 22, username: "admin", auth: { kind: "password" }, folder: "Network / Firewalls" });
+seed({ name: "replica-2", host: "10.0.0.12", port: 22, username: "postgres", auth: { kind: "agent" }, folder: "Production / DB" });
 seed({ name: "lab vnc", host: "192.168.1.40", port: 5900, username: "", auth: { kind: "password" }, folder: null, protocol: "vnc" });
 
 const desktops = new Map<number, Record<string, unknown>>();
@@ -112,7 +114,7 @@ mockIPC(
     const a = (args ?? {}) as Record<string, unknown>;
     switch (cmd) {
       case "app_info":
-        return { version: "0.0.0-mock", secretsAvailable: true, agentAvailable: true };
+        return { version: "0.1.0-mock", platform: "macos aarch64", secretsAvailable: true, agentAvailable: true };
       case "settings_get":
         return mockSettings;
       case "settings_save":

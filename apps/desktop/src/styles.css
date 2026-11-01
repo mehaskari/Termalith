@@ -1269,3 +1269,112 @@ button.recording {
 .palette-empty {
   color: var(--muted);
 }
+
+.about {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 460px;
+}
+.about-head {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.about-head h3 {
+  margin: 0;
+  font-size: 20px;
+}
+.about-head p {
+  margin: 2px 0 0;
+}
+.about-tagline {
+  color: var(--accent);
+}
+.about p {
+  margin: 0;
+}
+.about-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.about-components {
+  margin: 6px 0;
+  padding-left: 18px;
+  line-height: 1.6;
+}
+
+/* Session tree (MobaXterm-style folders) */
+.tree,
+.folder-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.session-list .folder-children {
+  padding-left: 12px;
+  border-left: 1px solid color-mix(in srgb, var(--muted) 35%, transparent);
+  margin-left: 12px;
+}
+.session-list li.folder {
+  display: block;
+}
+.session-list li.folder:hover {
+  background: transparent;
+}
+.folder-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+}
+.folder-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+}
+.folder-toggle:hover {
+  background: var(--panel-2);
+}
+.caret {
+  width: 10px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.folder-icon {
+  font-size: 12px;
+}
+.folder-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folder-count {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+.folder-head .folder-open-all {
+  font-size: 11px;
+  visibility: hidden;
+  white-space: nowrap;
+}
+.folder-head:hover .folder-open-all,
+.folder-head .folder-open-all:focus-visible {
+  visibility: visible;
+}

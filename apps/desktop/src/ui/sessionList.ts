@@ -64,6 +64,61 @@ export function isDesktop(s: Pick<SessionInput, "protocol">): boolean {
   return s.protocol === "rdp" || s.protocol === "vnc";
 }
 
+export interface FolderNode {
+  /** Last path segment, e.g. "DB". */
+  name: string;
+  /** Full path, e.g. "Production/DB" (the key for open/closed state). */
+  path: string;
+  folders: FolderNode[];
+  sessions: SessionRecord[];
+  /** Sessions in this folder and every subfolder. */
+  total: number;
+}
+
+/** Splits "Production / DB" or "Production/DB" into ["Production", "DB"]. */
+export function folderPath(folder: string | null | undefined): string[] {
+  return (folder ?? "")
+    .split("/")
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Nested folders (MobaXterm-style tree). Folders sort alphabetically
+ * before loose sessions at each level; sessions sort by name.
+ */
+export function buildTree(sessions: SessionRecord[]): FolderNode {
+  const root: FolderNode = { name: "", path: "", folders: [], sessions: [], total: 0 };
+  const byName = (a: { name: string }, b: { name: string }) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  for (const s of sessions) {
+    let node = root;
+    node.total++;
+    for (const part of folderPath(s.folder)) {
+      let child = node.folders.find((f) => f.name.toLowerCase() === part.toLowerCase());
+      if (!child) {
+        child = { name: part, path: node.path ? `${node.path}/${part}` : part, folders: [], sessions: [], total: 0 };
+        node.folders.push(child);
+      }
+      node = child;
+      node.total++;
+    }
+    node.sessions.push(s);
+  }
+  const sort = (n: FolderNode) => {
+    n.folders.sort(byName);
+    n.sessions.sort(byName);
+    n.folders.forEach(sort);
+  };
+  sort(root);
+  return root;
+}
+
+/** Every session in a folder and its subfolders. */
+export function allSessions(node: FolderNode): SessionRecord[] {
+  return [...node.sessions, ...node.folders.flatMap(allSessions)];
+}
+
 export function authLabel(s: Pick<SessionRecord, "auth" | "hasSavedSecret" | "protocol">): string {
   if (s.protocol === "rdp") return "RDP";
   if (s.protocol === "vnc") return "VNC";

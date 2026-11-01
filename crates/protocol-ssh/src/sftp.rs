@@ -55,6 +55,16 @@ pub struct RemoteEntry {
     pub permissions: Option<u32>,
 }
 
+/// What a save needs to know about a remote file: used to detect that
+/// someone else changed it in the meantime.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RemoteStat {
+    pub size: Option<u64>,
+    /// Seconds since the Unix epoch (1 s resolution in SFTP v3).
+    pub modified: Option<u32>,
+    pub permissions: Option<u32>,
+}
+
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn temp_suffix() -> String {
@@ -217,6 +227,96 @@ impl SftpClient {
                 Err(e)
             }
         }
+    }
+
+    /// Size, modification time and mode of a regular file.
+    pub async fn stat(&self, remote: &str) -> Result<RemoteStat, SshError> {
+        let m = self.inner.metadata(remote).await?;
+        if !m.is_regular() {
+            return Err(SshError::NotAFile(remote.to_owned()));
+        }
+        Ok(RemoteStat {
+            size: m.size,
+            modified: m.mtime,
+            permissions: m.permissions,
+        })
+    }
+
+    /// Reads a whole regular file of at most `limit` bytes.
+    pub async fn read_file(
+        &self,
+        remote: &str,
+        limit: u64,
+    ) -> Result<(Vec<u8>, RemoteStat), SshError> {
+        let stat = self.stat(remote).await?;
+        if stat.size.is_some_and(|s| s > limit) {
+            return Err(SshError::TooLarge { limit });
+        }
+        let file = self.inner.open(remote).await?;
+        let mut data = Vec::new();
+        // The size may be missing or stale: never read more than limit + 1.
+        file.take(limit + 1).read_to_end(&mut data).await?;
+        if data.len() as u64 > limit {
+            return Err(SshError::TooLarge { limit });
+        }
+        Ok((data, stat))
+    }
+
+    /// Replaces an existing file with `data`, keeping its permissions.
+    /// Refuses with [`SshError::Modified`] if the file no longer matches
+    /// `expected` (size and modification time).
+    ///
+    /// The new content is written to a temporary file first; the original
+    /// is moved aside and only deleted after the new file is in place, and
+    /// restored if that fails.
+    pub async fn replace_file(
+        &self,
+        remote: &str,
+        data: &[u8],
+        expected: &RemoteStat,
+    ) -> Result<RemoteStat, SshError> {
+        let current = self.stat(remote).await?;
+        if current.size != expected.size || current.modified != expected.modified {
+            return Err(SshError::Modified(remote.to_owned()));
+        }
+        let suffix = temp_suffix();
+        let tmp = format!("{remote}.{suffix}");
+        let mut dst = self
+            .inner
+            .open_with_flags(
+                &tmp,
+                OpenFlags::CREATE | OpenFlags::EXCLUDE | OpenFlags::WRITE,
+            )
+            .await?;
+        let written = async {
+            dst.write_all(data).await?;
+            dst.shutdown().await
+        }
+        .await;
+        drop(dst);
+        if let Err(e) = written {
+            let _ = self.inner.remove_file(&tmp).await;
+            return Err(e.into());
+        }
+        if let Some(mode) = current.permissions {
+            let attrs = russh_sftp::protocol::FileAttributes {
+                permissions: Some(mode & 0o7777),
+                ..Default::default()
+            };
+            let _ = self.inner.set_metadata(&tmp, attrs).await;
+        }
+        let backup = format!("{remote}.{suffix}-old");
+        if let Err(e) = self.inner.rename(remote, &backup).await {
+            let _ = self.inner.remove_file(&tmp).await;
+            return Err(e.into());
+        }
+        if let Err(e) = self.inner.rename(&tmp, remote).await {
+            let _ = self.inner.rename(&backup, remote).await;
+            let _ = self.inner.remove_file(&tmp).await;
+            return Err(e.into());
+        }
+        let _ = self.inner.remove_file(&backup).await;
+        self.stat(remote).await
     }
 
     pub async fn close(self) -> Result<(), SshError> {

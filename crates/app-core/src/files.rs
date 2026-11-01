@@ -50,6 +50,20 @@ pub fn safe_file_name(name: &str) -> Result<&str, AppError> {
 }
 
 /// `dir/name`, or `dir/name (1).ext`, `(2)`, … if taken.
+/// Largest remote file the built-in editor opens.
+pub const MAX_EDIT_BYTES: u64 = 2 * 1024 * 1024;
+
+/// Text for the editor: UTF-8 without NUL bytes (a NUL means binary).
+/// A UTF-8 byte-order mark is kept as part of the text so saving
+/// round-trips it.
+pub fn decode_text(bytes: Vec<u8>) -> Result<String, AppError> {
+    if bytes.contains(&0) {
+        return Err(AppError::invalid("file", "looks like a binary file"));
+    }
+    String::from_utf8(bytes)
+        .map_err(|_| AppError::invalid("file", "is not UTF-8 text; download it to edit locally"))
+}
+
 pub fn unique_destination(dir: &Path, name: &str) -> PathBuf {
     let first = dir.join(name);
     if !first.exists() {
@@ -115,6 +129,18 @@ impl DroppedFiles {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn decode_text_accepts_utf8_and_rejects_binary() {
+        assert_eq!(decode_text(b"a\r\nb".to_vec()).unwrap(), "a\r\nb");
+        assert_eq!(
+            decode_text("\u{feff}ü".as_bytes().to_vec()).unwrap(),
+            "\u{feff}ü"
+        );
+        assert!(decode_text(b"a\0b".to_vec()).is_err());
+        assert!(decode_text(vec![0xff, 0xfe, 0x41]).is_err());
+    }
+
     use super::*;
 
     #[test]

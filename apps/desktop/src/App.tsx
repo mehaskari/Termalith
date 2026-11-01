@@ -41,6 +41,7 @@ import {
   openDesktop,
 } from "./terminal/api";
 import { DesktopPane } from "./ui/DesktopPane";
+import { EditorPane } from "./ui/EditorPane";
 import { Dialog } from "./ui/Dialog";
 import { FilesPanel } from "./ui/FilesPanel";
 import { HostKeyDialog } from "./ui/HostKeyDialog";
@@ -64,7 +65,7 @@ import { isDesktop, targetLabel } from "./ui/sessionList";
 interface Tab {
   key: number;
   title: string;
-  kind: "local" | "ssh" | "serial" | "tools" | "desktop";
+  kind: "local" | "ssh" | "serial" | "tools" | "desktop" | "editor";
   open: Opener;
   terminalId?: TerminalId;
   /** Connection over (failed, or the remote shell exited). */
@@ -86,6 +87,10 @@ interface Tab {
   sessionId?: string;
   /** Active session log of the main terminal. */
   log?: LogInfo | null;
+  /** Editor tabs: the remote file and the SSH terminal whose connection is used. */
+  edit?: { terminalId: TerminalId; dir: string; name: string };
+  /** Editor has unsaved changes. */
+  dirty?: boolean;
 }
 
 interface SplitPane {
@@ -117,6 +122,7 @@ export function App() {
   const [passwordRequest, setPasswordRequest] = useState<PasswordRequest | null>(null);
   const [hostKeyPrompts, setHostKeyPrompts] = useState<HostKeyPrompt[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<SessionRecord | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState<Tab | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [dropped, setDropped] = useState<DroppedFile[] | null>(null);
   const [confirmForget, setConfirmForget] = useState<Tab | null>(null);
@@ -145,6 +151,8 @@ export function App() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
   const activeRef = useRef<Tab | undefined>(undefined);
+  const tabsRef = useRef<Tab[]>([]);
+  tabsRef.current = tabs;
   const nextKey = useRef(1);
 
   const refresh = useCallback(() => {
@@ -188,6 +196,31 @@ export function App() {
       return rest;
     });
   }, []);
+
+  /** Closes a tab, asking first if an editor has unsaved changes. */
+  const requestClose = useCallback(
+    (key: number) => {
+      const t = tabsRef.current.find((x) => x.key === key);
+      if (t?.dirty) setConfirmDiscard(t);
+      else closeTab(key);
+    },
+    [closeTab],
+  );
+
+  const openEditor = useCallback(
+    (terminalId: TerminalId, dir: string, name: string) => {
+      const existing = tabsRef.current.find(
+        (t) => t.edit && t.edit.terminalId === terminalId && t.edit.dir === dir && t.edit.name === name,
+      );
+      if (existing) {
+        setActive(existing.key);
+        return;
+      }
+      const key = addTab(name, "editor", openLocalTerminal);
+      patchTab(key, { edit: { terminalId, dir, name } });
+    },
+    [addTab, patchTab],
+  );
 
   const openLocal = useCallback(() => addTab("Local", "local", openLocalTerminal), [addTab]);
 
@@ -384,7 +417,7 @@ export function App() {
           openLocal();
           break;
         case "closeTab":
-          if (a !== null) closeTab(a);
+          if (a !== null) requestClose(a);
           break;
         case "nextTab":
         case "prevTab":
@@ -408,7 +441,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [openLocal, closeTab, patchTab]);
+  }, [openLocal, requestClose, patchTab]);
 
   // Stop broadcasting when the source tab closes or its session ends.
   useEffect(() => {
@@ -518,7 +551,7 @@ export function App() {
                 <span className={`tab-kind ${t.kind}`} aria-hidden="true" />
                 {t.title}
               </button>
-              <button type="button" className="tab-close" aria-label={`Close ${t.title}`} onClick={() => closeTab(t.key)}>
+              <button type="button" className="tab-close" aria-label={`Close ${t.title}`} onClick={() => requestClose(t.key)}>
                 ×
               </button>
             </div>
@@ -546,6 +579,16 @@ export function App() {
             <div key={t.key} className="pane" hidden={t.key !== active} role="tabpanel">
               {t.kind === "tools" ? (
                 <NetworkTools />
+              ) : t.kind === "editor" && t.edit ? (
+                <EditorPane
+                  terminalId={t.edit.terminalId}
+                  dir={t.edit.dir}
+                  name={t.edit.name}
+                  active={t.key === active}
+                  onDirty={(dirty) => {
+                    if (dirty !== !!t.dirty) patchTab(t.key, { dirty });
+                  }}
+                />
               ) : t.kind === "desktop" ? (
                 <DesktopPane
                   info={t.desktop ?? null}
@@ -715,6 +758,7 @@ export function App() {
                     dropped={t.key === active ? dropped : null}
                     onDroppedHandled={() => setDropped(null)}
                     onClose={() => patchTab(t.key, { filesOpen: false })}
+                    onEdit={(dir, name) => t.terminalId !== undefined && openEditor(t.terminalId, dir, name)}
                   />
                 )}
               </div>
@@ -842,6 +886,34 @@ export function App() {
             ))}
           </dl>
           <p className="hint">After removing it, reconnect: you will be asked to verify the new key.</p>
+        </Dialog>
+      )}
+      {confirmDiscard && (
+        <Dialog
+          title="Discard unsaved changes?"
+          tone="warning"
+          onCancel={() => setConfirmDiscard(null)}
+          actions={
+            <>
+              <button type="button" onClick={() => setConfirmDiscard(null)}>
+                Keep editing
+              </button>
+              <button
+                type="button"
+                className="danger"
+                onClick={() => {
+                  closeTab(confirmDiscard.key);
+                  setConfirmDiscard(null);
+                }}
+              >
+                Discard
+              </button>
+            </>
+          }
+        >
+          <p>
+            <strong>{confirmDiscard.title}</strong> has changes that were not saved to the server.
+          </p>
         </Dialog>
       )}
       {confirmDelete && (

@@ -19,7 +19,9 @@ mod tunnels;
 pub use connect::{ConnectRequest, Connected, Connector, PasswordInput};
 pub use desktops::{DesktopHub, DesktopInfo, DesktopLaunch, DesktopState};
 pub use error::AppError;
-pub use files::{DroppedFile, DroppedFiles, safe_file_name, unique_destination};
+pub use files::{
+    DroppedFile, DroppedFiles, MAX_EDIT_BYTES, decode_text, safe_file_name, unique_destination,
+};
 pub use host_keys::{HostKeyPrompt, PromptBroker};
 pub use logs::{AnsiStripper, LogInfo, LogTap, TerminalLogs, tapped};
 pub use sessions::{

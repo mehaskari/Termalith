@@ -39,6 +39,8 @@ fn main() {
             "sftp_upload",
             "transfer_cancel",
             "transfer_retry",
+            "sftp_read_text",
+            "sftp_save_text",
             "known_host_forget",
             "ssh_config_preview",
             "ssh_config_import",

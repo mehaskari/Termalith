@@ -231,6 +231,7 @@ pub fn parse_ssh_config(text: &str, home: &Path, default_user: &str) -> Vec<Impo
                     tags: Vec::new(),
                     forward_agent,
                     x11_forward,
+                    startup_command: None,
                 },
                 alias,
                 warnings,

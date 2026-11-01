@@ -95,6 +95,7 @@ export interface SessionFormState {
   tags: string;
   forwardAgent: boolean;
   x11Forward: boolean;
+  startupCommand: string;
 }
 
 /** Switches protocol, moving the port along if it was the old default. */
@@ -118,6 +119,7 @@ export function emptyForm(): SessionFormState {
     tags: "",
     forwardAgent: false,
     x11Forward: false,
+    startupCommand: "",
   };
 }
 
@@ -136,6 +138,7 @@ export function formFromSession(s: SessionInput): SessionFormState {
     tags: (s.tags ?? []).join(", "),
     forwardAgent: s.forwardAgent ?? false,
     x11Forward: s.x11Forward ?? false,
+    startupCommand: s.startupCommand ?? "",
   };
 }
 
@@ -164,6 +167,8 @@ export function parseForm(
     return { ok: false, field: "port", message: "Port must be 1-65535" };
   const name = f.name.trim() || (requireName ? "" : username ? `${username}@${host}` : host);
   if (!name) return { ok: false, field: "name", message: "Name is required" };
+  if (/[\r\n]/.test(f.startupCommand))
+    return { ok: false, field: "startupCommand", message: "The startup command must be one line" };
   const tags = parseTags(f.tags);
   if (tags.length > 20) return { ok: false, field: "tags", message: "At most 20 tags" };
   if (tags.some((t) => t.length > 40)) return { ok: false, field: "tags", message: "Tags are at most 40 characters" };
@@ -196,6 +201,7 @@ export function parseForm(
       tags,
       forwardAgent: !desktop && f.forwardAgent,
       x11Forward: !desktop && f.x11Forward,
+      startupCommand: (!desktop && f.startupCommand.trim()) || null,
     },
   };
 }

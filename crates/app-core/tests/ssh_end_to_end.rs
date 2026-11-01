@@ -74,6 +74,7 @@ fn key_session(r: &Rig) -> app_core::SessionRecord {
             tags: Vec::new(),
             forward_agent: false,
             x11_forward: false,
+            startup_command: None,
         })
         .unwrap()
 }
@@ -185,6 +186,7 @@ async fn password_sessions_without_secret_ask_for_one() {
             tags: Vec::new(),
             forward_agent: false,
             x11_forward: false,
+            startup_command: None,
         })
         .unwrap();
     let res = r
@@ -372,6 +374,7 @@ async fn secret_is_saved_only_after_a_successful_connection() {
             tags: Vec::new(),
             forward_agent: false,
             x11_forward: false,
+            startup_command: None,
         })
         .unwrap();
     let provided = |s: &str| PasswordInput::Provided {
@@ -674,6 +677,7 @@ async fn agent_session_without_an_agent_explains_why() {
             tags: Vec::new(),
             forward_agent: false,
             x11_forward: false,
+            startup_command: None,
         })
         .unwrap();
     // The rig's connector has `agent: None`.
@@ -712,6 +716,7 @@ async fn saved_session_behind_a_jump_host() {
         tags: Vec::new(),
         forward_agent: false,
         x11_forward: false,
+        startup_command: None,
     };
     let target = r.connector.sessions.create(&behind).unwrap();
 
@@ -763,6 +768,7 @@ async fn saved_session_behind_a_jump_host() {
             tags: Vec::new(),
             forward_agent: false,
             x11_forward: false,
+            startup_command: None,
         })
         .unwrap();
     behind.jump_via = Some(pw_bastion.id);

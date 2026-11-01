@@ -191,6 +191,19 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
           </label>
         )}
         {mode !== "quick" && !desktop && (
+          <label className="span-2">
+            Run after login
+            <input
+              value={form.startupCommand}
+              placeholder="Optional, e.g. cd /var/log or tmux attach"
+              spellCheck={false}
+              autoCapitalize="off"
+              aria-invalid={invalid("startupCommand")}
+              onChange={(e) => set({ startupCommand: e.target.value })}
+            />
+          </label>
+        )}
+        {mode !== "quick" && !desktop && (
           <label className="checkbox span-2">
             <input
               type="checkbox"

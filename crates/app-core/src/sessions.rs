@@ -106,6 +106,10 @@ pub struct SessionInput {
     /// (trimmed, case-insensitively unique).
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Forward the local SSH agent to this host (`ssh -A`). Never applied
+    /// to jump hosts.
+    #[serde(default)]
+    pub forward_agent: bool,
 }
 
 pub const MAX_TAGS: usize = 20;
@@ -195,6 +199,12 @@ impl SessionInput {
                 ));
             }
         }
+        if self.forward_agent && self.protocol != SessionProtocol::Ssh {
+            return Err(AppError::invalid(
+                "agent forwarding",
+                "only for SSH sessions",
+            ));
+        }
         match (&self.domain, self.protocol) {
             (None, _) => {}
             (Some(d), SessionProtocol::Rdp) => {
@@ -279,6 +289,8 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE sessions ADD COLUMN domain TEXT;",
     // v7: tags (JSON array of strings).
     "ALTER TABLE sessions ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';",
+    // v8: agent forwarding.
+    "ALTER TABLE sessions ADD COLUMN forward_agent INTEGER NOT NULL DEFAULT 0;",
 ];
 
 pub struct SessionStore {
@@ -338,7 +350,7 @@ impl SessionStore {
     pub fn list(&self) -> Result<Vec<SessionRecord>, AppError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent
              FROM sessions ORDER BY folder IS NOT NULL, folder COLLATE NOCASE, name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], row_to_record)?;
@@ -349,7 +361,7 @@ impl SessionStore {
     pub fn get(&self, id: &SessionId) -> Result<SessionRecord, AppError> {
         let conn = self.conn();
         conn.query_row(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent
              FROM sessions WHERE id = ?1",
             [id.as_str()],
             row_to_record,
@@ -365,8 +377,8 @@ impl SessionStore {
         let (kind, key) = auth_columns(&input.auth);
         let t = now();
         self.conn().execute(
-            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13)",
+            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
                 id.as_str(),
                 input.name.trim(),
@@ -380,7 +392,8 @@ impl SessionStore {
                 input.jump_via.as_ref().map(SessionId::as_str),
                 input.protocol.column(),
                 input.domain,
-                tags_json(&input.tags)
+                tags_json(&input.tags),
+                input.forward_agent
             ],
         )?;
         self.get(&id)
@@ -442,7 +455,7 @@ impl SessionStore {
         self.conn().execute(
             "UPDATE sessions SET name = ?2, host = ?3, port = ?4, username = ?5, auth_kind = ?6,
              key_path = ?7, folder = ?8, credential_ref = ?9, updated_at = ?10, jump_session_id = ?11,
-             protocol = ?12, domain = ?13, tags = ?14
+             protocol = ?12, domain = ?13, tags = ?14, forward_agent = ?15
              WHERE id = ?1",
             params![
                 id.as_str(),
@@ -458,7 +471,8 @@ impl SessionStore {
                 input.jump_via.as_ref().map(SessionId::as_str),
                 input.protocol.column(),
                 input.domain,
-                tags_json(&input.tags)
+                tags_json(&input.tags),
+                input.forward_agent
             ],
         )?;
         Ok((self.get(id)?, stale))
@@ -552,6 +566,7 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
             domain: r.get(13)?,
             // Unreadable tags must not hide the session.
             tags: serde_json::from_str(&r.get::<_, String>(14)?).unwrap_or_default(),
+            forward_agent: r.get::<_, i64>(15)? != 0,
         },
         updated_at: r.get(9)?,
     }))
@@ -573,6 +588,7 @@ mod tests {
             protocol: SessionProtocol::Ssh,
             domain: None,
             tags: Vec::new(),
+            forward_agent: false,
         }
     }
 
@@ -759,6 +775,7 @@ mod tests {
             protocol: SessionProtocol::Rdp,
             domain: Some("CORP".into()),
             tags: vec!["windows".into()],
+            forward_agent: false,
         };
         let rec = store.create(&rdp).unwrap();
         assert_eq!(store.get(&rec.id).unwrap().input, rdp);
@@ -817,6 +834,17 @@ mod tests {
             )
             .unwrap();
         assert!(store.get(&rec.id).unwrap().input.tags.is_empty());
+    }
+
+    #[test]
+    fn agent_forwarding_round_trips_and_is_ssh_only() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let mut s = input();
+        s.forward_agent = true;
+        let rec = store.create(&s).unwrap();
+        assert!(store.get(&rec.id).unwrap().input.forward_agent);
+        s.protocol = SessionProtocol::Vnc;
+        assert!(s.validate().is_err());
     }
 
     #[test]

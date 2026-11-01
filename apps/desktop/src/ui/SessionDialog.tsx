@@ -190,6 +190,22 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
             </select>
           </label>
         )}
+        {mode !== "quick" && !desktop && (
+          <label className="checkbox span-2">
+            <input
+              type="checkbox"
+              checked={form.forwardAgent}
+              onChange={(e) => set({ forwardAgent: e.target.checked })}
+            />
+            Forward my SSH agent to this host
+          </label>
+        )}
+        {mode !== "quick" && !desktop && form.forwardAgent && (
+          <p className="hint span-2">
+            Only for hosts you trust: while connected, anyone with root access on the server can use your
+            agent&apos;s keys (they cannot copy them). Not applied to the jump host.
+          </p>
+        )}
         {mode !== "quick" && (
           <label className="span-2">
             Tags

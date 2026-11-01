@@ -50,7 +50,6 @@ const UNSUPPORTED: &[&str] = &[
     "localforward",
     "remoteforward",
     "dynamicforward",
-    "forwardagent",
     "forwardx11",
     "certificatefile",
     "pkcs11provider",
@@ -189,6 +188,17 @@ pub fn parse_ssh_config(text: &str, home: &Path, default_user: &str) -> Vec<Impo
                     None
                 }
             };
+            let forward_agent = match opts.get("forwardagent").map(|v| v.to_ascii_lowercase()) {
+                None => false,
+                Some(v) if v == "yes" => true,
+                Some(v) if v == "no" => false,
+                Some(_) => {
+                    warnings.push(
+                        "ForwardAgent with a socket path is not supported; not forwarding".into(),
+                    );
+                    false
+                }
+            };
             let auth = match opts.get("identityfile") {
                 Some(f) => {
                     let expanded = expand_path(f, home, &user, &alias);
@@ -215,6 +225,7 @@ pub fn parse_ssh_config(text: &str, home: &Path, default_user: &str) -> Vec<Impo
                     protocol: SessionProtocol::Ssh,
                     domain: None,
                     tags: Vec::new(),
+                    forward_agent,
                 },
                 alias,
                 warnings,
@@ -369,6 +380,20 @@ Match host foo
                 path: home().join(".ssh/id_db")
             }
         );
+    }
+
+    #[test]
+    fn forward_agent_is_imported() {
+        let c = parse_ssh_config(
+            "Host a\n ForwardAgent yes\nHost b\n ForwardAgent /tmp/sock\nHost c\n",
+            &home(),
+            "me",
+        );
+        assert!(by_alias(&c, "a").input.forward_agent);
+        let b = by_alias(&c, "b");
+        assert!(!b.input.forward_agent);
+        assert!(b.warnings.iter().any(|w| w.contains("ForwardAgent")));
+        assert!(!by_alias(&c, "c").input.forward_agent);
     }
 
     #[test]

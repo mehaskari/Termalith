@@ -85,6 +85,7 @@ impl Connector {
                     protocol: SessionProtocol::Ssh,
                     domain: None,
                     tags: Vec::new(),
+                    forward_agent: false,
                 };
                 input.validate()?;
                 let typed = match secret {
@@ -188,6 +189,15 @@ impl Connector {
         let mut opts = ConnectOptions::new(Arc::clone(&self.known_hosts), self.broker.clone());
         opts.timeout = self.timeout;
         opts.kbd = self.kbd.clone();
+        // Only the host the user connects to, never a jump host.
+        if depth == 0 && input.forward_agent {
+            opts.agent_forward = Some(self.agent.clone().ok_or_else(|| {
+                AppError::invalid(
+                    "agent forwarding",
+                    "no SSH agent is available (SSH_AUTH_SOCK is not set)",
+                )
+            })?);
+        }
         Ok(match via {
             Some(jump) => SshSession::connect_via(jump, &target, &auth, &opts).await?,
             None => SshSession::connect(&target, &auth, &opts).await?,

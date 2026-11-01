@@ -71,6 +71,10 @@ pub struct ConnectOptions {
     /// Answers keyboard-interactive prompts (one-time codes etc.). Without
     /// one, only a plain password prompt can be answered.
     pub kbd: Option<Arc<dyn KbdInteractive>>,
+    /// Forward this local agent (socket or pipe) to shells opened on the
+    /// connection (`ssh -A`). Off by default: anyone with root on the
+    /// server can use the agent's keys while the connection is open.
+    pub agent_forward: Option<PathBuf>,
 }
 
 impl ConnectOptions {
@@ -81,6 +85,7 @@ impl ConnectOptions {
             timeout: Duration::from_secs(30),
             keepalive: Some(Duration::from_secs(30)),
             kbd: None,
+            agent_forward: None,
         }
     }
 }
@@ -94,6 +99,16 @@ pub(crate) struct ClientHandler {
     /// instead of russh's generic one.
     refusal: Arc<Mutex<Option<SshError>>>,
     remote_forwards: RemoteForwards,
+    /// Local agent that server-opened agent channels are bridged to; only
+    /// set when the user enabled agent forwarding for this connection.
+    agent_forward: Option<PathBuf>,
+}
+
+/// Refuses a channel the server opened without this client asking for it.
+async fn refuse(reply: russh::client::ChannelOpenHandle) {
+    reply
+        .reject(russh::ChannelOpenFailure::AdministrativelyProhibited)
+        .await;
 }
 
 /// Server port -> local `host:port` for active remote (`-R`) forwards.
@@ -150,6 +165,91 @@ impl client::Handler for ClientHandler {
         Ok(())
     }
 
+    async fn server_channel_open_agent_forward(
+        &mut self,
+        channel: Channel<Msg>,
+        reply: russh::client::ChannelOpenHandle,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        let Some(socket) = self.agent_forward.clone() else {
+            refuse(reply).await;
+            return Ok(());
+        };
+        reply.accept().await;
+        tokio::spawn(async move {
+            let mut remote = channel.into_stream();
+            match agent::connect_raw(&socket).await {
+                Ok(mut local) => {
+                    let _ = tokio::io::copy_bidirectional(&mut local, &mut remote).await;
+                }
+                Err(_) => {
+                    let _ = tokio::io::AsyncWriteExt::shutdown(&mut remote).await;
+                }
+            }
+        });
+        Ok(())
+    }
+
+    // Channels Termalith never requests. russh accepts these by default;
+    // a client must not.
+    async fn server_channel_open_session(
+        &mut self,
+        _channel: Channel<Msg>,
+        reply: russh::client::ChannelOpenHandle,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        refuse(reply).await;
+        Ok(())
+    }
+
+    async fn server_channel_open_direct_tcpip(
+        &mut self,
+        _channel: Channel<Msg>,
+        _host_to_connect: &str,
+        _port_to_connect: u32,
+        _originator_address: &str,
+        _originator_port: u32,
+        reply: russh::client::ChannelOpenHandle,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        refuse(reply).await;
+        Ok(())
+    }
+
+    async fn server_channel_open_direct_streamlocal(
+        &mut self,
+        _channel: Channel<Msg>,
+        _socket_path: &str,
+        reply: russh::client::ChannelOpenHandle,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        refuse(reply).await;
+        Ok(())
+    }
+
+    async fn server_channel_open_forwarded_streamlocal(
+        &mut self,
+        _channel: Channel<Msg>,
+        _socket_path: &str,
+        reply: russh::client::ChannelOpenHandle,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        refuse(reply).await;
+        Ok(())
+    }
+
+    async fn server_channel_open_x11(
+        &mut self,
+        _channel: Channel<Msg>,
+        _originator_address: &str,
+        _originator_port: u32,
+        reply: russh::client::ChannelOpenHandle,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        refuse(reply).await;
+        Ok(())
+    }
+
     async fn check_server_key(
         &mut self,
         presented: &PublicKeyOrCertificate,
@@ -196,6 +296,7 @@ pub struct SshSession {
     /// long as this session exists.
     _via: Option<Arc<SshSession>>,
     remote_forwards: RemoteForwards,
+    agent_forward: bool,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -263,6 +364,7 @@ impl SshSession {
             decider: Arc::clone(&opts.decider),
             refusal: Arc::clone(&refusal),
             remote_forwards: Arc::clone(&remote_forwards),
+            agent_forward: opts.agent_forward.clone(),
         };
         let connected = match &via {
             None => client::connect(config, (target.host.as_str(), target.port), handler).await,
@@ -348,6 +450,7 @@ impl SshSession {
             handle,
             _via: via,
             remote_forwards,
+            agent_forward: opts.agent_forward.is_some(),
         })
     }
 
@@ -398,6 +501,9 @@ impl SshSession {
     /// Runs a command and collects its output (bounded).
     pub async fn exec(&self, command: &str) -> Result<ExecOutput, SshError> {
         let mut ch = self.handle.channel_open_session().await?;
+        if self.agent_forward {
+            let _ = ch.agent_forward(false).await;
+        }
         ch.exec(true, command).await?;
         let mut out = ExecOutput::default();
         while let Some(msg) = ch.wait().await {
@@ -418,6 +524,10 @@ impl SshSession {
         let ch = self.handle.channel_open_session().await?;
         ch.request_pty(true, "xterm-256color", cols, rows, 0, 0, &[])
             .await?;
+        if self.agent_forward {
+            // Best effort: a server that disallows forwarding still gets a shell.
+            let _ = ch.agent_forward(false).await;
+        }
         ch.request_shell(true).await?;
         let (reader, writer) = ch.split();
         Ok(ShellChannel {
@@ -476,6 +586,19 @@ mod agent {
 
     use super::ClientHandler;
     use crate::SshError;
+
+    /// A raw byte stream to the local agent, for forwarding.
+    #[cfg(unix)]
+    pub(super) async fn connect_raw(socket: &Path) -> std::io::Result<tokio::net::UnixStream> {
+        tokio::net::UnixStream::connect(socket).await
+    }
+
+    #[cfg(windows)]
+    pub(super) async fn connect_raw(
+        socket: &Path,
+    ) -> std::io::Result<tokio::net::windows::named_pipe::NamedPipeClient> {
+        tokio::net::windows::named_pipe::ClientOptions::new().open(socket)
+    }
 
     /// Tries each identity the agent offers until one is accepted.
     pub(super) async fn authenticate(

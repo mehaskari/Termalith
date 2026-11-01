@@ -289,6 +289,8 @@ export interface Settings {
   rightClickPaste: boolean;
   /** Reconnect SSH tabs whose connection was lost (not on `exit`). */
   autoReconnect: boolean;
+  /** Terminal color scheme id (see TERMINAL_SCHEMES); "app" follows the app theme. */
+  terminalScheme: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -303,6 +305,7 @@ export const DEFAULT_SETTINGS: Settings = {
   copyOnSelect: false,
   rightClickPaste: false,
   autoReconnect: true,
+  terminalScheme: "app",
 };
 
 export const getSettings = () => invoke<Settings>("settings_get");

@@ -44,6 +44,8 @@ pub struct Settings {
     pub right_click_paste: bool,
     /// Reconnect SSH tabs whose connection was lost.
     pub auto_reconnect: bool,
+    /// Terminal color scheme id; "app" follows the app theme.
+    pub terminal_scheme: String,
 }
 
 impl Default for Settings {
@@ -60,6 +62,7 @@ impl Default for Settings {
             copy_on_select: false,
             right_click_paste: false,
             auto_reconnect: true,
+            terminal_scheme: "app".into(),
         }
     }
 }
@@ -80,6 +83,15 @@ impl Settings {
             && (s.is_empty() || s.chars().count() > 1024 || s.chars().any(char::is_control))
         {
             return Err(AppError::invalid("default shell", "not a valid shell id"));
+        }
+        if self.terminal_scheme.is_empty()
+            || self.terminal_scheme.len() > 40
+            || !self
+                .terminal_scheme
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        {
+            return Err(AppError::invalid("terminal colors", "unknown scheme"));
         }
         if !(100..=100_000).contains(&self.scrollback) {
             return Err(AppError::invalid("scrollback", "must be 100-100000 lines"));

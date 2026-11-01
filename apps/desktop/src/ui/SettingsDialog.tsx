@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { type Settings, type ShellChoice, isIpcError } from "../terminal/api";
 import { Dialog } from "./Dialog";
+import { TERMINAL_SCHEMES } from "./theme";
 
 interface Props {
   initial: Settings;
@@ -43,6 +44,16 @@ export function SettingsDialog({ initial, shells, onSave, onCancel }: Props) {
       }
     >
       <form id="settings-form" className="form-grid" onSubmit={submit}>
+        <label className="span-2">
+          Terminal colors
+          <select value={s.terminalScheme} onChange={(e) => set({ terminalScheme: e.target.value })}>
+            {TERMINAL_SCHEMES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           Theme
           <select value={s.theme} onChange={(e) => set({ theme: e.target.value as Settings["theme"] })}>

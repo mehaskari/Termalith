@@ -33,7 +33,9 @@ pub use mobaxterm::{import_mobaxterm, is_mobaxterm, parse_mobaxterm};
 pub use sessions::{
     AuthMethod, SessionId, SessionInput, SessionProtocol, SessionRecord, SessionStore,
 };
-pub use settings::{CursorStyle, Settings, Theme, export_sessions, import_sessions};
+pub use settings::{
+    CursorStyle, ProxySetting, ProxyType, Settings, Theme, export_sessions, import_sessions,
+};
 pub use snippets::{MAX_SNIPPET_LEN, Snippet, SnippetInput};
 pub use ssh_config::{
     IMPORT_FOLDER, ImportCandidate, ImportReport, import_candidates, parse_ssh_config,

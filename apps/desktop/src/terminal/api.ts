@@ -291,6 +291,8 @@ export interface Settings {
   autoReconnect: boolean;
   /** Terminal color scheme id (see TERMINAL_SCHEMES); "app" follows the app theme. */
   terminalScheme: string;
+  /** Proxy for outgoing SSH/Telnet connections (first hop only). */
+  proxy: { kind: "socks5" | "http"; host: string; port: number } | null;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -306,6 +308,7 @@ export const DEFAULT_SETTINGS: Settings = {
   rightClickPaste: false,
   autoReconnect: true,
   terminalScheme: "app",
+  proxy: null,
 };
 
 export const getSettings = () => invoke<Settings>("settings_get");

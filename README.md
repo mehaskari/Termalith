@@ -71,6 +71,7 @@ corepack pnpm test
 - "Open all" on a session folder (prompts for passwords, host keys and codes are queued one at a time).
 - Saved sessions with folders, favorites, tags and search (`#tag` filters by tag); quick connect.
 - Password, private-key, passphrase and ssh-agent authentication; keyboard-interactive for PAM servers and second factors (one-time codes are asked in a dialog); optional saving to the OS keychain (only after a successful login).
+- Outgoing SOCKS5 or HTTP CONNECT proxy for SSH and Telnet (Settings; first hop only).
 - Jump hosts (ProxyJump) through another saved session; each hop's host key is verified.
 - Automatic reconnect when an SSH connection drops (not after `exit`), with a visible countdown and Cancel; can be turned off in Settings.
 - SSH keys: list the key pairs in ~/.ssh with fingerprints, generate Ed25519 keys (optionally passphrase-protected), copy a public key, and install it in authorized_keys on a connected server (folder 0700, file 0600, never duplicated).

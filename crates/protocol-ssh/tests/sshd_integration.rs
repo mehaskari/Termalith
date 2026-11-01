@@ -1404,3 +1404,50 @@ print("reply:" + s.recv(100).decode())
 fn protocol_ssh_hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
+
+/// SSH through a SOCKS5 proxy (a minimal relay that records the target).
+#[tokio::test(flavor = "multi_thread")]
+async fn connects_through_a_socks5_proxy() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let s = sshd_or_skip!(SshdConfig::default());
+    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let proxy_port = l.local_addr().unwrap().port();
+    let relay = tokio::spawn(async move {
+        let (mut c, _) = l.accept().await.unwrap();
+        let mut g = [0u8; 3];
+        c.read_exact(&mut g).await.unwrap();
+        c.write_all(&[5, 0]).await.unwrap();
+        let mut h = [0u8; 5];
+        c.read_exact(&mut h).await.unwrap();
+        let mut rest = vec![0u8; usize::from(h[4]) + 2];
+        c.read_exact(&mut rest).await.unwrap();
+        let name = String::from_utf8_lossy(&rest[..rest.len() - 2]).to_string();
+        let port = u16::from_be_bytes([rest[rest.len() - 2], rest[rest.len() - 1]]);
+        c.write_all(&[5, 0, 0, 1, 127, 0, 0, 1, 0, 0])
+            .await
+            .unwrap();
+        let mut up = tokio::net::TcpStream::connect((name.as_str(), port))
+            .await
+            .unwrap();
+        let _ = tokio::io::copy_bidirectional(&mut c, &mut up).await;
+        (name, port)
+    });
+    let kh = known_hosts(&s);
+    kh.add("127.0.0.1", s.port, &host_key(&s)).unwrap();
+    let mut o = opts(kh, Arc::new(RejectUnknown));
+    o.proxy = Some(protocol_ssh::Proxy {
+        kind: protocol_ssh::ProxyKind::Socks5,
+        host: "127.0.0.1".into(),
+        port: proxy_port,
+    });
+    let sess = SshSession::connect(&target(&s), &key_auth(&s), &o)
+        .await
+        .unwrap();
+    assert_eq!(
+        sess.exec("printf via-proxy").await.unwrap().stdout,
+        b"via-proxy"
+    );
+    sess.disconnect().await.unwrap();
+    let (name, port) = relay.await.unwrap();
+    assert_eq!((name.as_str(), port), ("127.0.0.1", s.port));
+}

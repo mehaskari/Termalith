@@ -78,6 +78,9 @@ pub struct ConnectOptions {
     pub agent_forward: Option<PathBuf>,
     /// Forward X11 to this local display (`ssh -X`).
     pub x11: Option<X11Forward>,
+    /// Reach the server through this proxy (direct connections only; a
+    /// jump host's tunnel does not use it).
+    pub proxy: Option<crate::Proxy>,
 }
 
 impl ConnectOptions {
@@ -90,6 +93,7 @@ impl ConnectOptions {
             kbd: None,
             agent_forward: None,
             x11: None,
+            proxy: None,
         }
     }
 }
@@ -387,7 +391,13 @@ impl SshSession {
             x11: x11_state.clone(),
         };
         let connected = match &via {
-            None => client::connect(config, (target.host.as_str(), target.port), handler).await,
+            None => match &opts.proxy {
+                None => client::connect(config, (target.host.as_str(), target.port), handler).await,
+                Some(p) => {
+                    let stream = crate::proxy::connect(p, &target.host, target.port).await?;
+                    client::connect_stream(config, stream, handler).await
+                }
+            },
             Some(jump) => {
                 let channel = jump
                     .handle

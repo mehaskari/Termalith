@@ -60,6 +60,7 @@ async fn telnet_negotiates_types_and_resizes() {
             "127.0.0.1",
             port,
             None,
+            None,
             TerminalSize::new(80, 24).unwrap(),
             move |ev: TerminalEvent| tx.send(ev).is_ok(),
         )
@@ -106,6 +107,7 @@ async fn telnet_connection_refused_is_an_error() {
         .open_telnet(
             "127.0.0.1",
             port,
+            None,
             None,
             TerminalSize::new(80, 24).unwrap(),
             |_ev: TerminalEvent| true,

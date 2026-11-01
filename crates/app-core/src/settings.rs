@@ -24,6 +24,35 @@ pub enum CursorStyle {
     Underline,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ProxyType {
+    Socks5,
+    Http,
+}
+
+/// Proxy for outgoing SSH and Telnet connections (first hop only).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProxySetting {
+    pub kind: ProxyType,
+    pub host: String,
+    pub port: u16,
+}
+
+impl ProxySetting {
+    pub fn to_proxy(&self) -> protocol_ssh::Proxy {
+        protocol_ssh::Proxy {
+            kind: match self.kind {
+                ProxyType::Socks5 => protocol_ssh::ProxyKind::Socks5,
+                ProxyType::Http => protocol_ssh::ProxyKind::HttpConnect,
+            },
+            host: self.host.trim().to_owned(),
+            port: self.port,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
@@ -46,6 +75,8 @@ pub struct Settings {
     pub auto_reconnect: bool,
     /// Terminal color scheme id; "app" follows the app theme.
     pub terminal_scheme: String,
+    /// Proxy for outgoing connections; `None` connects directly.
+    pub proxy: Option<ProxySetting>,
 }
 
 impl Default for Settings {
@@ -63,6 +94,7 @@ impl Default for Settings {
             right_click_paste: false,
             auto_reconnect: true,
             terminal_scheme: "app".into(),
+            proxy: None,
         }
     }
 }
@@ -92,6 +124,17 @@ impl Settings {
                 .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
         {
             return Err(AppError::invalid("terminal colors", "unknown scheme"));
+        }
+        if let Some(p) = &self.proxy {
+            let h = p.host.trim();
+            if h.is_empty()
+                || h.len() > 253
+                || h.starts_with('-')
+                || h.chars().any(|c| c.is_whitespace() || c.is_control())
+                || p.port == 0
+            {
+                return Err(AppError::invalid("proxy", "enter a host and a port"));
+            }
         }
         if !(100..=100_000).contains(&self.scrollback) {
             return Err(AppError::invalid("scrollback", "must be 100-100000 lines"));
@@ -319,6 +362,20 @@ mod tests {
         custom.font_size = 15;
         custom.scrollback = 10;
         assert!(s.save_settings(&custom).is_err());
+        custom.scrollback = 5000;
+        custom.proxy = Some(ProxySetting {
+            kind: ProxyType::Socks5,
+            host: "".into(),
+            port: 1080,
+        });
+        assert!(s.save_settings(&custom).is_err(), "proxy needs a host");
+        custom.proxy = Some(ProxySetting {
+            kind: ProxyType::Http,
+            host: "proxy.corp".into(),
+            port: 3128,
+        });
+        s.save_settings(&custom).unwrap();
+        assert_eq!(s.settings().unwrap().proxy, custom.proxy);
         // Partial JSON (older version) fills defaults.
         let parsed: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
         assert_eq!(parsed.font_size, 13);

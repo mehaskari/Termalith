@@ -25,7 +25,30 @@ enum Entry {
     Local(TerminalId),
     Ssh(Arc<SshTerminal>),
     Serial(Arc<SerialTerminal>),
+    Telnet(Arc<TelnetTerminal>),
 }
+
+struct TelnetTerminal {
+    writer: tokio::sync::Mutex<tokio::net::tcp::OwnedWriteHalf>,
+    codec: Arc<Mutex<protocol_telnet::Telnet>>,
+    gate: Arc<AsyncGate>,
+    cancel: CancellationToken,
+}
+
+impl TelnetTerminal {
+    async fn send(&self, bytes: &[u8]) -> Result<(), AppError> {
+        use tokio::io::AsyncWriteExt;
+        self.writer
+            .lock()
+            .await
+            .write_all(bytes)
+            .await
+            .map_err(|e| AppError::Network(e.to_string()))
+    }
+}
+
+/// How long a Telnet TCP connect may take.
+const TELNET_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 
 struct SerialTerminal {
     writer: Mutex<serial_console::SerialWriter>,
@@ -143,7 +166,7 @@ impl TerminalHub {
     ) -> Result<u64, AppError> {
         let conn = match self.target(id)? {
             Target::Ssh(t) => Arc::clone(&t.conn),
-            Target::Local(_) | Target::Serial(_) => {
+            Target::Local(_) | Target::Serial(_) | Target::Telnet(_) => {
                 return Err(AppError::invalid("terminal", "not an SSH terminal"));
             }
         };
@@ -224,7 +247,7 @@ impl TerminalHub {
     pub fn ssh_session(&self, id: u64) -> Result<Arc<SshSession>, AppError> {
         match self.target(id)? {
             Target::Ssh(t) => Ok(Arc::clone(&t.conn.session)),
-            Target::Local(_) | Target::Serial(_) => {
+            Target::Local(_) | Target::Serial(_) | Target::Telnet(_) => {
                 Err(AppError::invalid("terminal", "not an SSH terminal"))
             }
         }
@@ -232,6 +255,78 @@ impl TerminalHub {
 
     /// Opens a serial console. Blocking (opens the device); call off the UI
     /// thread. The terminal ends when closed or when the device goes away.
+    /// Opens a Telnet connection (unencrypted) to `host:port`.
+    pub async fn open_telnet(
+        &self,
+        host: &str,
+        port: u16,
+        size: TerminalSize,
+        mut sink: impl TerminalEventSink,
+    ) -> Result<u64, AppError> {
+        use tokio::io::AsyncReadExt;
+        let tcp = tokio::time::timeout(
+            TELNET_CONNECT_TIMEOUT,
+            tokio::net::TcpStream::connect((host, port)),
+        )
+        .await
+        .map_err(|_| AppError::Network(format!("{host}:{port} did not answer")))?
+        .map_err(|e| AppError::Network(format!("{host}:{port}: {e}")))?;
+        let _ = tcp.set_nodelay(true);
+        let (mut reader, writer) = tcp.into_split();
+        let codec = Arc::new(Mutex::new(protocol_telnet::Telnet::new(
+            size.cols(),
+            size.rows(),
+        )));
+        let id = self.alloc();
+        let gate = Arc::new(AsyncGate::default());
+        let cancel = CancellationToken::new();
+        let term = Arc::new(TelnetTerminal {
+            writer: tokio::sync::Mutex::new(writer),
+            codec: Arc::clone(&codec),
+            gate: Arc::clone(&gate),
+            cancel: cancel.clone(),
+        });
+        self.lock().insert(id, Entry::Telnet(Arc::clone(&term)));
+        let entries = Arc::downgrade(&self.entries);
+        tokio::spawn(async move {
+            let mut buf = vec![0u8; 16 * 1024];
+            let mut receiver_alive = true;
+            loop {
+                if !gate.wait_below(FLOW_HIGH_WATERMARK, &cancel).await {
+                    break;
+                }
+                let n = tokio::select! {
+                    () = cancel.cancelled() => break,
+                    r = reader.read(&mut buf) => match r {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => n,
+                    },
+                };
+                let decoded = codec
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .decode(&buf[..n]);
+                if !decoded.reply.is_empty() && term.send(&decoded.reply).await.is_err() {
+                    break;
+                }
+                if !decoded.data.is_empty() {
+                    gate.add(decoded.data.len());
+                    if !sink.emit(TerminalEvent::Output(decoded.data)) {
+                        receiver_alive = false;
+                        break;
+                    }
+                }
+            }
+            if receiver_alive {
+                let _ = sink.emit(TerminalEvent::Exited(None));
+            }
+            if let Some(e) = entries.upgrade() {
+                e.lock().unwrap_or_else(|p| p.into_inner()).remove(&id);
+            }
+        });
+        Ok(id)
+    }
+
     pub fn open_serial(
         &self,
         cfg: &serial_console::SerialConfig,
@@ -299,7 +394,7 @@ impl TerminalHub {
     pub fn connection_users(&self, id: u64) -> Result<usize, AppError> {
         match self.target(id)? {
             Target::Ssh(t) => Ok(t.conn.users.load(Ordering::SeqCst)),
-            Target::Local(_) | Target::Serial(_) => {
+            Target::Local(_) | Target::Serial(_) | Target::Telnet(_) => {
                 Err(AppError::invalid("terminal", "not an SSH terminal"))
             }
         }
@@ -330,6 +425,7 @@ impl TerminalHub {
                 })
                 .await
             }
+            Target::Telnet(t) => t.send(&protocol_telnet::Telnet::encode(data)).await,
         }
     }
 
@@ -342,6 +438,17 @@ impl TerminalHub {
                 .await?),
             // A serial line has no window size.
             Target::Serial(_) => Ok(()),
+            Target::Telnet(t) => {
+                let update = t
+                    .codec
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .resize(size.cols(), size.rows());
+                match update {
+                    Some(bytes) => t.send(&bytes).await,
+                    None => Ok(()),
+                }
+            }
         }
     }
 
@@ -350,7 +457,7 @@ impl TerminalHub {
     pub async fn sftp(&self, id: u64) -> Result<Arc<SftpClient>, AppError> {
         let t = match self.target(id)? {
             Target::Ssh(t) => t,
-            Target::Local(_) | Target::Serial(_) => {
+            Target::Local(_) | Target::Serial(_) | Target::Telnet(_) => {
                 return Err(AppError::invalid("terminal", "not an SSH terminal"));
             }
         };
@@ -371,6 +478,10 @@ impl TerminalHub {
                 Ok(())
             }
             Target::Serial(t) => {
+                t.gate.ack(bytes);
+                Ok(())
+            }
+            Target::Telnet(t) => {
                 t.gate.ack(bytes);
                 Ok(())
             }
@@ -400,6 +511,13 @@ impl TerminalHub {
                 t.gate.close();
                 Ok(())
             }
+            Entry::Telnet(t) => {
+                use tokio::io::AsyncWriteExt;
+                t.cancel.cancel();
+                t.gate.close();
+                let _ = t.writer.lock().await.shutdown().await;
+                Ok(())
+            }
         }
     }
 
@@ -413,6 +531,10 @@ impl TerminalHub {
                     t.gate.close();
                 }
                 Entry::Serial(t) => {
+                    t.cancel.cancel();
+                    t.gate.close();
+                }
+                Entry::Telnet(t) => {
                     t.cancel.cancel();
                     t.gate.close();
                 }
@@ -435,6 +557,7 @@ impl TerminalHub {
             Some(Entry::Local(l)) => Ok(Target::Local(*l)),
             Some(Entry::Ssh(t)) => Ok(Target::Ssh(Arc::clone(t))),
             Some(Entry::Serial(t)) => Ok(Target::Serial(Arc::clone(t))),
+            Some(Entry::Telnet(t)) => Ok(Target::Telnet(Arc::clone(t))),
             None => Err(AppError::NotFound),
         }
     }
@@ -444,6 +567,7 @@ enum Target {
     Local(TerminalId),
     Ssh(Arc<SshTerminal>),
     Serial(Arc<SerialTerminal>),
+    Telnet(Arc<TelnetTerminal>),
 }
 
 async fn blocking<T: Send + 'static>(

@@ -5,6 +5,7 @@ fn main() {
         tauri_build::AppManifest::new().commands(&[
             "terminal_open",
             "terminal_shells",
+            "telnet_open",
             "terminal_write",
             "terminal_resize",
             "terminal_ack",

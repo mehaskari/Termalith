@@ -92,6 +92,7 @@ dependencies = [
  "getrandom 0.3.4",
  "nix 0.28.0",
  "protocol-ssh",
+ "protocol-telnet",
  "remote-desktop",
  "rusqlite",
  "serde",
@@ -3722,6 +3723,10 @@ dependencies = [
  "tokio-util",
  "zeroize",
 ]
+
+[[package]]
+name = "protocol-telnet"
+version = "0.0.0"
 
 [[package]]
 name = "quick-xml"

@@ -35,6 +35,9 @@ pub enum AppError {
 
     #[error(transparent)]
     Desktop(#[from] remote_desktop::DesktopError),
+
+    #[error("could not connect: {0}")]
+    Network(String),
 }
 
 impl From<rusqlite::Error> for AppError {

@@ -50,6 +50,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             terminal::terminal_open,
             terminal::terminal_shells,
+            terminal::telnet_open,
             terminal::terminal_write,
             terminal::terminal_resize,
             terminal::terminal_ack,

@@ -37,11 +37,12 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
   const set = (patch: Partial<SessionFormState>) => setForm((f) => ({ ...f, ...patch }));
   const invalid = (field: string) => (error?.field === field ? true : undefined);
   const [clients, setClients] = useState<DesktopClients | null>(null);
-  const desktop = form.protocol !== "ssh";
+  const ssh = form.protocol === "ssh";
+  const desktop = form.protocol === "rdp" || form.protocol === "vnc";
   useEffect(() => {
     if (desktop && !clients) desktopClients().then(setClients, () => {});
   }, [desktop, clients]);
-  const client = form.protocol === "ssh" || !clients ? undefined : clients[form.protocol];
+  const client = !desktop || !clients ? undefined : clients[form.protocol as "rdp" | "vnc"];
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -85,14 +86,21 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
               <option value="ssh">SSH terminal</option>
               <option value="rdp">RDP remote desktop</option>
               <option value="vnc">VNC remote desktop</option>
+              <option value="telnet">Telnet (unencrypted)</option>
             </select>
           </label>
         )}
-        {desktop && clients && form.protocol !== "ssh" && (
+        {desktop && clients && (
           <p className="hint span-2">
             {client
               ? `Opens in ${client.name} (external window).${client.asksPasswordFirst ? " You will be asked for the password when connecting; it is not saved." : " The client asks for credentials itself."}`
-              : INSTALL_HINT[form.protocol]}
+              : INSTALL_HINT[form.protocol as "rdp" | "vnc"]}
+          </p>
+        )}
+        {form.protocol === "telnet" && (
+          <p className="pane-warning span-2">
+            Telnet is not encrypted: everything you type, including passwords, can be read on the network.
+            Use it only for devices that offer nothing else.
           </p>
         )}
         {mode !== "quick" && (
@@ -128,7 +136,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
           />
         </label>
         <label>
-          {desktop ? "Username (optional)" : "Username"}
+          {ssh ? "Username" : "Username (optional)"}
           <input
             value={form.username}
             spellCheck={false}
@@ -149,7 +157,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
             />
           </label>
         )}
-        {!desktop && (
+        {ssh && (
           <label>
             Authentication
             <select
@@ -162,7 +170,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
             </select>
           </label>
         )}
-        {!desktop && form.authKind === "keyFile" && (
+        {ssh && form.authKind === "keyFile" && (
           <label className="span-2">
             Private key file
             <input
@@ -175,7 +183,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
             />
           </label>
         )}
-        {mode !== "quick" && (
+        {mode !== "quick" && form.protocol !== "telnet" && (
           <label className="span-2">
             {desktop ? "Tunnel through (SSH session)" : "Connect via (jump host)"}
             <select value={form.jumpVia} onChange={(e) => set({ jumpVia: e.target.value })}>
@@ -190,7 +198,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
             </select>
           </label>
         )}
-        {mode !== "quick" && !desktop && (
+        {mode !== "quick" && ssh && (
           <label className="span-2">
             Run after login
             <input
@@ -203,7 +211,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
             />
           </label>
         )}
-        {mode !== "quick" && !desktop && (
+        {mode !== "quick" && ssh && (
           <label className="checkbox span-2">
             <input
               type="checkbox"
@@ -213,19 +221,19 @@ export function SessionDialog({ mode, initial, editingId, sessions, onSubmit, on
             Forward my SSH agent to this host
           </label>
         )}
-        {mode !== "quick" && !desktop && (
+        {mode !== "quick" && ssh && (
           <label className="checkbox span-2">
             <input type="checkbox" checked={form.x11Forward} onChange={(e) => set({ x11Forward: e.target.checked })} />
             Forward X11 (show the server&apos;s graphical programs here)
           </label>
         )}
-        {mode !== "quick" && !desktop && form.x11Forward && (
+        {mode !== "quick" && ssh && form.x11Forward && (
           <p className="hint span-2">
             Needs a local X server: XQuartz on macOS, VcXsrv or Xming on Windows. Programs on the server can
             then open windows on your screen.
           </p>
         )}
-        {mode !== "quick" && !desktop && form.forwardAgent && (
+        {mode !== "quick" && ssh && form.forwardAgent && (
           <p className="hint span-2">
             Only for hosts you trust: while connected, anyone with root access on the server can use your
             agent&apos;s keys (they cannot copy them). Not applied to the jump host.

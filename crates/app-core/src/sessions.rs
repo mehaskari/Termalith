@@ -63,6 +63,8 @@ pub enum SessionProtocol {
     /// Remote desktop through an external client.
     Rdp,
     Vnc,
+    /// Unencrypted Telnet (legacy network gear).
+    Telnet,
 }
 
 impl SessionProtocol {
@@ -71,6 +73,7 @@ impl SessionProtocol {
             SessionProtocol::Ssh => "ssh",
             SessionProtocol::Rdp => "rdp",
             SessionProtocol::Vnc => "vnc",
+            SessionProtocol::Telnet => "telnet",
         }
     }
 
@@ -79,6 +82,7 @@ impl SessionProtocol {
             "ssh" => SessionProtocol::Ssh,
             "rdp" => SessionProtocol::Rdp,
             "vnc" => SessionProtocol::Vnc,
+            "telnet" => SessionProtocol::Telnet,
             _ => return None,
         })
     }
@@ -176,6 +180,12 @@ impl SessionInput {
         }
         // Remote desktop clients ask for the user name themselves if it is
         // left empty; SSH needs one.
+        if self.protocol == SessionProtocol::Telnet && self.jump_via.is_some() {
+            return Err(AppError::invalid(
+                "jump host",
+                "Telnet sessions connect directly",
+            ));
+        }
         if self.protocol == SessionProtocol::Ssh || !self.username.is_empty() {
             validate_text("username", &self.username, 128)?;
         }
@@ -191,7 +201,7 @@ impl SessionInput {
         if self.protocol != SessionProtocol::Ssh && self.auth != AuthMethod::Password {
             return Err(AppError::invalid(
                 "authentication",
-                "remote desktop sessions use the client's own login",
+                "only SSH sessions use keys or the agent",
             ));
         }
         if normalize_tags(&self.tags).len() > MAX_TAGS {
@@ -319,6 +329,37 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE sessions ADD COLUMN x11_forward INTEGER NOT NULL DEFAULT 0;",
     // v10: startup command.
     "ALTER TABLE sessions ADD COLUMN startup_command TEXT;",
+    // v11: Telnet sessions. The protocol CHECK constraint cannot be altered,
+    // so the table is rebuilt (foreign keys are off during migrations, so
+    // dropping the old table does not clear jump links).
+    "CREATE TABLE sessions_v11 (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        host TEXT NOT NULL,
+        port INTEGER NOT NULL CHECK (port BETWEEN 1 AND 65535),
+        username TEXT NOT NULL,
+        auth_kind TEXT NOT NULL CHECK (auth_kind IN ('password', 'key_file', 'agent')),
+        key_path TEXT,
+        credential_ref TEXT,
+        folder TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        jump_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+        favorite INTEGER NOT NULL DEFAULT 0,
+        protocol TEXT NOT NULL DEFAULT 'ssh'
+            CHECK (protocol IN ('ssh', 'rdp', 'vnc', 'telnet')),
+        domain TEXT,
+        tags TEXT NOT NULL DEFAULT '[]',
+        forward_agent INTEGER NOT NULL DEFAULT 0,
+        x11_forward INTEGER NOT NULL DEFAULT 0,
+        startup_command TEXT
+    );
+    INSERT INTO sessions_v11 SELECT id, name, host, port, username, auth_kind, key_path,
+        credential_ref, folder, created_at, updated_at, jump_session_id, favorite, protocol,
+        domain, tags, forward_agent, x11_forward, startup_command FROM sessions;
+    DROP TABLE sessions;
+    ALTER TABLE sessions_v11 RENAME TO sessions;
+    CREATE INDEX sessions_name ON sessions (name COLLATE NOCASE);",
 ];
 
 pub struct SessionStore {
@@ -333,7 +374,9 @@ fn now() -> i64 {
 }
 
 fn migrate(conn: &mut Connection) -> Result<(), AppError> {
-    conn.pragma_update(None, "foreign_keys", true)?;
+    // Table rebuilds must not trigger ON DELETE actions (SQLite's documented
+    // procedure); integrity is checked before foreign keys are turned on.
+    conn.pragma_update(None, "foreign_keys", false)?;
     let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
     let target = MIGRATIONS.len() as i64;
     if version > target {
@@ -347,6 +390,15 @@ fn migrate(conn: &mut Connection) -> Result<(), AppError> {
         tx.pragma_update(None, "user_version", (i + 1) as i64)?;
         tx.commit()?;
     }
+    let broken: i64 = conn.query_row("SELECT count(*) FROM pragma_foreign_key_check", [], |r| {
+        r.get(0)
+    })?;
+    if broken > 0 {
+        return Err(AppError::Db(format!(
+            "{broken} broken references after migration"
+        )));
+    }
+    conn.pragma_update(None, "foreign_keys", true)?;
     Ok(())
 }
 
@@ -896,6 +948,54 @@ mod tests {
         assert!(c.validate().is_err(), "one line only");
         s.protocol = SessionProtocol::Vnc;
         assert!(s.validate().is_err());
+    }
+
+    #[test]
+    fn telnet_sessions_and_v10_migration_keep_jump_links() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("db.sqlite");
+        let (bastion, app) = {
+            let mut conn = Connection::open(&path).unwrap();
+            for sql in &MIGRATIONS[..10] {
+                conn.execute_batch(sql).unwrap();
+            }
+            conn.pragma_update(None, "user_version", 10).unwrap();
+            let tx = conn.transaction().unwrap();
+            tx.execute_batch(
+                "INSERT INTO sessions (id, name, host, port, username, auth_kind, created_at, updated_at)
+                 VALUES ('ses-a', 'bastion', 'b', 22, 'u', 'password', 0, 0);
+                 INSERT INTO sessions (id, name, host, port, username, auth_kind, created_at, updated_at, jump_session_id, tags)
+                 VALUES ('ses-b', 'app', 'a', 22, 'u', 'agent', 0, 0, 'ses-a', '[\"x\"]');",
+            )
+            .unwrap();
+            tx.commit().unwrap();
+            ("ses-a", "ses-b")
+        };
+        let store = SessionStore::open(&path).unwrap();
+        let all = store.list().unwrap();
+        let a = all.iter().find(|s| s.id.as_str() == app).unwrap();
+        assert_eq!(
+            a.input.jump_via.as_ref().map(SessionId::as_str),
+            Some(bastion)
+        );
+        assert_eq!(a.input.tags, ["x"]);
+        assert_eq!(a.input.auth, AuthMethod::Agent);
+
+        let mut t = input();
+        t.name = "switch".into();
+        t.protocol = SessionProtocol::Telnet;
+        t.port = 23;
+        t.username = String::new();
+        let rec = store.create(&t).unwrap();
+        assert_eq!(
+            store.get(&rec.id).unwrap().input.protocol,
+            SessionProtocol::Telnet
+        );
+        t.jump_via = Some(a.id.clone());
+        assert!(t.validate().is_err(), "telnet connects directly");
+        // Foreign keys are enforced again after migrating.
+        store.delete(&SessionId(bastion.into())).unwrap();
+        assert!(store.get(&a.id).unwrap().input.jump_via.is_none());
     }
 
     #[test]

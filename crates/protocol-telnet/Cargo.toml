@@ -1,0 +1,11 @@
+[package]
+name = "protocol-telnet"
+description = "Telnet option negotiation (RFC 854/855 with ECHO, SGA, NAWS, TTYPE). Pure codec, no I/O."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true

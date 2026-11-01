@@ -39,6 +39,7 @@ import {
   startLog,
   stopLog,
   closeDesktop,
+  telnetTerminal,
   type ShellChoice,
   listShells,
   localTerminal,
@@ -72,7 +73,7 @@ import { isDesktop, targetLabel } from "./ui/sessionList";
 interface Tab {
   key: number;
   title: string;
-  kind: "local" | "ssh" | "serial" | "tools" | "desktop" | "editor";
+  kind: "local" | "ssh" | "serial" | "tools" | "desktop" | "editor" | "telnet";
   open: Opener;
   terminalId?: TerminalId;
   /** Connection over (failed, or the remote shell exited). */
@@ -350,6 +351,11 @@ export function App() {
 
   const connectSaved = useCallback(
     (s: SessionRecord) => {
+      if (s.protocol === "telnet") {
+        const key = addTab(s.name, "telnet", telnetTerminal(s.id));
+        patchTab(key, { sessionId: s.id, reconnect: () => connectSaved(s) });
+        return;
+      }
       if (isDesktop(s)) {
         const key = addTab(s.name, "desktop", openLocalTerminal);
         patchTab(key, { sessionId: s.id });
@@ -786,7 +792,7 @@ export function App() {
                       type="button"
                       title="Split side by side"
                       aria-label="Split side by side"
-                      disabled={t.terminalId === undefined || t.ended || t.kind === "serial"}
+                      disabled={t.terminalId === undefined || t.ended || t.kind === "serial" || t.kind === "telnet"}
                       onClick={() => splitTab(t, "row")}
                     >
                       ◫
@@ -795,7 +801,7 @@ export function App() {
                       type="button"
                       title="Split top and bottom"
                       aria-label="Split top and bottom"
-                      disabled={t.terminalId === undefined || t.ended || t.kind === "serial"}
+                      disabled={t.terminalId === undefined || t.ended || t.kind === "serial" || t.kind === "telnet"}
                       onClick={() => splitTab(t, "column")}
                     >
                       ⊟

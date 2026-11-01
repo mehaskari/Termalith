@@ -1130,9 +1130,15 @@ async fn file_browser_without_a_shell_and_a_shell_on_its_connection() {
         .await
         .unwrap();
     assert_eq!(r.hub.connection_users(files).unwrap(), 2);
-    r.hub.write(shell, b"echo files-$((40+2))\r").await.unwrap();
+    // Output the shell computes (not just the echoed input).
+    let (cmd, expect): (&[u8], &str) = if cfg!(windows) {
+        (b"set /a 6*7+1000\r", "1042")
+    } else {
+        (b"echo files-$((40+2))\r", "files-42")
+    };
+    r.hub.write(shell, cmd).await.unwrap();
     let deadline = Instant::now() + Duration::from_secs(10);
-    while !String::from_utf8_lossy(&out.0.lock().unwrap()).contains("files-42") {
+    while !String::from_utf8_lossy(&out.0.lock().unwrap()).contains(expect) {
         assert!(Instant::now() < deadline, "no shell output");
         tokio::time::sleep(Duration::from_millis(20)).await;
     }

@@ -144,6 +144,12 @@ mockIPC(
         }
         return { created, skipped: [], unresolvedJumps: [] };
       }
+      case "open_web_link":
+        (window as unknown as Record<string, unknown>).__openedLinks = [
+          ...(((window as unknown as Record<string, unknown>).__openedLinks as string[]) ?? []),
+          String(a.url),
+        ];
+        return null;
       case "terminal_save_output":
         return `/Users/me/Documents/Termalith Logs/2026-11-01_10-00-00_${String(a.label)}-output.txt`;
       case "net_scan_start": {

@@ -5,6 +5,7 @@ mod desktop;
 mod error;
 mod files;
 mod keys;
+mod links;
 mod nettools;
 mod sessions;
 mod ssh;
@@ -79,6 +80,7 @@ pub fn run() {
             desktop::desktop_close,
             ssh::host_key_respond,
             ssh::auth_prompt_respond,
+            links::open_web_link,
             keys::keys_list,
             keys::key_generate,
             keys::key_public,

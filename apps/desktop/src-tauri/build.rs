@@ -34,6 +34,7 @@ fn main() {
             "desktop_close",
             "host_key_respond",
             "auth_prompt_respond",
+            "open_web_link",
             "keys_list",
             "key_generate",
             "key_public",

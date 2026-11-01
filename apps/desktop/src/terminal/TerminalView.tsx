@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SearchAddon } from "@xterm/addon-search";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
-import { DEFAULT_SETTINGS, type ExitPayload, type Settings, saveTerminalOutput, isIpcError } from "./api";
+import { DEFAULT_SETTINGS, type ExitPayload, type Settings, saveTerminalOutput, isIpcError, openWebLink } from "./api";
 import { type ResolvedTheme, fontStack, terminalTheme } from "../ui/theme";
 import {
   type Opener,
@@ -85,6 +86,13 @@ export function TerminalView({
     term.loadAddon(fit);
     const search = new SearchAddon();
     term.loadAddon(search);
+    // Links in terminal output open only with Cmd/Ctrl+click (output is untrusted;
+    // the backend accepts http(s) only).
+    term.loadAddon(
+      new WebLinksAddon((event, uri) => {
+        if (event.metaKey || event.ctrlKey) void openWebLink(uri).catch(() => {});
+      }),
+    );
     searchRef.current = search;
     term.open(host);
     try {

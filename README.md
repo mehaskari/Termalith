@@ -15,6 +15,7 @@ Termalith is an open-source, cross-platform remote administration workstation fo
 - Command snippets with `{{variables}}` and a preview of exactly what will be typed.
 - Session logs (plain text, opt-in) and "save output" of a tab's scrollback.
 - Command palette (Cmd+K / Ctrl+Shift+K) over tabs, sessions and actions.
+- Links in terminal output open in your browser with Cmd/Ctrl+click (http and https only).
 
 **SSH**
 - Password, private key, ssh-agent and keyboard-interactive (PAM, one-time codes) authentication; secrets are stored only in the OS keychain, and only after a successful login.

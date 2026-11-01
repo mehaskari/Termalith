@@ -573,3 +573,6 @@ export const telnetTerminal =
 export function openSshFiles(request: SshOpenRequest): Promise<{ id: TerminalId; label: string }> {
   return invoke("ssh_files_open", { request });
 }
+
+/** Opens an http(s) link from terminal output in the default browser. */
+export const openWebLink = (url: string) => invoke<void>("open_web_link", { url });

@@ -4,7 +4,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { DEFAULT_SETTINGS, type ExitPayload, type Settings } from "./api";
-import { type ResolvedTheme, TERMINAL_THEMES, fontStack } from "../ui/theme";
+import { type ResolvedTheme, fontStack, terminalTheme } from "../ui/theme";
 import {
   type Opener,
   type TerminalId,
@@ -71,7 +71,7 @@ export function TerminalView({
       fontFamily: fontStack(s.fontFamily),
       fontSize: s.fontSize,
       scrollback: s.scrollback,
-      theme: TERMINAL_THEMES[initial.current.theme],
+      theme: terminalTheme(initial.current.settings.terminalScheme, initial.current.theme),
       // Needed by the search addon's match decorations.
       allowProposedApi: true,
     });
@@ -223,7 +223,9 @@ export function TerminalView({
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
-    term.options.theme = TERMINAL_THEMES[theme];
+    term.options.theme = terminalTheme(settings.terminalScheme, theme);
+    // Padding around the canvas uses the scheme's background too.
+    if (hostRef.current) hostRef.current.style.background = term.options.theme.background ?? "";
     term.options.fontSize = settings.fontSize;
     term.options.fontFamily = fontStack(settings.fontFamily);
     term.options.cursorStyle = settings.cursorStyle;

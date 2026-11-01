@@ -1,0 +1,41 @@
+name: Auto-merge
+
+# GitHub's built-in auto-merge needs Pro for private repositories, so this
+# does the same: when CI finishes green for a pull request labelled
+# "automerge" that targets main, merge it (merge commit).
+# A merge made with GITHUB_TOKEN does not start another CI run on main.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Merge the labelled pull request whose CI passed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          pr=$(gh pr list --repo "$REPO" --state open --head "$HEAD_BRANCH" \
+            --json number,headRefOid,baseRefName,labels \
+            --jq "map(select(.headRefOid == \"$HEAD_SHA\" and .baseRefName == \"main\" and any(.labels[]; .name == \"automerge\"))) | .[0].number // empty")
+          if [ -z "$pr" ]; then
+            echo "No open, labelled PR into main at $HEAD_SHA; nothing to do."
+            exit 0
+          fi
+          echo "Merging #$pr"
+          gh pr merge "$pr" --repo "$REPO" --merge

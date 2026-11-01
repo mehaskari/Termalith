@@ -38,6 +38,10 @@ pub struct Settings {
     /// Shell id (see `terminal_pty::available_shells`) for new local
     /// terminals; `None` uses the system default.
     pub default_shell: Option<String>,
+    /// Copy terminal selections to the clipboard automatically.
+    pub copy_on_select: bool,
+    /// Right-click in a terminal pastes.
+    pub right_click_paste: bool,
 }
 
 impl Default for Settings {
@@ -51,6 +55,8 @@ impl Default for Settings {
             scrollback: 5000,
             log_sessions: false,
             default_shell: None,
+            copy_on_select: false,
+            right_click_paste: false,
         }
     }
 }

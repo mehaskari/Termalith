@@ -230,6 +230,29 @@ export function TerminalView({
     fitRef.current?.fit();
   }, [settings, theme]);
 
+  // Optional MobaXterm-style clipboard: copy on select, paste on right-click.
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term || !settings.copyOnSelect) return;
+    const d = term.onSelectionChange(() => {
+      const sel = term.getSelection();
+      if (sel) void navigator.clipboard.writeText(sel).catch(() => {});
+    });
+    return () => d.dispose();
+  }, [settings.copyOnSelect]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host || !settings.rightClickPaste) return;
+    const onContext = (e: MouseEvent) => {
+      e.preventDefault();
+      const term = termRef.current;
+      if (term) void navigator.clipboard.readText().then((t) => t && term.paste(t), () => {});
+    };
+    host.addEventListener("contextmenu", onContext);
+    return () => host.removeEventListener("contextmenu", onContext);
+  }, [settings.rightClickPaste]);
+
   useEffect(() => {
     if (!active) return;
     const frame = requestAnimationFrame(() => {

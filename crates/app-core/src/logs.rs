@@ -218,6 +218,22 @@ impl TerminalLogs {
         Ok(tap.stop())
     }
 
+    /// Writes a snapshot of a terminal's text (from the UI's scrollback) to
+    /// a new file in the logs folder. Returns its path.
+    pub fn save_text(&self, label: &str, text: &str) -> Result<PathBuf, AppError> {
+        const MAX_SNAPSHOT: usize = 32 * 1024 * 1024;
+        if text.len() > MAX_SNAPSHOT {
+            return Err(AppError::invalid("terminal output", "too large to save"));
+        }
+        std::fs::create_dir_all(&self.dir).map_err(io_err)?;
+        let now = unix_now();
+        let name = file_name(now, label).replace(".log", "-output.txt");
+        let (path, mut file) = create_log_file(&self.dir, &name)?;
+        file.write_all(text.as_bytes()).map_err(io_err)?;
+        file.sync_all().map_err(io_err)?;
+        Ok(path)
+    }
+
     /// Stops every log (application exit).
     pub fn stop_all(&self) {
         for t in self.taps().drain().map(|(_, t)| t) {
@@ -443,6 +459,30 @@ mod tests {
         assert!(matches!(logs.status(99), Err(AppError::NotFound)));
         logs.forget(7);
         assert!(logs.status(7).is_err());
+    }
+
+    #[test]
+    fn saves_a_text_snapshot_as_a_new_private_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let logs = TerminalLogs::new(dir.path().join("logs"));
+        let a = logs.save_text("web 01", "line 1\nline 2\n").unwrap();
+        let b = logs.save_text("web 01", "again").unwrap();
+        assert_ne!(a, b, "never overwrites");
+        assert!(
+            a.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with("_web_01-output.txt")
+        );
+        assert_eq!(std::fs::read_to_string(&a).unwrap(), "line 1\nline 2\n");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                std::fs::metadata(&a).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
     }
 
     #[test]

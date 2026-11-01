@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-terminal-save-output"
+description = "Enables the terminal_save_output command without any pre-configured scope."
+commands.allow = ["terminal_save_output"]
+
+[[permission]]
+identifier = "deny-terminal-save-output"
+description = "Denies the terminal_save_output command without any pre-configured scope."
+commands.deny = ["terminal_save_output"]

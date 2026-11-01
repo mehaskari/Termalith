@@ -221,6 +221,21 @@ pub fn terminal_log_start(
     Ok(state.logs.start(id, &label)?)
 }
 
+/// Saves a snapshot of a terminal's visible text and scrollback (sent by
+/// the UI) to a new file in the logs folder; returns the path.
+#[tauri::command]
+pub fn terminal_save_output(
+    state: State<'_, AppState>,
+    label: String,
+    text: String,
+) -> Result<String, IpcError> {
+    Ok(state
+        .logs
+        .save_text(&label, &text)?
+        .to_string_lossy()
+        .into_owned())
+}
+
 #[tauri::command]
 pub fn terminal_log_stop(state: State<'_, AppState>, id: u64) -> Result<Option<LogInfo>, IpcError> {
     Ok(state.logs.stop(id)?)

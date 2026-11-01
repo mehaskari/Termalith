@@ -84,7 +84,8 @@ corepack pnpm test
 - Telnet sessions for legacy network devices (clearly marked as unencrypted), directly or through an SSH jump host so only the last leg is unencrypted; also imported from MobaXterm.
 - Serial consoles (COM / tty): port discovery, baud, data bits, parity, stop bits, flow control.
 - Command snippets with `{{variables}}`, a preview of exactly what will be typed, and an explicit "press Enter" choice.
-- Network tools tab: ping, traceroute, TCP port check, DNS lookup, IPv4 subnet calculator.
+- Network tools tab: ping, traceroute, TCP port check, port scan (up to 1024 ports, 64 at a time), DNS lookup, IPv4 subnet calculator, Wake-on-LAN.
+- Save a terminal's text (screen and scrollback) to a file from the tab menu.
 - Terminal color schemes: Solarized Dark/Light, Nord, Gruvbox Dark, Tomorrow Night, or follow the app theme.
 - Command palette (Cmd+K / Ctrl+Shift+K) over tabs, sessions and actions; Cmd/Ctrl+Shift+1…9 switches tabs; quick connect accepts `user@host:port`.
 - Find in terminal output; shortcuts for tabs, copy/paste and font zoom (Cmd on macOS, Ctrl+Shift elsewhere); optional copy-on-select and right-click paste.

@@ -2,6 +2,12 @@
 //! the OS programs with a fixed argument list, and the target is validated
 //! first so it can never be read as an option.
 
+mod scan;
+
+pub use scan::{
+    MAX_SCAN_PORTS, SCAN_CONCURRENCY, magic_packet, parse_mac, parse_ports, scan_ports, wake_on_lan,
+};
+
 use std::net::IpAddr;
 use std::process::Stdio;
 use std::time::{Duration, Instant};

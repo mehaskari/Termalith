@@ -3,7 +3,7 @@ import { SearchAddon } from "@xterm/addon-search";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
-import { DEFAULT_SETTINGS, type ExitPayload, type Settings } from "./api";
+import { DEFAULT_SETTINGS, type ExitPayload, type Settings, saveTerminalOutput, isIpcError } from "./api";
 import { type ResolvedTheme, fontStack, terminalTheme } from "../ui/theme";
 import {
   type Opener,
@@ -32,7 +32,11 @@ interface Props {
   settings?: Settings;
   theme?: ResolvedTheme;
   /** One-shot command from a keyboard shortcut; `seq` changes per request. */
-  command?: { seq: number; action: "find" | "copy" | "paste" };
+  command?: { seq: number; action: "find" | "copy" | "paste" | "save" };
+  /** Label for saved output files (the tab title). */
+  label?: string;
+  /** A short message for the user (e.g. where output was saved). */
+  onNotice?: (message: string) => void;
 }
 
 export function TerminalView({
@@ -45,6 +49,8 @@ export function TerminalView({
   settings = DEFAULT_SETTINGS,
   theme = "dark",
   command,
+  label = "terminal",
+  onNotice,
 }: Props) {
   const searchRef = useRef<SearchAddon | null>(null);
   const findInput = useRef<HTMLInputElement>(null);
@@ -57,8 +63,8 @@ export function TerminalView({
   // `open` must not re-run the effect; keep the first one.
   const openRef = useRef(open);
   const initial = useRef({ settings, theme });
-  const callbacks = useRef({ onReady, onFailed, onExited, onInput });
-  callbacks.current = { onReady, onFailed, onExited, onInput };
+  const callbacks = useRef({ onReady, onFailed, onExited, onInput, onNotice, label });
+  callbacks.current = { onReady, onFailed, onExited, onInput, onNotice, label };
 
   useEffect(() => {
     const host = hostRef.current;
@@ -192,6 +198,17 @@ export function TerminalView({
     if (command.action === "find") {
       setFindOpen(true);
       requestAnimationFrame(() => findInput.current?.select());
+    } else if (command.action === "save") {
+      // Scrollback plus screen, as plain text (no escape sequences).
+      const buf = term.buffer.active;
+      const lines: string[] = [];
+      for (let i = 0; i < buf.length; i++) lines.push(buf.getLine(i)?.translateToString(true) ?? "");
+      while (lines.length && lines[lines.length - 1] === "") lines.pop();
+      const { label: name, onNotice: notify } = callbacks.current;
+      saveTerminalOutput(name, `${lines.join("\n")}\n`).then(
+        (path) => notify?.(`Terminal output saved: ${path}`),
+        (e) => notify?.(`Could not save the output: ${isIpcError(e) ? e.message : String(e)}`),
+      );
     } else if (command.action === "copy") {
       const sel = term.getSelection();
       if (sel) void navigator.clipboard.writeText(sel).catch(() => {});

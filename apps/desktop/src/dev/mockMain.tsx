@@ -144,6 +144,21 @@ mockIPC(
         }
         return { created, skipped: [], unresolvedJumps: [] };
       }
+      case "terminal_save_output":
+        return `/Users/me/Documents/Termalith Logs/2026-11-01_10-00-00_${String(a.label)}-output.txt`;
+      case "net_scan_start": {
+        const ch = a.onResult as ChannelLike;
+        const done = a.onDone as ChannelLike;
+        const ports = String(a.ports).split(",").map((p) => Number(p.trim())).filter((p) => p > 0);
+        let i = 0;
+        ports.forEach((port, k) =>
+          setTimeout(() => window.__TAURI_INTERNALS__.runCallback(ch.id, { index: i++, message: { port, open: port === 22 || port === 443 } }), 30 * k),
+        );
+        setTimeout(() => window.__TAURI_INTERNALS__.runCallback(done.id, { index: 0, message: { address: "10.0.0.5", error: null, cancelled: false } }), 30 * ports.length + 50);
+        return 7;
+      }
+      case "net_wake":
+        return null;
       case "terminal_log_start":
         logging.add(Number(a.id));
         return { path: `/Users/me/Documents/Termalith Logs/2026-11-01_10-00-00_${String(a.label)}.log`, bytes: 0, dropped: 0 };

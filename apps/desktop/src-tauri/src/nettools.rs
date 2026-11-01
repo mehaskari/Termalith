@@ -83,6 +83,84 @@ pub fn net_probe_start(
     Ok(id)
 }
 
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanResult {
+    port: u16,
+    open: bool,
+}
+
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanDone {
+    /// Address that was scanned, when the name resolved.
+    address: Option<String>,
+    error: Option<String>,
+    cancelled: bool,
+}
+
+/// Starts a TCP connect scan of `ports` ("22,80,8000-8010", at most 1024)
+/// on `host`. Results stream to `on_result`; cancel with
+/// `net_probe_cancel`.
+#[tauri::command]
+pub fn net_scan_start(
+    state: State<'_, AppState>,
+    host: String,
+    ports: String,
+    on_result: Channel<ScanResult>,
+    on_done: Channel<ScanDone>,
+) -> Result<u64, IpcError> {
+    network_tools::validate_host(&host).map_err(tool_err)?;
+    let ports = network_tools::parse_ports(&ports).map_err(tool_err)?;
+    let id = state.probes.next.fetch_add(1, Ordering::Relaxed) + 1;
+    let cancel = CancellationToken::new();
+    state
+        .probes
+        .running
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(id, cancel.clone());
+    let probes = state.probes.clone();
+    tauri::async_runtime::spawn(async move {
+        let result = network_tools::scan_ports(
+            &host,
+            &ports,
+            Duration::from_millis(1500),
+            &cancel,
+            |port, open| {
+                let _ = on_result.send(ScanResult { port, open });
+            },
+        )
+        .await;
+        let _ = on_done.send(match result {
+            Ok(addr) => ScanDone {
+                address: Some(addr.to_string()),
+                error: None,
+                cancelled: cancel.is_cancelled(),
+            },
+            Err(e) => ScanDone {
+                address: None,
+                error: Some(e.to_string()),
+                cancelled: false,
+            },
+        });
+        probes
+            .running
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&id);
+    });
+    Ok(id)
+}
+
+/// Sends a Wake-on-LAN magic packet.
+#[tauri::command]
+pub async fn net_wake(mac: String, broadcast: Option<String>) -> Result<(), IpcError> {
+    network_tools::wake_on_lan(&mac, broadcast.as_deref())
+        .await
+        .map_err(tool_err)
+}
+
 #[tauri::command]
 pub fn net_probe_cancel(state: State<'_, AppState>, id: u64) -> bool {
     match state

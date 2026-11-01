@@ -390,6 +390,33 @@ export function startProbe(
 
 export const cancelProbe = (id: number) => invoke<boolean>("net_probe_cancel", { id });
 
+export interface ScanDone {
+  address: string | null;
+  error: string | null;
+  cancelled: boolean;
+}
+
+/** TCP connect scan ("22,80,8000-8010", at most 1024 ports); cancel with cancelProbe. */
+export function startScan(
+  host: string,
+  ports: string,
+  onResult: (r: { port: number; open: boolean }) => void,
+  onDone: (d: ScanDone) => void,
+): Promise<number> {
+  const result = new Channel<{ port: number; open: boolean }>();
+  result.onmessage = onResult;
+  const done = new Channel<ScanDone>();
+  done.onmessage = onDone;
+  return invoke<number>("net_scan_start", { host, ports, onResult: result, onDone: done });
+}
+
+/** Sends a Wake-on-LAN magic packet. */
+export const wakeOnLan = (mac: string, broadcast: string | null) => invoke<void>("net_wake", { mac, broadcast });
+
+/** Saves terminal text to a new file in the logs folder; resolves to its path. */
+export const saveTerminalOutput = (label: string, text: string) =>
+  invoke<string>("terminal_save_output", { label, text });
+
 // ---------------------------------------------------------------- remote desktop
 
 export interface DesktopClient {

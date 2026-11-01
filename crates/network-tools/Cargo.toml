@@ -10,7 +10,7 @@ rust-version.workspace = true
 [dependencies]
 serde.workspace = true
 thiserror.workspace = true
-tokio = { version = "1.54", features = ["io-util", "macros", "net", "process", "rt", "time"] }
+tokio = { version = "1.54", features = ["io-util", "macros", "net", "process", "rt", "sync", "time"] }
 tokio-util = { version = "0.7.20", default-features = false }
 
 [dev-dependencies]

@@ -526,6 +526,26 @@ async fn read_until(shell: &mut protocol_ssh::ShellChannel, buf: &mut String, ne
     }
 }
 
+/// Like [`read_until`] but gives up after `wait`, returning whether the
+/// text appeared.
+async fn appears_within(
+    shell: &mut protocol_ssh::ShellChannel,
+    buf: &mut String,
+    needle: &str,
+    wait: Duration,
+) -> bool {
+    let deadline = Instant::now() + wait;
+    while !shell_matches(buf, needle) {
+        let left = deadline.saturating_duration_since(Instant::now());
+        match tokio::time::timeout(left, shell.next_event()).await {
+            Ok(ShellEvent::Output(b)) => buf.push_str(&String::from_utf8_lossy(&b)),
+            Ok(other) => panic!("unexpected {other:?} while waiting for {needle:?}; got {buf:?}"),
+            Err(_) => return false,
+        }
+    }
+    true
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn interactive_shell_on_remote_pty() {
     let s = sshd_or_skip!(SshdConfig::default());
@@ -537,9 +557,18 @@ async fn interactive_shell_on_remote_pty() {
     shell.write(SH.size_cmd).await.unwrap();
     read_until(&mut shell, &mut out, SH.size_80x24).await;
     shell.resize(132, 43).await.unwrap();
+    // window-change has no reply: the shell may run the next command
+    // before it handles SIGWINCH, so ask again until the new size shows.
     out.clear();
-    shell.write(SH.size_cmd).await.unwrap();
-    read_until(&mut shell, &mut out, SH.size_132x43).await;
+    let mut resized = false;
+    for _ in 0..10 {
+        shell.write(SH.size_cmd).await.unwrap();
+        if appears_within(&mut shell, &mut out, SH.size_132x43, Duration::from_secs(1)).await {
+            resized = true;
+            break;
+        }
+    }
+    assert!(resized, "size never became 132x43; got {out:?}");
     shell.write(SH.exit_cmd).await.unwrap();
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {

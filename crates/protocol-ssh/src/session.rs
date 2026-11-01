@@ -14,6 +14,7 @@ use zeroize::Zeroizing;
 use crate::host_key::{HostKeyDecider, HostKeyDecision, HostKeyInfo, HostKeyStatus};
 use crate::kbd::{KbdInteractive, offers_kbd};
 use crate::known_hosts::KnownHostsStore;
+use crate::x11::X11Forward;
 use crate::{SftpClient, SshError, algorithms};
 
 /// Cap on output collected by [`SshSession::exec`]; longer output is
@@ -75,6 +76,8 @@ pub struct ConnectOptions {
     /// connection (`ssh -A`). Off by default: anyone with root on the
     /// server can use the agent's keys while the connection is open.
     pub agent_forward: Option<PathBuf>,
+    /// Forward X11 to this local display (`ssh -X`).
+    pub x11: Option<X11Forward>,
 }
 
 impl ConnectOptions {
@@ -86,6 +89,7 @@ impl ConnectOptions {
             keepalive: Some(Duration::from_secs(30)),
             kbd: None,
             agent_forward: None,
+            x11: None,
         }
     }
 }
@@ -102,6 +106,8 @@ pub(crate) struct ClientHandler {
     /// Local agent that server-opened agent channels are bridged to; only
     /// set when the user enabled agent forwarding for this connection.
     agent_forward: Option<PathBuf>,
+    /// X11 forwarding target and the fake cookie given to the server.
+    x11: Option<Arc<(X11Forward, [u8; 16])>>,
 }
 
 /// Refuses a channel the server opened without this client asking for it.
@@ -240,13 +246,20 @@ impl client::Handler for ClientHandler {
 
     async fn server_channel_open_x11(
         &mut self,
-        _channel: Channel<Msg>,
+        channel: Channel<Msg>,
         _originator_address: &str,
         _originator_port: u32,
         reply: russh::client::ChannelOpenHandle,
         _session: &mut client::Session,
     ) -> Result<(), Self::Error> {
-        refuse(reply).await;
+        let Some(x11) = self.x11.clone() else {
+            refuse(reply).await;
+            return Ok(());
+        };
+        reply.accept().await;
+        tokio::spawn(async move {
+            crate::x11::proxy(channel.into_stream(), &x11.0, &x11.1).await;
+        });
         Ok(())
     }
 
@@ -297,6 +310,8 @@ pub struct SshSession {
     _via: Option<Arc<SshSession>>,
     remote_forwards: RemoteForwards,
     agent_forward: bool,
+    /// Fake cookie and screen sent with X11 requests.
+    x11: Option<([u8; 16], u32)>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -357,6 +372,10 @@ impl SshSession {
         });
         let refusal = Arc::new(Mutex::new(None));
         let remote_forwards: RemoteForwards = Arc::default();
+        let x11_state = opts
+            .x11
+            .clone()
+            .map(|f| Arc::new((f, crate::x11::fake_cookie())));
         let handler = ClientHandler {
             host: target.host.clone(),
             port: target.port,
@@ -365,6 +384,7 @@ impl SshSession {
             refusal: Arc::clone(&refusal),
             remote_forwards: Arc::clone(&remote_forwards),
             agent_forward: opts.agent_forward.clone(),
+            x11: x11_state.clone(),
         };
         let connected = match &via {
             None => client::connect(config, (target.host.as_str(), target.port), handler).await,
@@ -451,6 +471,7 @@ impl SshSession {
             _via: via,
             remote_forwards,
             agent_forward: opts.agent_forward.is_some(),
+            x11: x11_state.map(|s| (s.1, s.0.screen)),
         })
     }
 
@@ -527,6 +548,17 @@ impl SshSession {
         if self.agent_forward {
             // Best effort: a server that disallows forwarding still gets a shell.
             let _ = ch.agent_forward(false).await;
+        }
+        if let Some((fake, screen)) = &self.x11 {
+            let _ = ch
+                .request_x11(
+                    false,
+                    false,
+                    "MIT-MAGIC-COOKIE-1",
+                    crate::x11::to_hex(fake),
+                    *screen,
+                )
+                .await;
         }
         ch.request_shell(true).await?;
         let (reader, writer) = ch.split();

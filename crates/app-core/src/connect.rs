@@ -86,6 +86,7 @@ impl Connector {
                     domain: None,
                     tags: Vec::new(),
                     forward_agent: false,
+                    x11_forward: false,
                 };
                 input.validate()?;
                 let typed = match secret {
@@ -198,6 +199,9 @@ impl Connector {
                 )
             })?);
         }
+        if depth == 0 && input.x11_forward {
+            opts.x11 = Some(local_x11().await?);
+        }
         Ok(match via {
             Some(jump) => SshSession::connect_via(jump, &target, &auth, &opts).await?,
             None => SshSession::connect(&target, &auth, &opts).await?,
@@ -306,4 +310,31 @@ impl Connector {
         }
         Ok(())
     }
+}
+
+/// The local X server from `DISPLAY` (default `localhost:0` on Windows,
+/// where VcXsrv/Xming listen on TCP) and its cookie from `xauth`.
+async fn local_x11() -> Result<protocol_ssh::X11Forward, AppError> {
+    let display = std::env::var("DISPLAY")
+        .ok()
+        .filter(|d| !d.trim().is_empty())
+        .or_else(|| cfg!(windows).then(|| "localhost:0".to_owned()))
+        .ok_or_else(|| {
+            AppError::invalid(
+                "X11 forwarding",
+                "no local X server found (DISPLAY is not set); install XQuartz on macOS and log in again",
+            )
+        })?;
+    let (target, screen) = protocol_ssh::parse_display(&display).ok_or_else(|| {
+        AppError::invalid("X11 forwarding", format!("cannot use DISPLAY={display}"))
+    })?;
+    let d = display.clone();
+    let cookie = tokio::task::spawn_blocking(move || protocol_ssh::local_cookie(&d))
+        .await
+        .map_err(|e| AppError::Db(e.to_string()))?;
+    Ok(protocol_ssh::X11Forward {
+        display: target,
+        screen,
+        cookie,
+    })
 }

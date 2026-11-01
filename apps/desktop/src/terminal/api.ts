@@ -101,6 +101,8 @@ export interface SessionInput {
   tags?: string[];
   /** Forward the local SSH agent to this host (SSH only). */
   forwardAgent?: boolean;
+  /** Forward X11 to the local X server (SSH only). */
+  x11Forward?: boolean;
 }
 
 export interface SessionRecord extends SessionInput {

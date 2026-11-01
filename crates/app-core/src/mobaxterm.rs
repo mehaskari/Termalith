@@ -82,6 +82,7 @@ pub fn parse_mobaxterm(text: &str) -> (Vec<ImportCandidate>, Vec<String>) {
             domain: None,
             tags: Vec::new(),
             forward_agent: false,
+            x11_forward: false,
         };
         if let Err(e) = input.validate() {
             notes.push(format!("{key}: {e}"));

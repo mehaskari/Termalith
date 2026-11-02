@@ -16,16 +16,21 @@ Download the installer for your system from the
 
 | System | File | First launch |
 |---|---|---|
-| macOS, Apple Silicon | `Termalith_x.y.z_aarch64.dmg` | The app is not signed yet: right-click it and choose **Open**. |
-| macOS, Intel | `Termalith_x.y.z_x64.dmg` | As above. |
+| macOS 11 or newer, Apple Silicon | `Termalith_x.y.z_aarch64.dmg` | The app is not signed yet: right-click it and choose **Open**. |
+| macOS 11 or newer, Intel | `Termalith_x.y.z_x64.dmg` | As above. |
 | Windows 10/11, x64 | `…_x64-setup.exe` or `…_x64_en-US.msi` | SmartScreen may warn: **More info → Run anyway**. |
 | Windows 11, ARM | `…_arm64-setup.exe` or `…_arm64_en-US.msi` | As above. |
-| Linux, x64 | `…_amd64.AppImage` or `…_amd64.deb` | AppImage: make it executable (`chmod +x`) and run it. |
+| Linux x64 (Ubuntu 22.04, Debian 12, Fedora 36 or newer) | `…_amd64.AppImage` or `…_amd64.deb` | AppImage: make it executable (`chmod +x`) and run it. |
 | Linux, ARM64 | `…_aarch64.AppImage` or `…_arm64.deb` | As above. |
 
-The Intel Mac, Windows ARM and Linux ARM builds are produced and tested in
-CI on native runners, but have had no hands-on use yet; please report
-anything that does not work.
+The Intel Mac build is produced and tested in CI on native runners but has
+had no hands-on use yet; please report anything that does not work.
+
+Minimum versions: macOS 11 (Big Sur); Windows 10 version 1809 with the
+WebView2 runtime (included in Windows 11 and installed by the setup if
+missing); Linux with glibc 2.35 and WebKitGTK 4.1, which the installers are
+built against. Day-to-day testing happens on macOS 15+, Windows 11 and
+Ubuntu 24.04.
 
 On Linux, Termalith needs WebKitGTK 4.1 (installed with most desktops) and,
 for saved passwords, a Secret Service such as GNOME Keyring or KWallet.

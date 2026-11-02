@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- RDP on Linux: the server certificate is checked by Termalith and shown in
+  a trust dialog (with the old and new fingerprints when it changes);
+  FreeRDP then accepts only that certificate instead of trusting any
+  certificate on first use.
 - Installers for Windows on ARM, Linux on ARM64 and Intel Macs (built and
   tested in CI; not yet tried on real hardware).
 - Folders are now first-class: create empty folders and subfolders, rename,

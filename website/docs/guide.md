@@ -196,6 +196,15 @@ Choose *Tunnel through* an SSH session to reach a desktop behind a bastion.
 Passwords are never passed on a command line; the client asks for them
 (FreeRDP on Linux receives it on standard input).
 
+**Server certificates (Linux):** FreeRDP cannot show its own certificate
+prompt when started from Termalith, so Termalith reads the server's
+certificate first and asks you, in the same dialog as an unknown SSH host
+key. FreeRDP is then told to accept exactly that certificate and nothing
+else. If the server later presents a different certificate (Windows renews
+its self-signed one from time to time), you see both fingerprints and decide
+again. Servers that only offer legacy RDP security (no TLS) are refused. On
+macOS and Windows the Microsoft clients check certificates themselves.
+
 ## Serial and Telnet
 
 - **Serial:** pick a port (COM*n* or `/dev/tty…`), speed, data bits, parity,

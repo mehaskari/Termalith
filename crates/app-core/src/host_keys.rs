@@ -21,6 +21,10 @@ pub struct HostKeyPrompt {
     pub port: u16,
     pub algorithm: String,
     pub fingerprint: String,
+    /// Set when a different certificate was trusted before (RDP only; a
+    /// changed SSH host key never prompts).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_fingerprint: Option<String>,
 }
 
 type Notifier = Box<dyn Fn(HostKeyPrompt) + Send + Sync>;
@@ -58,35 +62,43 @@ impl PromptBroker {
     }
 }
 
+impl PromptBroker {
+    /// Shows `prompt` (its `request_id` is assigned here) and waits for the
+    /// answer; no answer within the timeout rejects.
+    pub async fn ask(&self, mut prompt: HostKeyPrompt) -> HostKeyDecision {
+        let id = self.next.fetch_add(1, Ordering::Relaxed);
+        let (tx, rx) = oneshot::channel();
+        self.pending
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(id, tx);
+        prompt.request_id = id;
+        (self.notify)(prompt);
+        let decision = match tokio::time::timeout(self.timeout, rx).await {
+            Ok(Ok(d)) => d,
+            _ => HostKeyDecision::Reject,
+        };
+        self.pending
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&id);
+        decision
+    }
+}
+
 impl HostKeyDecider for PromptBroker {
     fn decide<'a>(
         &'a self,
         info: &'a HostKeyInfo,
     ) -> Pin<Box<dyn Future<Output = HostKeyDecision> + Send + 'a>> {
-        Box::pin(async move {
-            let id = self.next.fetch_add(1, Ordering::Relaxed);
-            let (tx, rx) = oneshot::channel();
-            self.pending
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .insert(id, tx);
-            (self.notify)(HostKeyPrompt {
-                request_id: id,
-                host: info.host.clone(),
-                port: info.port,
-                algorithm: info.algorithm.clone(),
-                fingerprint: info.fingerprint.clone(),
-            });
-            let decision = match tokio::time::timeout(self.timeout, rx).await {
-                Ok(Ok(d)) => d,
-                _ => HostKeyDecision::Reject,
-            };
-            self.pending
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .remove(&id);
-            decision
-        })
+        Box::pin(self.ask(HostKeyPrompt {
+            request_id: 0,
+            host: info.host.clone(),
+            port: info.port,
+            algorithm: info.algorithm.clone(),
+            fingerprint: info.fingerprint.clone(),
+            previous_fingerprint: None,
+        }))
     }
 }
 

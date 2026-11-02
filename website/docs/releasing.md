@@ -6,12 +6,12 @@ Every release has a `SHA256SUMS.txt` file next to the installers. Compare
 the checksum of the file you downloaded with the line for its name:
 
 ```bash
-shasum -a 256 Termalith_0.1.0_aarch64.dmg        # macOS
-sha256sum Termalith_0.1.0_amd64.AppImage         # Linux
+shasum -a 256 Termalith_0.5.0_aarch64.dmg        # macOS
+sha256sum Termalith_0.5.0_amd64.AppImage         # Linux
 ```
 
 ```powershell
-Get-FileHash .\Termalith_0.1.0_x64-setup.exe     # Windows (PowerShell)
+Get-FileHash .\Termalith_0.5.0_x64-setup.exe     # Windows (PowerShell)
 ```
 
 Installers are not code-signed yet, so the checksum is the way to confirm
@@ -67,7 +67,7 @@ dependency are pinned (`rust-toolchain.toml`, `Cargo.lock`,
 4. If dependencies changed, regenerate the license notices with
    `scripts/third-party-licenses.sh`.
 5. Merge, then tag the merge commit and push the tag:
-   `git tag v0.1.0 && git push origin v0.1.0`.
+   `git tag v0.5.0 && git push origin v0.5.0`.
 6. The workflow builds every installer and creates a **draft** GitHub
    Release with the installers and `SHA256SUMS.txt`.
 7. Install at least the builds you can test, check the release notes, then

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — first public preview
+## 0.5.0 — first public preview
 
 The first public build. Installers for macOS (Apple Silicon and Intel),
 Windows (x64 and ARM64) and Linux (x64 and ARM64) are attached to the

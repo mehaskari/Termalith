@@ -4,7 +4,7 @@
 
 Termalith is an open-source, cross-platform remote administration workstation for system and network administrators: SSH terminals, SFTP, remote desktop, tunnels, serial and Telnet consoles and network tools in one app. It is built with Tauri 2, Rust, React and TypeScript.
 
-> **Status: early preview (0.1).** Most features are in daily use on macOS. Windows and Linux builds pass CI (unit and integration tests, real-server tests, a launch smoke test) and have had a first hands-on run on ARM64. Expect rough edges, and please report them.
+> **Status: early preview (0.5).** Most features are in daily use on macOS. Windows and Linux builds pass CI (unit and integration tests, real-server tests, a launch smoke test) and have had a first hands-on run on ARM64. Expect rough edges, and please report them.
 
 ## Features
 

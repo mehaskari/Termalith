@@ -159,14 +159,29 @@ jobs:
             cargo test --workspace -- --nocapture
           fi
 
-      # A real FreeRDP against the test RDP endpoint: it must accept the
-      # pinned certificate and refuse any other (ADR-027).
-      - name: FreeRDP certificate pinning (Linux)
+      # Real clients and servers: FreeRDP against the test endpoint and a
+      # real xrdp (certificate read, pinned, wrong pin refused; ADR-027),
+      # and TigerVNC's viewer against Xvnc with the launch plan Termalith
+      # uses. Localhost only, ephemeral runner.
+      - name: Remote desktop against real servers (Linux)
         if: runner.os == 'Linux'
         run: |
+          sudo apt-get install -y --no-install-recommends \
+            xrdp tigervnc-standalone-server tigervnc-viewer netcat-openbsd
+          sudo systemctl restart xrdp || sudo service xrdp restart
+          for _ in $(seq 30); do nc -z 127.0.0.1 3389 && break; sleep 1; done
+          Xvnc :5 -rfbport 5905 -localhost -SecurityTypes None -geometry 800x600 \
+            > "$RUNNER_TEMP/xvnc.log" 2>&1 &
+          for _ in $(seq 30); do nc -z 127.0.0.1 5905 && break; sleep 1; done
           export TERMALITH_FREERDP="$(command -v xfreerdp3)"
+          export TERMALITH_TEST_XRDP=127.0.0.1:3389
+          export TERMALITH_TEST_XRDP_SHA256="$(sudo openssl x509 -in /etc/xrdp/cert.pem -outform DER | sha256sum | cut -d' ' -f1)"
+          export TERMALITH_TEST_VNC=127.0.0.1:5905
+          export TERMALITH_TEST_VNC_LOG="$RUNNER_TEMP/xvnc.log"
+          export TERMALITH_VNCVIEWER="$(command -v vncviewer)"
           xfreerdp3 --version | head -1
-          xvfb-run -a cargo test -p remote-desktop freerdp_accepts -- --nocapture
+          xvfb-run -a cargo test -p remote-desktop --lib freerdp_accepts -- --nocapture
+          xvfb-run -a cargo test -p remote-desktop --test real_servers -- --nocapture
 
       - name: TypeScript typecheck
         run: corepack pnpm typecheck

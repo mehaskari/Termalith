@@ -27,13 +27,15 @@ async fn proxy_password_round_trip() {
     let c = connector(dir.path());
     assert!(c.proxy().await.unwrap().is_none(), "no proxy configured");
 
-    let mut s = Settings::default();
-    s.proxy = Some(ProxySetting {
-        kind: ProxyType::Socks5,
-        host: "proxy.corp".into(),
-        port: 1080,
-        username: Some(" alice ".into()),
-    });
+    let mut s = Settings {
+        proxy: Some(ProxySetting {
+            kind: ProxyType::Socks5,
+            host: "proxy.corp".into(),
+            port: 1080,
+            username: Some(" alice ".into()),
+        }),
+        ..Settings::default()
+    };
     c.sessions.save_settings(&s).unwrap();
 
     // User name without a saved password: empty password.

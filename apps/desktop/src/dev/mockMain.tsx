@@ -117,7 +117,7 @@ mockIPC(
     const a = (args ?? {}) as Record<string, unknown>;
     switch (cmd) {
       case "app_info":
-        return { version: "0.1.0-mock", platform: "macos aarch64", secretsAvailable: true, agentAvailable: true };
+        return { version: "0.5.0-mock", platform: "macos aarch64", secretsAvailable: true, agentAvailable: true };
       case "settings_get":
         return mockSettings;
       case "settings_save":
@@ -159,7 +159,7 @@ mockIPC(
         return null;
       case "crash_reports":
         return new URLSearchParams(location.search).has("crash")
-          ? [{ id: "crash-1-0-backend.txt", kind: "backend", time: Math.floor(Date.now() / 1000) - 300, summary: "panic in thread 'tokio-runtime-worker' at crates/app-core/src/terminals.rs:120: index out of bounds", text: "Termalith 0.1.0-mock crash report (backend)\nOS: macos aarch64\nTime: 0\n\npanic in thread 'tokio-runtime-worker' at crates/app-core/src/terminals.rs:120: index out of bounds\n\nBacktrace:\n   0: ...\n" }]
+          ? [{ id: "crash-1-0-backend.txt", kind: "backend", time: Math.floor(Date.now() / 1000) - 300, summary: "panic in thread 'tokio-runtime-worker' at crates/app-core/src/terminals.rs:120: index out of bounds", text: "Termalith 0.5.0-mock crash report (backend)\nOS: macos aarch64\nTime: 0\n\npanic in thread 'tokio-runtime-worker' at crates/app-core/src/terminals.rs:120: index out of bounds\n\nBacktrace:\n   0: ...\n" }]
           : [];
       case "crash_dismiss":
       case "frontend_error":
@@ -267,10 +267,10 @@ mockIPC(
       }
       case "update_check":
         return {
-          current: "0.1.0",
-          latest: "0.2.0",
+          current: "0.5.0",
+          latest: "0.6.0",
           newer: true,
-          url: "https://github.com/mehaskari/Termalith/releases/tag/v0.2.0",
+          url: "https://github.com/mehaskari/Termalith/releases/tag/v0.6.0",
           prerelease: true,
         };
       case "open_local_network_settings":

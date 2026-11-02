@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Installers for Windows on ARM, Linux on ARM64 and Intel Macs (built and
+  tested in CI; not yet tried on real hardware).
 - Folders are now first-class: create empty folders and subfolders, rename,
   delete, and drag sessions or folders to move them.
 - A refreshed look: protocol badges (SSH, RDP, VNC, Telnet) in the session

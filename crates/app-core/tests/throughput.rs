@@ -11,9 +11,9 @@ use app_core::TerminalHub;
 use terminal_pty::{ShellSpec, TerminalEvent, TerminalSize};
 
 const BYTES: usize = 64 * 1024 * 1024;
-/// A slow shared CI runner does well over 20 MB/s; a broken flow-control
-/// path (stalls, per-byte work) is far below this.
-const MIN_MB_PER_S: f64 = 5.0;
+/// Shared CI runners measured 4 MB/s (macOS Intel) and more; a broken
+/// flow-control path (stalls, per-byte work) is far below this.
+const MIN_MB_PER_S: f64 = 1.0;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn local_terminal_output_throughput() {
@@ -54,6 +54,9 @@ async fn local_terminal_output_throughput() {
     let secs = start.elapsed().as_secs_f64();
     let mb_s = BYTES as f64 / 1_000_000.0 / secs;
     eprintln!("terminal throughput: {mb_s:.1} MB/s ({BYTES} bytes in {secs:.2} s)");
-    assert!(mb_s > MIN_MB_PER_S, "{mb_s:.1} MB/s is below {MIN_MB_PER_S} MB/s");
+    assert!(
+        mb_s > MIN_MB_PER_S,
+        "{mb_s:.1} MB/s is below {MIN_MB_PER_S} MB/s"
+    );
     let _ = hub.close(id).await;
 }

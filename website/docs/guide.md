@@ -166,7 +166,10 @@ twice).
   file-browser tab without a shell (**Open terminal** adds a shell on the
   same connection).
 - **Download** saves to your Downloads folder; **upload** by dropping files
-  onto the window.
+  or folders onto the window (the Files panel is outlined while you drag).
+  A folder is uploaded with everything in it as one transfer; symbolic
+  links are not followed, and a folder of the same name on the server is
+  never merged or overwritten. Up to 10,000 entries per folder.
 - Up to three transfers run at once; connection errors are retried
   automatically and failed transfers have **Retry**.
 - **New folder**, **Rename** and **Delete** (files and empty folders; there

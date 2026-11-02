@@ -100,6 +100,8 @@ interface Props {
   terminalId: TerminalId;
   /** Files dropped on the window while this panel is visible. */
   dropped: DroppedFile[] | null;
+  /** Files are being dragged over the window. */
+  fileHover?: boolean;
   onDroppedHandled: () => void;
   onClose: () => void;
   /** Open a remote file in the built-in editor. */
@@ -116,7 +118,16 @@ function message(e: unknown): string {
   return isIpcError(e) ? e.message : String(e);
 }
 
-export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onEdit, onCompare, connection }: Props) {
+export function FilesPanel({
+  terminalId,
+  dropped,
+  fileHover,
+  onDroppedHandled,
+  onClose,
+  onEdit,
+  onCompare,
+  connection,
+}: Props) {
   const [showHistory, setShowHistory] = useState(false);
   const [compareBase, setCompareBase] = useState<{ dir: string; name: string } | null>(null);
   const [path, setPath] = useState<string | null>(null);
@@ -213,13 +224,15 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onE
     );
   }
 
-  // Upload files dropped onto the window into the current directory.
+  // Upload files and folders dropped onto the window into the current
+  // directory (waits for the first listing if it is still loading).
   useEffect(() => {
     if (!dropped || !path) return;
     for (const f of dropped) {
       const key = transferKey++;
+      const name = f.folder ? `${f.name}/` : f.name;
       setTransfers((ts) => [
-        { id: null, key, direction: "up", name: f.name, transferred: 0, total: f.size, state: "running" },
+        { id: null, key, direction: "up", name, transferred: 0, total: f.size, state: "running" },
         ...ts,
       ]);
       sftpUpload(terminalId, f.token, path, onEvent(key, true), connection).then(
@@ -230,10 +243,15 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onE
     onDroppedHandled();
     // onEvent/load capture `path`; re-running on their identity is unwanted.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dropped]);
+  }, [dropped, path === null]);
 
   return (
-    <section className="files-panel" aria-label="Remote files">
+    <section className={fileHover ? "files-panel drop-target" : "files-panel"} aria-label="Remote files">
+      {fileHover && path && (
+        <div className="drop-hint" aria-hidden="true">
+          Drop to upload into <strong>{path}</strong>
+        </div>
+      )}
       <header className="files-head">
         <button type="button" className="icon" title="Parent folder" aria-label="Parent folder"
           disabled={!path || parentRemote(path) === path} onClick={() => path && void load(parentRemote(path))}>
@@ -337,7 +355,7 @@ export function FilesPanel({ terminalId, dropped, onDroppedHandled, onClose, onE
         {!loading && path && entries.length === 0 && !error && <li className="files-empty">Empty folder</li>}
       </ul>
 
-      <p className="files-hint">Drop files onto the window to upload them here. Downloads go to your Downloads folder.</p>
+      <p className="files-hint">Drop files or folders onto the window to upload them here. Downloads go to your Downloads folder.</p>
 
       {transfers.length > 0 && (
         <ul className="transfers" aria-label="Transfers">

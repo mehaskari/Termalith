@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Upload whole folders by dropping them on the Files panel (subfolders
+  included). Previously a dropped folder was silently ignored. The panel is
+  now outlined while files are dragged over the window.
 - RDP on Linux: the server certificate is checked by Termalith and shown in
   a trust dialog (with the old and new fingerprints when it changes);
   FreeRDP then accepts only that certificate instead of trusting any

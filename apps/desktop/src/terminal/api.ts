@@ -210,7 +210,9 @@ export type TransferEvent =
 export interface DroppedFile {
   token: number;
   name: string;
+  /** Bytes; for a folder, the total of the files in it. */
   size: number;
+  folder: boolean;
 }
 
 export const sftpHome = (terminalId: TerminalId) => invoke<string>("sftp_home", { terminalId });

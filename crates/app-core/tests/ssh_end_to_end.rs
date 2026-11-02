@@ -466,6 +466,73 @@ fn event_sink() -> (
     )
 }
 
+/// SFTP upload and download rate over the test sshd (loopback). Prints
+/// MB/s; the floor only catches a broken transfer loop.
+#[tokio::test(flavor = "multi_thread")]
+async fn sftp_transfer_rate() {
+    use app_core::{TransferEvent, Transfers};
+    const SIZE: usize = 32 * 1024 * 1024;
+    let Some(r) = rig() else { return };
+    let session = trusted_connection(&r).await;
+    let (sink, _c) = collector();
+    let id = r
+        .hub
+        .open_ssh(session, TerminalSize::new(80, 24).unwrap(), sink)
+        .await
+        .unwrap();
+    std::fs::create_dir_all(r.sshd.path("rate")).unwrap();
+    let remote_dir = r.sshd.remote("rate");
+    let sftp = r.hub.sftp(id).await.unwrap();
+    let local = tempfile::tempdir().unwrap();
+    let src = local.path().join("rate.bin");
+    std::fs::write(&src, vec![0x5au8; SIZE]).unwrap();
+    let transfers = Arc::new(Transfers::default());
+
+    let rate = |secs: f64| SIZE as f64 / 1_000_000.0 / secs;
+    let start = Instant::now();
+    let (sink, mut rx) = event_sink();
+    transfers
+        .start_upload(sftp.clone(), src, &remote_dir, "c", sink)
+        .unwrap();
+    assert!(matches!(
+        wait_event(&mut rx).await,
+        TransferEvent::Done { .. }
+    ));
+    let up = rate(start.elapsed().as_secs_f64());
+
+    let dest = local.path().join("down");
+    std::fs::create_dir(&dest).unwrap();
+    let start = Instant::now();
+    let (sink, mut rx) = event_sink();
+    transfers
+        .start_download(
+            sftp.clone(),
+            app_core::Download {
+                remote_dir: &remote_dir,
+                name: "rate.bin",
+                size: Some(SIZE as u64),
+                dest_dir: dest.clone(),
+                connection: "c",
+            },
+            sink,
+        )
+        .unwrap();
+    assert!(matches!(
+        wait_event(&mut rx).await,
+        TransferEvent::Done { .. }
+    ));
+    let down = rate(start.elapsed().as_secs_f64());
+    assert_eq!(
+        std::fs::metadata(dest.join("rate.bin")).unwrap().len(),
+        SIZE as u64
+    );
+    eprintln!("sftp rate: upload {up:.1} MB/s, download {down:.1} MB/s ({SIZE} bytes, loopback)");
+    assert!(
+        up > 1.0 && down > 1.0,
+        "upload {up:.1} / download {down:.1} MB/s"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn dropped_folder_uploads_with_its_subfolders() {
     use app_core::{DroppedFiles, TransferEvent, Transfers};

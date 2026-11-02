@@ -11,6 +11,7 @@ BIN=${1:?usage: smoke-test.sh <app-binary>}
 START_TIMEOUT=${START_TIMEOUT:-60}
 LOG=$(mktemp)
 
+STARTED=$(date +%s%N 2>/dev/null || date +%s000000000)
 "$BIN" >"$LOG" 2>&1 &
 APP=$!
 echo "app pid $APP"
@@ -35,6 +36,10 @@ if [[ -z "$(shells)" ]]; then
   echo "FAIL: no shell child after ${START_TIMEOUT}s (frontend did not open a terminal)"
   cat "$LOG"; exit 1
 fi
+NOW=$(date +%s%N 2>/dev/null || date +%s000000000)
+# Launch until the first terminal runs a shell (window, UI and backend up).
+# macOS date has no %N, so there it is whole seconds.
+echo "startup to first terminal: $(( (NOW - STARTED) / 1000000 )) ms (0.5 s polling)"
 
 sleep 2 # let any duplicate open settle
 PIDS=()

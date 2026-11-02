@@ -10,6 +10,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $shellName = Split-Path -Leaf $env:COMSPEC
+$clock = [System.Diagnostics.Stopwatch]::StartNew()
 $app = Start-Process -FilePath $Bin -PassThru
 Write-Host "app pid $($app.Id); expecting child $shellName"
 
@@ -25,6 +26,8 @@ try {
     if ((Get-Date) -gt $deadline) { throw "no shell child after ${StartTimeout}s (frontend did not open a terminal)" }
     Start-Sleep -Milliseconds 500
   }
+  # Launch until the first terminal runs a shell (window, UI and backend up).
+  Write-Host "startup to first terminal: $($clock.ElapsedMilliseconds) ms (0.5 s polling)"
   Start-Sleep -Seconds 2
   $shells = Get-Shells
   Write-Host "shell children: $($shells.Count)"

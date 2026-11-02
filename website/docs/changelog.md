@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- macOS: the Local Network permission prompt now says why Termalith needs
+  it, and the guide explains the "No route to host" error it causes when
+  denied.
 - Upload whole folders by dropping them on the Files panel (subfolders
   included). Previously a dropped folder was silently ignored. The panel is
   now outlined while files are dragged over the window.

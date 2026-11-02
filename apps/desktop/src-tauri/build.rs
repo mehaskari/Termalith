@@ -35,6 +35,7 @@ fn main() {
             "embedded_open",
             "embedded_input",
             "embedded_ack",
+            "embedded_resize",
             "embedded_close",
             "host_key_respond",
             "auth_prompt_respond",

@@ -211,6 +211,17 @@ pub fn embedded_input(
         .embedded_input(id, events.into_iter().map(Into::into).collect())?)
 }
 
+/// Asks the server to resize the desktop to the viewer's size.
+#[tauri::command]
+pub fn embedded_resize(
+    state: State<'_, AppState>,
+    id: u64,
+    width: u16,
+    height: u16,
+) -> Result<(), IpcError> {
+    Ok(state.desktops.embedded_resize(id, width, height)?)
+}
+
 #[tauri::command]
 pub fn embedded_ack(state: State<'_, AppState>, id: u64) -> Result<(), IpcError> {
     Ok(state.desktops.embedded_ack(id)?)

@@ -150,7 +150,11 @@ fn connect(
     let mut framed = Framed::new(tcp);
     let mut cfg = config(username, password, size);
     cfg.domain = p.domain.map(str::to_owned);
-    let mut connector = ClientConnector::new(cfg, client_addr);
+    // Display Control lets the viewer resize the remote desktop.
+    let drdynvc = ironrdp_dvc::DrdynvcClient::new().with_dynamic_channel(
+        ironrdp_displaycontrol::client::DisplayControlClient::new(|_| Ok(Vec::new())),
+    );
+    let mut connector = ClientConnector::new(cfg, client_addr).with_static_channel(drdynvc);
     let should_upgrade = ironrdp_blocking::connect_begin(&mut framed, &mut connector)
         .map_err(|e| failed("negotiation", e))?;
 
@@ -334,6 +338,8 @@ pub enum ViewerInput {
 
 enum Control {
     Input(Vec<ViewerInput>),
+    /// Ask the server for a new desktop size (it may adjust or refuse it).
+    Resize(u16, u16),
     /// The viewer drew one frame.
     Ack,
     Close,
@@ -352,6 +358,12 @@ pub struct Viewer {
 impl Viewer {
     pub fn input(&self, events: Vec<ViewerInput>) -> bool {
         self.tx.send(Control::Input(events)).is_ok()
+    }
+
+    /// Asks the server to change the desktop size; a `Connected` event with
+    /// the new size follows when it does.
+    pub fn resize(&self, width: u16, height: u16) -> bool {
+        self.tx.send(Control::Resize(width, height)).is_ok()
     }
 
     pub fn ack(&self) -> bool {
@@ -483,6 +495,7 @@ fn run(
         result.desktop_size.width,
         result.desktop_size.height,
     );
+    let activation = result.activation_factory;
     let mut stage = ActiveStageBuilder {
         static_channels: result.static_channels,
         user_channel_id: result.user_channel_id,
@@ -503,10 +516,17 @@ fn run(
     }
     let mut dirty: Option<(u16, u16, u16, u16)> = None;
     let mut in_flight = 0usize;
+    /// What handling a batch of outputs asks the loop to do next.
+    enum Next {
+        Go,
+        Stop,
+        Reactivate,
+    }
     let write = |framed: &mut Framed<Tls>,
                  outputs: Vec<ActiveStageOutput>,
                  dirty: &mut Option<_>|
-     -> Result<bool, String> {
+     -> Result<Next, String> {
+        let mut next = Next::Go;
         for out in outputs {
             match out {
                 ActiveStageOutput::ResponseFrame(f) => {
@@ -515,11 +535,12 @@ fn run(
                 ActiveStageOutput::GraphicsUpdate(r) => {
                     *dirty = Some(union(*dirty, (r.left, r.top, r.right, r.bottom)));
                 }
-                ActiveStageOutput::Terminate(_) => return Ok(false),
+                ActiveStageOutput::DeactivateAll => next = Next::Reactivate,
+                ActiveStageOutput::Terminate(_) => return Ok(Next::Stop),
                 _ => {}
             }
         }
-        Ok(true)
+        Ok(next)
     };
     loop {
         // Viewer input, acks and close requests first.
@@ -538,9 +559,35 @@ fn run(
                         let outputs = stage
                             .process_fastpath_input(&mut image, &fp)
                             .map_err(|e| format!("input: {e}"))?;
-                        if !write(&mut framed, outputs, &mut dirty)? {
-                            return Ok(());
+                        match write(&mut framed, outputs, &mut dirty)? {
+                            Next::Go => {}
+                            Next::Stop => return Ok(()),
+                            Next::Reactivate => {
+                                reactivate(&activation, &mut framed, &mut stage, &mut image)?;
+                                dirty = None;
+                                in_flight = 0;
+                                if !sink(ViewerEvent::Connected {
+                                    width: image.width(),
+                                    height: image.height(),
+                                }) {
+                                    return Ok(());
+                                }
+                            }
                         }
+                    }
+                }
+                Ok(Control::Resize(w, h)) => {
+                    let (w, h) =
+                        ironrdp_displaycontrol::pdu::MonitorLayoutEntry::adjust_display_size(
+                            u32::from(w),
+                            u32::from(h),
+                        );
+                    // None: the server offered no Display Control; keep the size.
+                    if let Some(frame) = stage.encode_resize(w, h, None, None) {
+                        let frame = frame.map_err(|e| format!("resize: {e}"))?;
+                        framed
+                            .write_all(&frame)
+                            .map_err(|e| format!("write: {e}"))?;
                     }
                 }
                 Ok(Control::Ack) => in_flight = in_flight.saturating_sub(1),
@@ -558,8 +605,20 @@ fn run(
                 let outputs = stage
                     .process(&mut image, action, &payload, None)
                     .map_err(|e| format!("decode: {e}"))?;
-                if !write(&mut framed, outputs, &mut dirty)? {
-                    return Ok(());
+                match write(&mut framed, outputs, &mut dirty)? {
+                    Next::Go => {}
+                    Next::Stop => return Ok(()),
+                    Next::Reactivate => {
+                        reactivate(&activation, &mut framed, &mut stage, &mut image)?;
+                        dirty = None;
+                        in_flight = 0;
+                        if !sink(ViewerEvent::Connected {
+                            width: image.width(),
+                            height: image.height(),
+                        }) {
+                            return Ok(());
+                        }
+                    }
                 }
             }
             Err(e)
@@ -577,6 +636,70 @@ fn run(
             if !sink(crop(&image, r)) {
                 return Ok(());
             }
+        }
+    }
+}
+
+/// Deactivation-Reactivation Sequence (after a resize): renegotiates the
+/// session and starts a framebuffer of the new size.
+fn reactivate(
+    factory: &ironrdp_connector::connection_activation::ConnectionActivationFactory,
+    framed: &mut Framed<Tls>,
+    stage: &mut ironrdp_session::ActiveStage,
+    image: &mut DecodedImage,
+) -> Result<(), String> {
+    use ironrdp_connector::Sequence as _;
+    use ironrdp_connector::connection_activation::ConnectionActivationState;
+    let mut seq = factory.create();
+    let mut buf = ironrdp_pdu::WriteBuf::new();
+    loop {
+        buf.clear();
+        let written = match seq.next_pdu_hint() {
+            Some(hint) => {
+                let pdu = loop {
+                    match framed.read_by_hint(hint) {
+                        Ok(p) => break p,
+                        Err(e)
+                            if matches!(
+                                e.kind(),
+                                std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                            ) => {}
+                        Err(e) => return Err(format!("reactivation: {e}")),
+                    }
+                };
+                seq.step(&pdu, None, &mut buf)
+            }
+            None => seq.step_no_input(&mut buf),
+        }
+        .map_err(|e| format!("reactivation: {e}"))?;
+        if written.size().is_some() {
+            framed
+                .write_all(buf.filled())
+                .map_err(|e| format!("write: {e}"))?;
+        }
+        if let ConnectionActivationState::Finalized {
+            desktop_size,
+            share_id,
+            enable_server_pointer,
+            pointer_software_rendering,
+            ..
+        } = seq.connection_activation_state()
+        {
+            *image =
+                DecodedImage::new(PixelFormat::RgbA32, desktop_size.width, desktop_size.height);
+            stage.set_fastpath_processor(
+                ironrdp_session::fast_path::ProcessorBuilder {
+                    io_channel_id: seq.io_channel_id(),
+                    user_channel_id: seq.user_channel_id(),
+                    share_id,
+                    enable_server_pointer,
+                    pointer_software_rendering,
+                }
+                .build(),
+            );
+            stage.set_share_id(share_id);
+            stage.set_enable_server_pointer(enable_server_pointer);
+            return Ok(());
         }
     }
 }

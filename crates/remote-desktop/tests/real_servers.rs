@@ -229,6 +229,22 @@ fn embedded_rdp_against_xrdp() {
     }
     eprintln!("viewer: {frames} frames, {bytes} bytes in 6 s");
     assert!(frames > 0, "no frames");
+
+    // Resize through Display Control; servers without it keep the size.
+    viewer.resize(800, 600);
+    let deadline = Instant::now() + Duration::from_secs(8);
+    let mut resized = None;
+    while Instant::now() < deadline && resized.is_none() {
+        match rx.recv_timeout(Duration::from_millis(200)) {
+            Ok(ViewerEvent::Connected { width, height }) => resized = Some((width, height)),
+            Ok(ViewerEvent::Frame { .. }) => {
+                viewer.ack();
+            }
+            Ok(ViewerEvent::Closed { reason }) => panic!("closed during resize: {reason:?}"),
+            Err(_) => {}
+        }
+    }
+    eprintln!("viewer resize to 800x600: {resized:?} (None = server kept its size)");
     viewer.close();
     loop {
         match rx.recv_timeout(Duration::from_secs(10)) {

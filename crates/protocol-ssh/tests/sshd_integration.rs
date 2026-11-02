@@ -1439,6 +1439,7 @@ async fn connects_through_a_socks5_proxy() {
         kind: protocol_ssh::ProxyKind::Socks5,
         host: "127.0.0.1".into(),
         port: proxy_port,
+        auth: None,
     });
     let sess = SshSession::connect(&target(&s), &key_auth(&s), &o)
         .await

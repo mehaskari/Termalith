@@ -119,8 +119,9 @@ administrator, use **Remove recorded key…** and connect again.
   saved SSH session. Each hop's host key is verified. A jump host must log in without
   questions (saved password, key or agent).
 - **Proxy:** *Settings → Proxy* sends SSH and Telnet connections through a
-  SOCKS5 or HTTP CONNECT proxy (no proxy authentication yet). Only the first
-  hop uses it.
+  SOCKS5 or HTTP CONNECT proxy, with an optional user name and password
+  (SOCKS5 user/password, HTTP Basic). The password is kept in the system
+  keychain. Only the first hop uses the proxy.
 
 ### Options per session
 

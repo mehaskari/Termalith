@@ -159,6 +159,18 @@ export const sshConfigImport = (aliases: string[]) =>
   invoke<{ created: string[]; skipped: string[]; unresolvedJumps: string[] }>("ssh_config_import", { aliases });
 
 export const appInfo = () => invoke<AppInfo>("app_info");
+
+export interface UpdateInfo {
+  current: string;
+  latest: string | null;
+  newer: boolean;
+  /** Release page on github.com. */
+  url: string | null;
+  prerelease: boolean;
+}
+
+/** Asks GitHub for the newest published release; never downloads anything. */
+export const checkForUpdates = () => invoke<UpdateInfo>("update_check");
 export const listSessions = () => invoke<SessionRecord[]>("sessions_list");
 export const createSession = (input: SessionInput) =>
   invoke<SessionRecord>("session_create", { input });
@@ -330,6 +342,8 @@ export interface Settings {
   terminalScheme: string;
   /** Proxy for outgoing SSH/Telnet connections (first hop only). */
   proxy: { kind: "socks5" | "http"; host: string; port: number } | null;
+  /** Look for a newer release on GitHub at startup. */
+  checkUpdates: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -346,6 +360,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoReconnect: true,
   terminalScheme: "app",
   proxy: null,
+  checkUpdates: false,
 };
 
 export const getSettings = () => invoke<Settings>("settings_get");

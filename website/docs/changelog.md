@@ -5,6 +5,11 @@
 - Security hardening from the pre-release review: a stricter content
   security policy, a size limit on session imports, and a frontend
   dependency audit in CI.
+- **Check for updates** in About (and optionally at startup, off by
+  default): shows a link to a newer release; never downloads or installs
+  anything.
+- Releases include `SHA256SUMS.txt`, and the site documents building from
+  source, verifying downloads and the release process.
 - Keyboard support in the tab bar (arrows, Enter, Delete, F2, Shift+F10)
   and the Files panel (arrows, Alt+Up/Backspace for the parent folder, menus
   that work from the keyboard). Light theme colors were darkened slightly so

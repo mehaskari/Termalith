@@ -151,6 +151,10 @@ export function SettingsDialog({ initial, shells, onSave, onCancel }: Props) {
           <input type="checkbox" checked={s.autoReconnect} onChange={(e) => set({ autoReconnect: e.target.checked })} />
           Reconnect SSH tabs automatically when the connection drops
         </label>
+        <label className="checkbox span-2">
+          <input type="checkbox" checked={s.checkUpdates} onChange={(e) => set({ checkUpdates: e.target.checked })} />
+          Check GitHub for a newer version at startup (nothing is downloaded automatically)
+        </label>
         {shells.length > 1 && (
           <label className="span-2">
             Shell for new local terminals

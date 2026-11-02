@@ -112,6 +112,7 @@ pub fn run() {
             keys::key_public,
             keys::key_install,
             sessions::app_info,
+            sessions::update_check,
             sessions::sessions_list,
             sessions::session_create,
             sessions::session_update,

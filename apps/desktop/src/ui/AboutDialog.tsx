@@ -1,5 +1,6 @@
+import { useState } from "react";
 import icon from "../assets/icon.png";
-import { type AppInfo, openWebLink } from "../terminal/api";
+import { type AppInfo, type UpdateInfo, checkForUpdates, isIpcError, openWebLink } from "../terminal/api";
 import { Dialog } from "./Dialog";
 import { REPO, SITE } from "./project";
 
@@ -20,6 +21,40 @@ function Link({ href, children }: { href: string; children: string }) {
     <button type="button" className="link" onClick={() => void openWebLink(href).catch(() => {})}>
       {children}
     </button>
+  );
+}
+
+type Check = { kind: "idle" } | { kind: "checking" } | { kind: "done"; info: UpdateInfo } | { kind: "failed"; message: string };
+
+/** Manual update check: shows the result and a link; installs nothing. */
+function UpdateCheck() {
+  const [check, setCheck] = useState<Check>({ kind: "idle" });
+  const run = () => {
+    setCheck({ kind: "checking" });
+    checkForUpdates().then(
+      (info) => setCheck({ kind: "done", info }),
+      (e) => setCheck({ kind: "failed", message: isIpcError(e) ? e.message : String(e) }),
+    );
+  };
+  return (
+    <p className="about-update" aria-live="polite">
+      <button type="button" onClick={run} disabled={check.kind === "checking"}>
+        {check.kind === "checking" ? "Checking…" : "Check for updates"}
+      </button>{" "}
+      {check.kind === "done" &&
+        (check.info.newer && check.info.url ? (
+          <>
+            Version {check.info.latest}
+            {check.info.prerelease ? " (preview)" : ""} is available.{" "}
+            <Link href={check.info.url}>Download</Link>
+          </>
+        ) : check.info.latest ? (
+          <span className="hint">You have the newest version.</span>
+        ) : (
+          <span className="hint">No published release yet.</span>
+        ))}
+      {check.kind === "failed" && <span className="form-error">{check.message}</span>}
+    </p>
   );
 }
 
@@ -46,6 +81,7 @@ export function AboutDialog({ info, onClose }: { info: AppInfo | null; onClose: 
             </p>
           </div>
         </div>
+        <UpdateCheck />
         <p>
           An open-source remote administration workstation: SSH, SFTP, RDP/VNC, tunnels, serial and Telnet
           consoles and network tools in one app.

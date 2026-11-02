@@ -44,6 +44,17 @@ Please report security issues **privately** through GitHub:
   only the last leg is unencrypted.
 - Links in terminal output open only with a modifier click, and only
   `http`/`https` links are accepted.
+- RDP on Linux: Termalith reads the server certificate and asks you, like
+  an SSH host key; FreeRDP then accepts only that certificate. Servers
+  without TLS are refused.
+
+## What Termalith sends on its own
+
+Nothing, unless you ask. There is no telemetry and no analytics. Crash
+reports stay on your computer until you copy or file one. **Check for
+updates** (in About, or at startup if you turn it on in Settings) asks
+GitHub's public releases list for the newest version and only shows a link;
+it downloads and installs nothing.
 
 ## The app itself
 
@@ -61,5 +72,5 @@ Please report security issues **privately** through GitHub:
 
 - Installers are not code-signed yet.
 - RDP/VNC run in external clients; their security depends on those
-  clients. FreeRDP on Linux trusts a server certificate on first use.
+  clients.
 - SOCKS/HTTP proxy authentication is not supported yet.

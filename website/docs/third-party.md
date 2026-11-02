@@ -9,12 +9,13 @@ packages via pnpm) and covers what ships in the app on all platforms.
 
 | License | Crates |
 |---|---|
-| MIT License | 443 |
+| MIT License | 447 |
 | Unicode License v3 | 19 |
 | Apache License 2.0 | 9 |
 | BSD 3-Clause "New" or "Revised" License | 7 |
 | Mozilla Public License 2.0 | 6 |
 | ISC License | 5 |
+| Community Data License Agreement Permissive 2.0 | 1 |
 | MIT No Attribution | 1 |
 | zlib License | 1 |
 
@@ -662,6 +663,75 @@ Redistribution and use in source and binary forms, with or without modification,
 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+```
+
+### Community Data License Agreement Permissive 2.0
+
+Used by: `webpki-roots 1.0.11`
+
+```text
+# Community Data License Agreement - Permissive - Version 2.0
+
+This is the Community Data License Agreement - Permissive, Version
+2.0 (the "agreement"). Data Provider(s) and Data Recipient(s) agree
+as follows:
+
+## 1. Provision of the Data
+
+1.1. A Data Recipient may use, modify, and share the Data made
+available by Data Provider(s) under this agreement if that Data
+Recipient follows the terms of this agreement.
+
+1.2. This agreement does not impose any restriction on a Data
+Recipient's use, modification, or sharing of any portions of the
+Data that are in the public domain or that may be used, modified,
+or shared under any other legal exception or limitation.
+
+## 2. Conditions for Sharing Data
+
+2.1. A Data Recipient may share Data, with or without modifications, so
+long as the Data Recipient makes available the text of this agreement
+with the shared Data.
+
+## 3. No Restrictions on Results
+
+3.1. This agreement does not impose any restriction or obligations
+with respect to the use, modification, or sharing of Results.
+
+## 4. No Warranty; Limitation of Liability
+
+4.1. All Data Recipients receive the Data subject to the following
+terms:
+
+THE DATA IS PROVIDED ON AN "AS IS" BASIS, WITHOUT REPRESENTATIONS,
+WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED
+INCLUDING, WITHOUT LIMITATION, ANY WARRANTIES OR CONDITIONS OF TITLE,
+NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+NO DATA PROVIDER SHALL HAVE ANY LIABILITY FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING
+WITHOUT LIMITATION LOST PROFITS), HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE DATA OR RESULTS,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+## 5. Definitions
+
+5.1. "Data" means the material received by a Data Recipient under
+this agreement.
+
+5.2. "Data Provider" means any person who is the source of Data
+provided under this agreement and in reliance on a Data Recipient's
+agreement to its terms.
+
+5.3. "Data Recipient" means any person who receives Data directly
+or indirectly from a Data Provider and agrees to the terms of this
+agreement.
+
+5.4. "Results" means any outcome obtained by computational analysis
+of Data, including for example machine learning models and models'
+insights.
 
 ```
 
@@ -1815,6 +1885,34 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
+Used by: `httparse 1.10.1`
+
+```text
+Copyright (c) 2015-2025 Sean McArthur
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
 
 ```
 
@@ -4685,6 +4783,21 @@ SOFTWARE.
 
 ### MIT License
 
+Used by: `ureq-proto 0.6.5`
+
+```text
+Copyright 2022 Martin Algesten
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
 Used by: `crypto-primes 0.7.2`
 
 ```text
@@ -5087,6 +5200,35 @@ Used by: `schemars 0.8.22`, `schemars_derive 0.8.22`
 MIT License
 
 Copyright (c) 2019 Graham Esau
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
+
+### MIT License
+
+Used by: `ureq 3.5.0`
+
+```text
+MIT License
+
+Copyright (c) 2019 Martin Algesten
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -5732,7 +5874,7 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `adler2 2.0.1`, `anyhow 1.0.104`, `async-channel 2.5.0`, `async-executor 1.14.0`, `async-io 2.6.0`, `async-lock 3.4.2`, `async-process 2.5.0`, `async-signal 0.2.14`, `async-task 4.7.1`, `async-trait 0.1.92`, `atomic-waker 1.1.2`, `blocking 1.7.0`, `camino 1.2.6`, `cargo-platform 0.1.9`, `cargo_metadata 0.19.2`, `concurrent-queue 2.5.0`, `curve25519-dalek-derive 0.1.1`, `displaydoc 0.2.7`, `dtoa 1.0.11`, `dyn-clone 1.0.20`, `endi 1.1.1`, `erased-serde 0.4.11`, `event-listener-strategy 0.5.4`, `event-listener 5.4.2`, `fastrand 2.5.0`, `futures-lite 2.6.1`, `group 0.14.0`, `itoa 1.0.18`, `lazy_static 1.5.1`, `linux-raw-sys 0.12.1`, `once_cell 1.21.4`, `ordered-stream 0.2.0`, `parking 2.2.1`, `pin-project-lite 0.2.17`, `piper 0.2.5`, `polling 3.11.0`, `proc-macro-crate 1.3.1`, `proc-macro-crate 2.0.2`, `proc-macro-crate 3.5.0`, `proc-macro2 1.0.107`, `quote 1.0.47`, `rustix 1.1.6`, `rustversion 1.0.23`, `semver 1.0.28`, `serde-untagged 0.1.9`, `serde 1.0.229`, `serde_bytes 0.11.19`, `serde_core 1.0.229`, `serde_derive 1.0.229`, `serde_derive_internals 0.29.1`, `serde_json 1.0.154`, `serde_repr 0.1.21`, `servo_arc 0.4.3`, `syn 1.0.109`, `syn 2.0.119`, `syn 3.0.9`, `thiserror-impl 1.0.69`, `thiserror-impl 2.0.21`, `thiserror 1.0.69`, `thiserror 2.0.21`, `typeid 1.0.3`, `unicode-ident 1.0.27`, `x11-dl 2.21.0`, `x11 2.21.0`, `zmij 1.0.23`, `zvariant_utils 4.2.0`
+Used by: `adler2 2.0.1`, `anyhow 1.0.104`, `async-channel 2.5.0`, `async-executor 1.14.0`, `async-io 2.6.0`, `async-lock 3.4.2`, `async-process 2.5.0`, `async-signal 0.2.14`, `async-task 4.7.1`, `async-trait 0.1.92`, `atomic-waker 1.1.2`, `blocking 1.7.0`, `camino 1.2.6`, `cargo-platform 0.1.9`, `cargo_metadata 0.19.2`, `concurrent-queue 2.5.0`, `curve25519-dalek-derive 0.1.1`, `displaydoc 0.2.7`, `dtoa 1.0.11`, `dyn-clone 1.0.20`, `endi 1.1.1`, `erased-serde 0.4.11`, `event-listener-strategy 0.5.4`, `event-listener 5.4.2`, `fastrand 2.5.0`, `futures-lite 2.6.1`, `group 0.14.0`, `itoa 1.0.18`, `lazy_static 1.5.1`, `linux-raw-sys 0.12.1`, `once_cell 1.21.4`, `ordered-stream 0.2.0`, `parking 2.2.1`, `pin-project-lite 0.2.17`, `piper 0.2.5`, `polling 3.11.0`, `proc-macro-crate 1.3.1`, `proc-macro-crate 2.0.2`, `proc-macro-crate 3.5.0`, `proc-macro2 1.0.107`, `quote 1.0.47`, `rustix 1.1.6`, `rustversion 1.0.23`, `semver 1.0.28`, `serde-untagged 0.1.9`, `serde 1.0.229`, `serde_bytes 0.11.19`, `serde_core 1.0.229`, `serde_derive 1.0.229`, `serde_derive_internals 0.29.1`, `serde_json 1.0.154`, `serde_repr 0.1.21`, `servo_arc 0.4.3`, `syn 1.0.109`, `syn 2.0.119`, `syn 3.0.9`, `thiserror-impl 1.0.69`, `thiserror-impl 2.0.21`, `thiserror 1.0.69`, `thiserror 2.0.21`, `typeid 1.0.3`, `unicode-ident 1.0.27`, `utf8-zero 0.8.1`, `x11-dl 2.21.0`, `x11 2.21.0`, `zmij 1.0.23`, `zvariant_utils 4.2.0`
 
 ```text
 Permission is hereby granted, free of charge, to any

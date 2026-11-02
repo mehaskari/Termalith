@@ -12,6 +12,7 @@ import {
   allFolderPaths,
   buildTree,
   folderDropPath,
+  moveTargets,
   folderPath,
   isInside,
   joinFolder,
@@ -277,5 +278,17 @@ describe("folder tree", () => {
     expect(folderDropPath("Prod/DB", "Prod")).toBeNull();
     expect(folderDropPath("Lab", "")).toBeNull();
     expect(allFolderPaths([s("a", "Prod / DB"), s("b", null)], ["lab/x", "prod"])).toEqual(["lab", "lab/x", "prod", "prod/DB"]);
+  });
+});
+
+describe("moveTargets", () => {
+  const paths = ["Lab", "Prod", "Prod/DB", "Prod/DB/Replicas"];
+  it("offers every other folder and the top level for a session", () => {
+    expect(moveTargets(paths, { kind: "session", folder: "prod/db" })).toEqual(["", "Lab", "Prod", "Prod/DB/Replicas"]);
+    expect(moveTargets(paths, { kind: "session", folder: null })).toEqual(paths);
+  });
+  it("never offers a folder itself, its children or its current parent", () => {
+    expect(moveTargets(paths, { kind: "folder", path: "Prod/DB" })).toEqual(["", "Lab"]);
+    expect(moveTargets(paths, { kind: "folder", path: "Lab" })).toEqual(["Prod", "Prod/DB", "Prod/DB/Replicas"]);
   });
 });

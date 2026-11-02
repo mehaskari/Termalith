@@ -1,8 +1,10 @@
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import type { SessionRecord, ShellChoice } from "../terminal/api";
 import { Icon, ProtocolBadge } from "./icons";
+import { MoveDialog } from "./MoveDialog";
 import {
   type FolderNode,
+  allFolderPaths,
   allSessions,
   authLabel,
   buildTree,
@@ -10,6 +12,7 @@ import {
   folderDropPath,
   folderPath,
   joinFolder,
+  moveTargets,
   normalizeFolder,
   parentFolder,
   targetLabel,
@@ -166,6 +169,7 @@ export function Sidebar(p: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
+  const [moving, setMoving] = useState<DragItem | null>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -174,6 +178,7 @@ export function Sidebar(p: Props) {
   useDismiss(shellMenu, shellRef, () => setShellMenu(false));
   useDismiss(moreMenu, moreRef, () => setMoreMenu(false));
   useDismiss(menu !== null, menuRef, () => setMenu(null));
+  const folderPaths = useMemo(() => allFolderPaths(p.sessions, p.folders), [p.sessions, p.folders]);
 
   const searching = query.trim() !== "";
   const filtered = useMemo(() => filterSessions(p.sessions, query), [p.sessions, query]);
@@ -197,12 +202,49 @@ export function Sidebar(p: Props) {
     setEditing({ kind: "new", parent });
   };
 
+  /** Where focus returns when a context menu closes. */
+  const menuOpener = useRef<HTMLElement | null>(null);
+  const openMenuAt = (x: number, y: number, items: MenuItem[]) => {
+    menuOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setMenu({
+      x: Math.min(x, window.innerWidth - 200),
+      y: Math.max(8, Math.min(y, window.innerHeight - 30 * items.length - 16)),
+      items,
+    });
+  };
   const openMenu = (e: React.MouseEvent, items: MenuItem[]) => {
     e.preventDefault();
     e.stopPropagation();
-    const x = Math.min(e.clientX, window.innerWidth - 200);
-    const y = Math.min(e.clientY, window.innerHeight - 30 * items.length - 16);
-    setMenu({ x, y, items });
+    openMenuAt(e.clientX, e.clientY, items);
+  };
+  /** Shift+F10 or the context-menu key opens the row's menu below it. */
+  const menuKey = (e: React.KeyboardEvent<HTMLElement>, items: () => MenuItem[]) => {
+    if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+      e.preventDefault();
+      e.stopPropagation();
+      const r = e.currentTarget.getBoundingClientRect();
+      openMenuAt(r.left + 16, r.bottom, items());
+    }
+  };
+  const closeMenu = () => {
+    setMenu(null);
+    menuOpener.current?.focus();
+  };
+  // Focus the first item when a menu opens, so it works from the keyboard.
+  useEffect(() => {
+    if (menu) menuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+  }, [menu]);
+  const menuNav = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const items = [...e.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
+    const i = items.indexOf(document.activeElement as HTMLButtonElement);
+    const to = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: items.length - 1 }[e.key];
+    if (to !== undefined) {
+      e.preventDefault();
+      items[(to + items.length) % items.length]?.focus();
+    } else if (e.key === "Escape" || e.key === "Tab") {
+      e.preventDefault();
+      closeMenu();
+    }
   };
 
   const sessionMenu = (s: SessionRecord): MenuItem[] => [
@@ -212,7 +254,7 @@ export function Sidebar(p: Props) {
     { label: "Edit…", run: () => p.onEdit(s) },
     { label: "Duplicate", run: () => p.onDuplicate(s) },
     { label: s.favorite ? "Remove from favorites" : "Add to favorites", run: () => p.onToggleFavorite(s) },
-    ...(s.folder ? [{ label: "Move to top level", run: () => p.onMoveSession(s, null) }] : []),
+    { label: "Move to folder…", run: () => setMoving({ kind: "session", session: s }) },
     ...(s.hasSavedSecret ? [{ label: "Forget saved password", run: () => p.onForgetSecret(s) }] : []),
     "sep",
     { label: "Delete…", run: () => p.onDelete(s), danger: true },
@@ -228,7 +270,7 @@ export function Sidebar(p: Props) {
         : []),
       "sep",
       { label: "Rename", run: () => setEditing({ kind: "rename", path: node.path }) },
-      ...(parentFolder(node.path) ? [{ label: "Move to top level", run: () => moveFolder(node.path, "") }] : []),
+      { label: "Move to folder…", run: () => setMoving({ kind: "folder", path: node.path }) },
       {
         label: "Delete folder",
         run: () => p.onDeleteFolder(node.path),
@@ -315,9 +357,12 @@ export function Sidebar(p: Props) {
         <button
           type="button"
           className="session"
+          data-nav="session"
           onClick={guardClick(() => p.onConnect(s))}
+          onKeyDown={(e) => menuKey(e, () => sessionMenu(s))}
           onPointerDown={inFavorites ? undefined : (e) => dragStart(e, { kind: "session", session: s }, s.name)}
           title={`Connect to ${targetLabel(s)}`}
+          aria-label={`${s.name}, ${protocol.toUpperCase()} ${targetLabel(s)}${extras.length ? `, ${extras.join(", ")}` : ""}`}
         >
           <ProtocolBadge protocol={protocol} />
           <span className="session-text">
@@ -372,6 +417,49 @@ export function Sidebar(p: Props) {
     );
   };
 
+  /** Arrow keys move between rows; Right/Left open and close folders. */
+  const treeKey = (e: React.KeyboardEvent<HTMLElement>) => {
+    const row = e.target as HTMLElement;
+    if (!row.dataset.nav) return;
+    const rows = [...e.currentTarget.querySelectorAll<HTMLElement>("[data-nav]")];
+    const i = rows.indexOf(row);
+    const go = (el: HTMLElement | null | undefined) => {
+      e.preventDefault();
+      el?.focus();
+    };
+    const path = row.dataset.path;
+    const isFolder = row.dataset.nav === "folder" && path !== undefined;
+    const open = row.getAttribute("aria-expanded") === "true";
+    // The folder this row is in: for a folder row, skip its own <li>.
+    const parentToggle = () =>
+      (isFolder ? row.closest("li.folder")?.parentElement : row)
+        ?.closest("li.folder")
+        ?.querySelector<HTMLElement>(":scope > .folder-head [data-nav]");
+    switch (e.key) {
+      case "ArrowDown":
+        return go(rows[i + 1]);
+      case "ArrowUp":
+        return go(rows[i - 1]);
+      case "Home":
+        return go(rows[0]);
+      case "End":
+        return go(rows.at(-1));
+      case "ArrowRight":
+        if (!isFolder) return;
+        if (!open) {
+          e.preventDefault();
+          setOpen(path, true);
+        } else go(rows[i + 1]);
+        return;
+      case "ArrowLeft":
+        if (isFolder && open) {
+          e.preventDefault();
+          setOpen(path, false);
+        } else go(parentToggle());
+        return;
+    }
+  };
+
   const newFolderRow = (parent: string) =>
     editing?.kind === "new" && editing.parent === parent ? (
       <li key="\u0000new" className="folder">
@@ -413,7 +501,11 @@ export function Sidebar(p: Props) {
               type="button"
               className="folder-toggle"
               aria-expanded={open}
+              aria-label={`${node.name} folder, ${node.total} session${node.total === 1 ? "" : "s"}`}
+              data-nav="folder"
+              data-path={node.path}
               onClick={guardClick(() => setOpen(node.path, !open))}
+              onKeyDown={favorites ? undefined : (e) => menuKey(e, () => folderMenu(node))}
               onPointerDown={favorites ? undefined : (e) => dragStart(e, { kind: "folder", path: node.path }, node.name)}
               title={open ? "Collapse" : "Expand"}
             >
@@ -530,6 +622,8 @@ export function Sidebar(p: Props) {
       </label>
       <nav
         className={`session-list ${drag?.target === "" ? "drop-target" : ""} ${drag ? "is-dragging" : ""}`}
+        aria-label="Saved sessions (arrow keys move, Shift+F10 opens actions)"
+        onKeyDown={treeKey}
         data-drop=""
         onContextMenu={(e) =>
           openMenu(e, [
@@ -613,7 +707,13 @@ export function Sidebar(p: Props) {
         </span>
       </div>
       {menu && (
-        <div ref={menuRef} className="menu context-menu" role="menu" style={{ left: menu.x, top: menu.y }}>
+        <div
+          ref={menuRef}
+          className="menu context-menu"
+          role="menu"
+          style={{ left: menu.x, top: menu.y }}
+          onKeyDown={menuNav}
+        >
           {menu.items.map((item, i) =>
             item === "sep" ? (
               // biome-ignore lint/suspicious/noArrayIndexKey: separators have no identity
@@ -627,7 +727,7 @@ export function Sidebar(p: Props) {
                 disabled={item.disabled !== undefined}
                 title={item.disabled}
                 onClick={() => {
-                  setMenu(null);
+                  closeMenu();
                   item.run();
                 }}
               >
@@ -636,6 +736,21 @@ export function Sidebar(p: Props) {
             ),
           )}
         </div>
+      )}
+      {moving && (
+        <MoveDialog
+          what={moving.kind === "session" ? `"${moving.session.name}"` : `folder "${folderPath(moving.path).at(-1)}"`}
+          targets={moveTargets(
+            folderPaths,
+            moving.kind === "session" ? { kind: "session", folder: moving.session.folder } : moving,
+          )}
+          onCancel={() => setMoving(null)}
+          onMove={(target) => {
+            if (moving.kind === "session") p.onMoveSession(moving.session, target || null);
+            else moveFolder(moving.path, target);
+            setMoving(null);
+          }}
+        />
       )}
       {drag && (
         <div className="drag-ghost" style={{ left: drag.x + 12, top: drag.y + 8 }} aria-hidden="true">

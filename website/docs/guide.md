@@ -64,7 +64,8 @@ Click **+** next to *Sessions* to save a connection. A session has a type
   for **New session here**, **New subfolder**, **Rename**, **Open all** and
   **Delete folder** (only when it holds no sessions). Drag a session or a
   whole folder onto another folder to move it, or onto empty space to move it
-  to the top level. In the session form, the folder field suggests existing
+  to the top level; **Move to folder…** in the menu does the same without a
+  mouse. In the session form, the folder field suggests existing
   folders; `/` makes subfolders, e.g. `Production/DB`.
 - **Favorites and tags:** the ☆ button pins a session to *Favorites*; tags
   (comma-separated) appear under the session. Click a tag, or type `#name` in
@@ -252,6 +253,13 @@ On Windows and Linux use <kbd>Ctrl</kbd>+<kbd>Shift</kbd> where macOS uses
 | Find | <kbd>Cmd</kbd>+<kbd>F</kbd> | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> |
 | Copy / paste | <kbd>Cmd</kbd>+<kbd>C</kbd> / <kbd>V</kbd> | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> / <kbd>V</kbd> |
 | Font size | <kbd>Cmd</kbd>+<kbd>+</kbd> / <kbd>-</kbd> / <kbd>0</kbd> | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>+</kbd> / <kbd>-</kbd> / <kbd>0</kbd> |
+
+In the session list: <kbd>↑</kbd> <kbd>↓</kbd> move between rows,
+<kbd>→</kbd> opens a folder (or steps into it), <kbd>←</kbd> closes it (or
+goes to the folder above), <kbd>Home</kbd> / <kbd>End</kbd> jump to the
+first or last row, <kbd>Enter</kbd> connects, and <kbd>Shift</kbd>+<kbd>F10</kbd>
+(or the context-menu key) opens the row's actions, which the arrow keys and
+<kbd>Esc</kbd> work in. Rows have descriptive labels for screen readers.
 
 ## Settings
 

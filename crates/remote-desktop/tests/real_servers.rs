@@ -144,11 +144,13 @@ async fn tigervnc_viewer_connects_with_the_launch_plan() {
     );
 }
 
-/// ADR-030 spike: IronRDP logs in to the real xrdp with the pinned
-/// certificate and decodes the desktop (the login screen at least).
+/// ADR-030: IronRDP logs in to the real xrdp with the pinned certificate,
+/// decodes the desktop, and a live viewer session streams frames, takes
+/// input and closes cleanly.
 #[cfg(feature = "embedded")]
 #[test]
-fn embedded_rdp_draws_the_xrdp_desktop() {
+fn embedded_rdp_against_xrdp() {
+    use remote_desktop::embedded::{LoginParams, ViewerEvent, ViewerInput, capture, start};
     let Some(addr) = env("TERMALITH_TEST_XRDP") else {
         eprintln!("TERMALITH_TEST_XRDP not set; skipped");
         return;
@@ -157,13 +159,20 @@ fn embedded_rdp_draws_the_xrdp_desktop() {
     let user = env("TERMALITH_TEST_SSH_USER").unwrap_or_else(|| "nobody".into());
     let password = env("TERMALITH_TEST_SSH_PASSWORD").unwrap_or_default();
     let pin = read_certificate(&host, port, &host, Duration::from_secs(10)).unwrap();
-
-    let wrong = remote_desktop::embedded::capture(
-        &host,
+    let params = |pin| LoginParams {
+        host: &host,
         port,
-        &user,
-        Zeroizing::new(password.clone()),
-        CertFingerprint::of(b"other"),
+        server_name: &host,
+        username: &user,
+        password: Zeroizing::new(password.clone()),
+        domain: None,
+        pin,
+        width: 1024,
+        height: 768,
+    };
+
+    let wrong = capture(
+        &params(CertFingerprint::of(b"other")),
         Duration::from_secs(2),
     );
     assert!(
@@ -171,16 +180,61 @@ fn embedded_rdp_draws_the_xrdp_desktop() {
         "{wrong:?}"
     );
 
-    let stats = remote_desktop::embedded::capture(
-        &host,
-        port,
-        &user,
-        Zeroizing::new(password),
-        pin,
-        Duration::from_secs(8),
-    )
-    .unwrap();
+    let stats = capture(&params(pin), Duration::from_secs(8)).unwrap();
     eprintln!("embedded RDP: {stats:?}");
     assert!(stats.graphics_updates > 0, "no graphics updates");
     assert!(stats.drawn_pixels > 0, "nothing was drawn");
+
+    // Live session: frames arrive, input is accepted, close ends it.
+    let (tx, rx) = std::sync::mpsc::channel();
+    let viewer = start(&params(pin), move |ev| tx.send(ev).is_ok()).unwrap();
+    let first = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+    assert!(
+        matches!(
+            first,
+            ViewerEvent::Connected {
+                width: 1024,
+                height: 768
+            }
+        ),
+        "{first:?}"
+    );
+    let mut frames = 0;
+    let mut bytes = 0;
+    let deadline = Instant::now() + Duration::from_secs(6);
+    viewer.input(vec![
+        ViewerInput::MouseMove { x: 500, y: 400 },
+        ViewerInput::Key {
+            scancode: 0x1E,
+            down: true,
+        },
+        ViewerInput::Key {
+            scancode: 0x1E,
+            down: false,
+        },
+        ViewerInput::ReleaseAll,
+    ]);
+    while Instant::now() < deadline {
+        match rx.recv_timeout(Duration::from_millis(200)) {
+            Ok(ViewerEvent::Frame { w, h, rgba, .. }) => {
+                assert_eq!(rgba.len(), usize::from(w) * usize::from(h) * 4);
+                frames += 1;
+                bytes += rgba.len();
+                viewer.ack();
+            }
+            Ok(ViewerEvent::Closed { reason }) => panic!("closed early: {reason:?}"),
+            Ok(other) => panic!("unexpected {other:?}"),
+            Err(_) => {}
+        }
+    }
+    eprintln!("viewer: {frames} frames, {bytes} bytes in 6 s");
+    assert!(frames > 0, "no frames");
+    viewer.close();
+    loop {
+        match rx.recv_timeout(Duration::from_secs(10)) {
+            Ok(ViewerEvent::Closed { .. }) => break,
+            Ok(_) => continue,
+            Err(e) => panic!("no Closed event: {e}"),
+        }
+    }
 }

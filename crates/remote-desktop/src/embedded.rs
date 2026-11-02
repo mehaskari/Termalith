@@ -110,26 +110,37 @@ fn config(username: &str, password: &str, size: DesktopSize) -> ironrdp_connecto
     }
 }
 
-/// Connects, logs in and reads the desktop for `duration`. The server's
-/// certificate must have fingerprint `pin`.
-pub fn capture(
-    host: &str,
-    port: u16,
-    username: &str,
-    password: Zeroizing<String>,
-    pin: CertFingerprint,
-    duration: Duration,
-) -> Result<CaptureStats, DesktopError> {
+type Tls = rustls::StreamOwned<rustls::ClientConnection, TcpStream>;
+
+/// Where and how to log in. `host` is what the client connects to (a local
+/// tunnel end when tunnelled), `server_name` the real server.
+pub struct LoginParams<'a> {
+    pub host: &'a str,
+    pub port: u16,
+    pub server_name: &'a str,
+    pub username: &'a str,
+    pub password: Zeroizing<String>,
+    pub domain: Option<&'a str>,
+    /// The certificate the user trusts (ADR-027).
+    pub pin: CertFingerprint,
+    pub width: u16,
+    pub height: u16,
+}
+
+/// TCP, X.224 negotiation, TLS with the pinned certificate, login.
+fn connect(
+    p: &LoginParams<'_>,
+) -> Result<(ironrdp_connector::ConnectionResult, Framed<Tls>), DesktopError> {
+    let (host, port, username, password, pin) = (p.host, p.port, p.username, &p.password, p.pin);
     let size = DesktopSize {
-        width: 1024,
-        height: 768,
+        width: p.width.clamp(200, 8192),
+        height: p.height.clamp(200, 8192),
     };
     let addr = (host, port)
         .to_socket_addrs()
         .map_err(|e| failed("resolve", e))?
         .next()
         .ok_or_else(|| failed("resolve", "no address"))?;
-    let start = Instant::now();
     let tcp = TcpStream::connect_timeout(&addr, Duration::from_secs(10))
         .map_err(|e| failed("connect", e))?;
     tcp.set_read_timeout(Some(Duration::from_millis(500)))
@@ -137,7 +148,9 @@ pub fn capture(
     let client_addr = tcp.local_addr().map_err(|e| failed("socket", e))?;
 
     let mut framed = Framed::new(tcp);
-    let mut connector = ClientConnector::new(config(username, &password, size), client_addr);
+    let mut cfg = config(username, password, size);
+    cfg.domain = p.domain.map(str::to_owned);
+    let mut connector = ClientConnector::new(cfg, client_addr);
     let should_upgrade = ironrdp_blocking::connect_begin(&mut framed, &mut connector)
         .map_err(|e| failed("negotiation", e))?;
 
@@ -155,7 +168,7 @@ pub fn capture(
         .with_no_client_auth();
     // CredSSP does not support TLS session resumption.
     tls_config.resumption = rustls::client::Resumption::disabled();
-    let name = rustls::pki_types::ServerName::try_from(host.to_owned())
+    let name = rustls::pki_types::ServerName::try_from(p.server_name.to_owned())
         .unwrap_or_else(|_| rustls::pki_types::ServerName::try_from("rdp.invalid").expect("valid"));
     let conn =
         rustls::ClientConnection::new(Arc::new(tls_config), name).map_err(|e| failed("TLS", e))?;
@@ -186,7 +199,7 @@ pub fn capture(
         connector,
         &mut framed,
         &mut NoNetwork,
-        ServerName::new(host),
+        ServerName::new(p.server_name),
         public_key,
         None,
     )
@@ -198,6 +211,13 @@ pub fn capture(
         }
     };
 
+    Ok((result, framed))
+}
+
+/// Connects, logs in and reads the desktop for `duration` (measuring).
+pub fn capture(p: &LoginParams<'_>, duration: Duration) -> Result<CaptureStats, DesktopError> {
+    let start = Instant::now();
+    let (result, mut framed) = connect(p)?;
     let mut image = DecodedImage::new(
         PixelFormat::RgbA32,
         result.desktop_size.width,
@@ -265,4 +285,354 @@ fn finish(mut stats: CaptureStats, image: &DecodedImage) -> CaptureStats {
         .filter(|p| p[0] != 0 || p[1] != 0 || p[2] != 0)
         .count();
     stats
+}
+
+/// Events from a live session to the viewer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ViewerEvent {
+    /// Size of the remote desktop; frames refer to it.
+    Connected { width: u16, height: u16 },
+    /// Changed pixels, RGBA, `w * h * 4` bytes, row by row.
+    Frame {
+        x: u16,
+        y: u16,
+        w: u16,
+        h: u16,
+        rgba: Vec<u8>,
+    },
+    /// The session ended; `reason` is set when it was not a normal close.
+    Closed { reason: Option<String> },
+}
+
+/// Input from the viewer. Keys are PC/AT scan codes (`0xE0xx` = extended),
+/// buttons use the DOM numbering (0 left, 1 middle, 2 right, 3/4 back/forward).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewerInput {
+    MouseMove {
+        x: u16,
+        y: u16,
+    },
+    Button {
+        button: u8,
+        down: bool,
+    },
+    Wheel {
+        vertical: bool,
+        units: i16,
+    },
+    Key {
+        scancode: u16,
+        down: bool,
+    },
+    Unicode {
+        ch: char,
+        down: bool,
+    },
+    /// Releases every pressed key and button (the viewer lost focus).
+    ReleaseAll,
+}
+
+enum Control {
+    Input(Vec<ViewerInput>),
+    /// The viewer drew one frame.
+    Ack,
+    Close,
+}
+
+/// Frames sent but not yet drawn; more changes are merged meanwhile.
+const MAX_FRAMES_IN_FLIGHT: usize = 2;
+/// How often the session loop looks at viewer input while the server is quiet.
+const POLL: Duration = Duration::from_millis(15);
+
+/// Handle to a running session. Dropping it closes the session.
+pub struct Viewer {
+    tx: std::sync::mpsc::SyncSender<Control>,
+}
+
+impl Viewer {
+    pub fn input(&self, events: Vec<ViewerInput>) -> bool {
+        self.tx.send(Control::Input(events)).is_ok()
+    }
+
+    pub fn ack(&self) -> bool {
+        self.tx.send(Control::Ack).is_ok()
+    }
+
+    pub fn close(&self) {
+        let _ = self.tx.send(Control::Close);
+    }
+}
+
+impl Drop for Viewer {
+    fn drop(&mut self) {
+        self.close();
+    }
+}
+
+/// Connects and logs in (blocking; call off the UI thread), then runs the
+/// session on its own thread, sending [`ViewerEvent`]s to `sink`. `sink`
+/// returning `false` ends the session.
+pub fn start(
+    p: &LoginParams<'_>,
+    sink: impl FnMut(ViewerEvent) -> bool + Send + 'static,
+) -> Result<Viewer, DesktopError> {
+    let (result, mut framed) = connect(p)?;
+    framed
+        .get_inner_mut()
+        .0
+        .sock
+        .set_read_timeout(Some(POLL))
+        .map_err(|e| failed("socket", e))?;
+    let (tx, rx) = std::sync::mpsc::sync_channel(256);
+    std::thread::Builder::new()
+        .name("rdp-session".into())
+        .spawn(move || {
+            let mut sink = sink;
+            let reason = run(result, framed, rx, &mut sink).err();
+            sink(ViewerEvent::Closed { reason });
+        })
+        .map_err(|e| failed("thread", e))?;
+    Ok(Viewer { tx })
+}
+
+/// Smallest rectangle covering both (inclusive coordinates).
+fn union(a: Option<(u16, u16, u16, u16)>, b: (u16, u16, u16, u16)) -> (u16, u16, u16, u16) {
+    match a {
+        None => b,
+        Some(a) => (a.0.min(b.0), a.1.min(b.1), a.2.max(b.2), a.3.max(b.3)),
+    }
+}
+
+/// RGBA pixels of an inclusive rectangle, alpha forced opaque.
+fn crop(image: &DecodedImage, r: (u16, u16, u16, u16)) -> ViewerEvent {
+    let (iw, ih) = (usize::from(image.width()), usize::from(image.height()));
+    let left = usize::from(r.0).min(iw.saturating_sub(1));
+    let top = usize::from(r.1).min(ih.saturating_sub(1));
+    let right = usize::from(r.2).min(iw.saturating_sub(1));
+    let bottom = usize::from(r.3).min(ih.saturating_sub(1));
+    let (w, h) = (right - left + 1, bottom - top + 1);
+    let data = image.data();
+    let mut rgba = Vec::with_capacity(w * h * 4);
+    for row in top..=bottom {
+        let start = (row * iw + left) * 4;
+        rgba.extend_from_slice(&data[start..start + w * 4]);
+    }
+    for px in rgba.as_chunks_mut::<4>().0 {
+        px[3] = 255;
+    }
+    // Sizes come from u16 coordinates, so they fit.
+    ViewerEvent::Frame {
+        x: left as u16,
+        y: top as u16,
+        w: w as u16,
+        h: h as u16,
+        rgba,
+    }
+}
+
+fn to_operation(input: ViewerInput) -> Option<ironrdp_input::Operation> {
+    use ironrdp_input::{MouseButton, MousePosition, Operation, Scancode, WheelRotations};
+    Some(match input {
+        ViewerInput::MouseMove { x, y } => Operation::MouseMove(MousePosition { x, y }),
+        ViewerInput::Button { button, down } => {
+            let b = match button {
+                0 => MouseButton::Left,
+                1 => MouseButton::Middle,
+                2 => MouseButton::Right,
+                3 => MouseButton::X1,
+                4 => MouseButton::X2,
+                _ => return None,
+            };
+            if down {
+                Operation::MouseButtonPressed(b)
+            } else {
+                Operation::MouseButtonReleased(b)
+            }
+        }
+        ViewerInput::Wheel { vertical, units } => Operation::WheelRotations(WheelRotations {
+            is_vertical: vertical,
+            rotation_units: units,
+        }),
+        ViewerInput::Key { scancode, down } => {
+            let s = Scancode::from_u16(scancode);
+            if down {
+                Operation::KeyPressed(s)
+            } else {
+                Operation::KeyReleased(s)
+            }
+        }
+        ViewerInput::Unicode { ch, down } => {
+            if down {
+                Operation::UnicodeKeyPressed(ch)
+            } else {
+                Operation::UnicodeKeyReleased(ch)
+            }
+        }
+        ViewerInput::ReleaseAll => return None,
+    })
+}
+
+fn run(
+    result: ironrdp_connector::ConnectionResult,
+    mut framed: Framed<Tls>,
+    rx: std::sync::mpsc::Receiver<Control>,
+    sink: &mut impl FnMut(ViewerEvent) -> bool,
+) -> Result<(), String> {
+    let mut image = DecodedImage::new(
+        PixelFormat::RgbA32,
+        result.desktop_size.width,
+        result.desktop_size.height,
+    );
+    let mut stage = ActiveStageBuilder {
+        static_channels: result.static_channels,
+        user_channel_id: result.user_channel_id,
+        io_channel_id: result.io_channel_id,
+        message_channel_id: result.message_channel_id,
+        share_id: result.share_id,
+        compression_type: result.compression_type,
+        enable_server_pointer: false,
+        pointer_software_rendering: true,
+    }
+    .build();
+    let mut input = ironrdp_input::Database::new();
+    if !sink(ViewerEvent::Connected {
+        width: image.width(),
+        height: image.height(),
+    }) {
+        return Ok(());
+    }
+    let mut dirty: Option<(u16, u16, u16, u16)> = None;
+    let mut in_flight = 0usize;
+    let write = |framed: &mut Framed<Tls>,
+                 outputs: Vec<ActiveStageOutput>,
+                 dirty: &mut Option<_>|
+     -> Result<bool, String> {
+        for out in outputs {
+            match out {
+                ActiveStageOutput::ResponseFrame(f) => {
+                    framed.write_all(&f).map_err(|e| format!("write: {e}"))?
+                }
+                ActiveStageOutput::GraphicsUpdate(r) => {
+                    *dirty = Some(union(*dirty, (r.left, r.top, r.right, r.bottom)));
+                }
+                ActiveStageOutput::Terminate(_) => return Ok(false),
+                _ => {}
+            }
+        }
+        Ok(true)
+    };
+    loop {
+        // Viewer input, acks and close requests first.
+        loop {
+            match rx.try_recv() {
+                Ok(Control::Input(events)) => {
+                    let mut fp = Vec::new();
+                    for e in events {
+                        if e == ViewerInput::ReleaseAll {
+                            fp.extend(input.release_all());
+                        } else if let Some(op) = to_operation(e) {
+                            fp.extend(input.apply([op]));
+                        }
+                    }
+                    if !fp.is_empty() {
+                        let outputs = stage
+                            .process_fastpath_input(&mut image, &fp)
+                            .map_err(|e| format!("input: {e}"))?;
+                        if !write(&mut framed, outputs, &mut dirty)? {
+                            return Ok(());
+                        }
+                    }
+                }
+                Ok(Control::Ack) => in_flight = in_flight.saturating_sub(1),
+                Ok(Control::Close) | Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    if let Ok(outputs) = stage.graceful_shutdown() {
+                        let _ = write(&mut framed, outputs, &mut dirty);
+                    }
+                    return Ok(());
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => break,
+            }
+        }
+        match framed.read_pdu() {
+            Ok((action, payload)) => {
+                let outputs = stage
+                    .process(&mut image, action, &payload, None)
+                    .map_err(|e| format!("decode: {e}"))?;
+                if !write(&mut framed, outputs, &mut dirty)? {
+                    return Ok(());
+                }
+            }
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(()),
+            Err(e) => return Err(format!("connection lost: {e}")),
+        }
+        if in_flight < MAX_FRAMES_IN_FLIGHT
+            && let Some(r) = dirty.take()
+        {
+            in_flight += 1;
+            if !sink(crop(&image, r)) {
+                return Ok(());
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dirty_rectangles_merge() {
+        assert_eq!(union(None, (1, 2, 3, 4)), (1, 2, 3, 4));
+        assert_eq!(
+            union(Some((10, 10, 20, 20)), (5, 15, 12, 30)),
+            (5, 10, 20, 30)
+        );
+    }
+
+    #[test]
+    fn crop_copies_rows_and_makes_pixels_opaque() {
+        let image = DecodedImage::new(PixelFormat::RgbA32, 4, 3);
+        let ViewerEvent::Frame { x, y, w, h, rgba } = crop(&image, (1, 1, 2, 2)) else {
+            unreachable!()
+        };
+        assert_eq!((x, y, w, h), (1, 1, 2, 2));
+        assert_eq!(rgba.len(), 16);
+        assert!(rgba.as_chunks::<4>().0.iter().all(|p| p[3] == 255));
+        // Out-of-range coordinates are clamped to the image.
+        let ViewerEvent::Frame { w, h, .. } = crop(&image, (3, 2, 100, 100)) else {
+            unreachable!()
+        };
+        assert_eq!((w, h), (1, 1));
+    }
+
+    #[test]
+    fn dom_buttons_and_keys_map_to_rdp_input() {
+        use ironrdp_input::{MouseButton, Operation};
+        assert!(matches!(
+            to_operation(ViewerInput::Button {
+                button: 2,
+                down: true
+            }),
+            Some(Operation::MouseButtonPressed(MouseButton::Right))
+        ));
+        assert!(
+            to_operation(ViewerInput::Button {
+                button: 9,
+                down: true
+            })
+            .is_none()
+        );
+        let Some(Operation::KeyPressed(s)) = to_operation(ViewerInput::Key {
+            scancode: 0xE04B,
+            down: true,
+        }) else {
+            panic!("key")
+        };
+        assert_eq!(s.as_u8(), (true, 0x4B), "extended Left arrow");
+    }
 }

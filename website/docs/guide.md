@@ -16,9 +16,16 @@ Download the installer for your system from the
 
 | System | File | First launch |
 |---|---|---|
-| macOS (Apple Silicon) | `Termalith_x.y.z_aarch64.dmg` | The app is not signed yet: right-click it and choose **Open**. |
-| Windows 10/11 | `…_x64-setup.exe` or `….msi` | SmartScreen may warn: **More info → Run anyway**. |
-| Linux | `….AppImage` or `….deb` | AppImage: make it executable (`chmod +x`) and run it. |
+| macOS, Apple Silicon | `Termalith_x.y.z_aarch64.dmg` | The app is not signed yet: right-click it and choose **Open**. |
+| macOS, Intel | `Termalith_x.y.z_x64.dmg` | As above. |
+| Windows 10/11, x64 | `…_x64-setup.exe` or `…_x64_en-US.msi` | SmartScreen may warn: **More info → Run anyway**. |
+| Windows 11, ARM | `…_arm64-setup.exe` or `…_arm64_en-US.msi` | As above. |
+| Linux, x64 | `…_amd64.AppImage` or `…_amd64.deb` | AppImage: make it executable (`chmod +x`) and run it. |
+| Linux, ARM64 | `…_aarch64.AppImage` or `…_arm64.deb` | As above. |
+
+The Intel Mac, Windows ARM and Linux ARM builds are produced and tested in
+CI on native runners, but have had no hands-on use yet; please report
+anything that does not work.
 
 On Linux, Termalith needs WebKitGTK 4.1 (installed with most desktops) and,
 for saved passwords, a Secret Service such as GNOME Keyring or KWallet.

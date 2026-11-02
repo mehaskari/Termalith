@@ -47,7 +47,7 @@ Not yet: embedded RDP/VNC (external clients are used), code-signed installers.
 
 ## Install
 
-Pre-release installers are built by GitHub Actions for macOS (Apple Silicon DMG), Windows (NSIS and MSI) and Linux (AppImage and deb). They are **not code-signed yet**:
+Pre-release installers are built by GitHub Actions for macOS (Apple Silicon and Intel DMG), Windows (x64 and ARM64, NSIS and MSI) and Linux (x64 and ARM64, AppImage and deb). The Intel Mac and ARM builds pass CI on native runners but have had no hands-on use yet. They are **not code-signed yet**:
 
 - macOS: right-click the app and choose **Open** the first time.
 - Windows: SmartScreen may warn; choose **More info → Run anyway**.

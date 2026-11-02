@@ -166,6 +166,8 @@ export function App() {
   const [renaming, setRenaming] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [dropped, setDropped] = useState<DroppedFile[] | null>(null);
+  /** Files are being dragged over the window. */
+  const [fileHover, setFileHover] = useState(false);
   const [confirmForget, setConfirmForget] = useState<Tab | null>(null);
   const [importing, setImporting] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -497,12 +499,17 @@ export function App() {
     const unlistenAuth = listen<AuthPrompt>("auth-prompt", (e) => setAuthPrompts((q) => [...q, e.payload]));
     const unlistenDrop = listen<DroppedFile[]>("files-dropped", (e) => {
       const tab = activeRef.current;
-      if ((tab?.filesOpen || tab?.kind === "files") && tab.terminalId !== undefined) setDropped(e.payload);
-      else setNotice("To upload, open Files on a connected SSH tab and drop the files again.");
+      if (!(tab?.filesOpen || tab?.kind === "files") || tab.terminalId === undefined)
+        setNotice("To upload, open Files on a connected SSH tab and drop the files again.");
+      else if (e.payload.length === 0)
+        setNotice("Nothing to upload: only files and folders can be dropped (a folder may be too large to read).");
+      else setDropped(e.payload);
     });
+    const unlistenHover = listen<boolean>("files-hover", (e) => setFileHover(e.payload));
     return () => {
       void unlisten.then((f) => f());
       void unlistenDrop.then((f) => f());
+      void unlistenHover.then((f) => f());
       void unlistenAuth.then((f) => f());
     };
   }, [refresh, openLocal]);
@@ -883,6 +890,7 @@ export function App() {
                       <FilesPanel
                         terminalId={t.terminalId}
                         dropped={t.key === active ? dropped : null}
+                        fileHover={t.key === active && fileHover}
                         onDroppedHandled={() => setDropped(null)}
                         onClose={() => closeTab(t.key)}
                         onEdit={(dir, name) => t.terminalId !== undefined && openEditor(t.terminalId, dir, name)}
@@ -1092,6 +1100,7 @@ export function App() {
                   <FilesPanel
                     terminalId={t.terminalId}
                     dropped={t.key === active ? dropped : null}
+                    fileHover={t.key === active && fileHover}
                     onDroppedHandled={() => setDropped(null)}
                     onClose={() => patchTab(t.key, { filesOpen: false })}
                     onEdit={(dir, name) => t.terminalId !== undefined && openEditor(t.terminalId, dir, name)}

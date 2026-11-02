@@ -29,7 +29,8 @@ pub use crash::{CrashKind, CrashReport, CrashReports, MAX_REPORTS, panic_report}
 pub use desktops::{DesktopHub, DesktopInfo, DesktopLaunch, DesktopState};
 pub use error::AppError;
 pub use files::{
-    DroppedFile, DroppedFiles, MAX_EDIT_BYTES, decode_text, safe_file_name, unique_destination,
+    DroppedFile, DroppedFiles, LocalTree, LocalTreeFile, MAX_EDIT_BYTES, MAX_FOLDER_ENTRIES,
+    decode_text, safe_file_name, unique_destination, walk_local_folder,
 };
 pub use folders::{MAX_FOLDER_DEPTH, MAX_FOLDER_LEN, normalize_folder};
 pub use history::{

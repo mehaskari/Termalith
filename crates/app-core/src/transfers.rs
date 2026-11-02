@@ -19,7 +19,7 @@ use serde::Serialize;
 use tokio::sync::Semaphore;
 
 use crate::AppError;
-use crate::files::{safe_file_name, unique_destination};
+use crate::files::{safe_file_name, unique_destination, walk_local_folder};
 use crate::history::{TransferDirection, TransferMeta};
 
 /// Minimum bytes between progress events, to keep IPC traffic low.
@@ -231,6 +231,9 @@ impl Transfers {
             .map(|n| n.to_string_lossy().into_owned())
             .ok_or_else(|| AppError::invalid("file", "has no name"))?;
         let remote = remote_join(remote_dir, safe_file_name(&name)?);
+        if local.is_dir() {
+            return self.start_folder_upload(sftp, local, name, remote, connection, sink);
+        }
         let total = std::fs::metadata(&local).ok().map(|m| m.len());
         let meta = TransferMeta {
             direction: TransferDirection::Upload,
@@ -253,6 +256,86 @@ impl Transfers {
             Job {
                 op,
                 total,
+                meta: Some(meta),
+            },
+            sink,
+        ))
+    }
+
+    /// Uploads a local folder with everything in it as `remote` (one
+    /// transfer). Refuses when `remote` already exists. A retry continues in
+    /// the folder this transfer created, replacing files it wrote before.
+    /// Symbolic links are not followed.
+    fn start_folder_upload(
+        self: &Arc<Self>,
+        sftp: Arc<SftpClient>,
+        local: PathBuf,
+        name: String,
+        remote: String,
+        connection: &str,
+        sink: impl FnMut(TransferEvent) + Send + 'static,
+    ) -> Result<u64, AppError> {
+        let tree = Arc::new(walk_local_folder(&local)?);
+        let total = tree.total_bytes();
+        let meta = TransferMeta {
+            direction: TransferDirection::Upload,
+            name: format!("{name}/"),
+            remote_path: remote.clone(),
+            connection: connection.to_owned(),
+            size: Some(total),
+        };
+        // Set once the remote folder is ours, so retries may reuse it.
+        let created = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let op: Op = Arc::new(move |cancel, mut progress| {
+            let (sftp, tree, remote, created) = (
+                Arc::clone(&sftp),
+                Arc::clone(&tree),
+                remote.clone(),
+                Arc::clone(&created),
+            );
+            Box::pin(async move {
+                let ours = created.load(Ordering::SeqCst);
+                let mkdir = |path: String| {
+                    let sftp = Arc::clone(&sftp);
+                    async move {
+                        match sftp.create_dir(&path).await {
+                            Err(SshError::DestinationExists(_)) if ours => Ok(()),
+                            r => r,
+                        }
+                    }
+                };
+                mkdir(remote.clone()).await?;
+                created.store(true, Ordering::SeqCst);
+                let path_of = |rel: &[String]| {
+                    rel.iter()
+                        .fold(remote.clone(), |acc, part| remote_join(&acc, part))
+                };
+                for dir in &tree.dirs {
+                    if cancel.is_cancelled() {
+                        return Err(SshError::Cancelled);
+                    }
+                    mkdir(path_of(dir)).await?;
+                }
+                let mut done = 0u64;
+                let opts = TransferOptions {
+                    overwrite: true,
+                    ..TransferOptions::default()
+                };
+                for file in &tree.files {
+                    let n = sftp
+                        .upload(&file.path, &path_of(&file.rel), opts, &cancel, |n| {
+                            progress(done + n)
+                        })
+                        .await?;
+                    done += n;
+                }
+                Ok(remote)
+            })
+        });
+        Ok(self.spawn(
+            Job {
+                op,
+                total: Some(total),
                 meta: Some(meta),
             },
             sink,

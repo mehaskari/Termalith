@@ -37,13 +37,24 @@ pub fn run() {
             // names and sizes, so it can never name a local file itself.
             if let Some(window) = app.get_webview_window("main") {
                 let handle = app.handle().clone();
-                window.on_window_event(move |event| {
-                    if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) = event {
-                        let files = dropped.register(paths);
-                        if !files.is_empty() {
+                window.on_window_event(move |event| match event {
+                    WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => {
+                        let _ = handle.emit("files-hover", false);
+                        // Folders are walked to size them: not on the UI thread.
+                        let (dropped, handle, paths) =
+                            (dropped.clone(), handle.clone(), paths.clone());
+                        tauri::async_runtime::spawn_blocking(move || {
+                            let files = dropped.register(&paths);
                             let _ = handle.emit("files-dropped", files);
-                        }
+                        });
                     }
+                    WindowEvent::DragDrop(DragDropEvent::Enter { .. }) => {
+                        let _ = handle.emit("files-hover", true);
+                    }
+                    WindowEvent::DragDrop(DragDropEvent::Leave) => {
+                        let _ = handle.emit("files-hover", false);
+                    }
+                    _ => {}
                 });
             }
             Ok(())

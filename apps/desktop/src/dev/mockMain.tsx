@@ -531,7 +531,10 @@ mockIPC(
         const f = dropTokens.get(a.token as number);
         if (!f) throw { code: "not_found", message: "not found" };
         progressThen(a.onEvent as ChannelLike, f.size, { kind: "done", destination: `${dir}/${f.name}` });
-        setTimeout(() => remoteFiles[dir]?.push({ name: f.name, kind: "file", size: f.size }), 1500);
+        setTimeout(
+          () => remoteFiles[dir]?.push({ name: f.name, kind: f.folder ? "dir" : "file", size: f.folder ? null : f.size }),
+          1500,
+        );
         return nextTransfer++;
       }
       case "tunnel_start": {
@@ -566,17 +569,21 @@ mockIPC(
   { shouldMockEvents: true },
 );
 
-const dropTokens = new Map<number, { name: string; size: number }>();
+const dropTokens = new Map<number, { name: string; size: number; folder: boolean }>();
 let nextToken = 1;
-// Simulates dropping a file onto the window (real drag-drop is native).
-(window as unknown as { __mockDrop: (name?: string, size?: number) => void }).__mockDrop = (
-  name = "notes.txt",
-  size = 4096,
-) => {
-  const token = nextToken++;
-  dropTokens.set(token, { name, size });
-  void emit("files-dropped", [{ token, name, size }]);
+// Simulates dragging over and dropping onto the window (real drag-drop is
+// native). `__mockHover(true)` shows the drop target.
+const mockWindow = window as unknown as {
+  __mockDrop: (name?: string, size?: number, folder?: boolean) => void;
+  __mockHover: (on: boolean) => void;
 };
+mockWindow.__mockDrop = (name = "notes.txt", size = 4096, folder = false) => {
+  const token = nextToken++;
+  dropTokens.set(token, { name, size, folder });
+  void emit("files-hover", false);
+  void emit("files-dropped", [{ token, name, size, folder }]);
+};
+mockWindow.__mockHover = (on) => void emit("files-hover", on);
 
 // `?uicrash` shows the recovery screen.
 function Boom(): never {

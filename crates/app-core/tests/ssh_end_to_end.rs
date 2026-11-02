@@ -467,6 +467,64 @@ fn event_sink() -> (
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn dropped_folder_uploads_with_its_subfolders() {
+    use app_core::{DroppedFiles, TransferEvent, Transfers};
+    let Some(r) = rig() else { return };
+    let session = trusted_connection(&r).await;
+    let (sink, _c) = collector();
+    let id = r
+        .hub
+        .open_ssh(session, TerminalSize::new(80, 24).unwrap(), sink)
+        .await
+        .unwrap();
+    let remote_dir = r.sshd.remote("up");
+    std::fs::create_dir_all(r.sshd.path("up")).unwrap();
+    let sftp = r.hub.sftp(id).await.unwrap();
+
+    let local = tempfile::tempdir().unwrap();
+    let root = local.path().join("site");
+    std::fs::create_dir_all(root.join("assets/img")).unwrap();
+    std::fs::create_dir(root.join("empty")).unwrap();
+    std::fs::write(root.join("index.html"), b"<p>hi</p>").unwrap();
+    std::fs::write(root.join("assets/img/logo.bin"), vec![3u8; 200_000]).unwrap();
+
+    // Dropped like from the window: a folder token with the total size.
+    let dropped = DroppedFiles::default();
+    let got = dropped.register(std::slice::from_ref(&root));
+    assert_eq!((got[0].folder, got[0].size), (true, 200_009));
+    let path = dropped.take(got[0].token).unwrap();
+
+    let transfers = Arc::new(Transfers::default());
+    let (sink, mut rx) = event_sink();
+    transfers
+        .start_upload(sftp.clone(), path.clone(), &remote_dir, "c", sink)
+        .unwrap();
+    match wait_event(&mut rx).await {
+        TransferEvent::Done { destination } => assert!(destination.ends_with("/site")),
+        other => panic!("{other:?}"),
+    }
+    let up = r.sshd.path("up").join("site");
+    assert_eq!(std::fs::read(up.join("index.html")).unwrap(), b"<p>hi</p>");
+    assert_eq!(
+        std::fs::read(up.join("assets/img/logo.bin")).unwrap().len(),
+        200_000
+    );
+    assert!(up.join("empty").is_dir());
+
+    // The same folder again is refused rather than merged.
+    let (sink, mut rx) = event_sink();
+    transfers
+        .start_upload(sftp.clone(), path, &remote_dir, "c", sink)
+        .unwrap();
+    match wait_event(&mut rx).await {
+        TransferEvent::Failed { message, .. } => {
+            assert!(message.contains("already exists"), "{message}")
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn file_browser_transfers_over_the_terminal_connection() {
     use app_core::{TransferEvent, Transfers};
     let Some(r) = rig() else { return };

@@ -1824,3 +1824,29 @@ button.recording {
   color: var(--accent);
   border-color: transparent;
 }
+
+/* Files dragged over the window: the visible Files panel is the target. */
+.files-panel.drop-target {
+  position: relative;
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+.drop-hint {
+  position: absolute;
+  inset: 4px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  text-align: center;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  backdrop-filter: blur(1px);
+  color: var(--text);
+  pointer-events: none;
+  border-radius: var(--radius-lg);
+}
+.drop-hint strong {
+  margin-left: 0.3em;
+  font-family: var(--mono);
+}

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Proxy login: SOCKS5 user name/password (RFC 1929) and HTTP Basic
+  authentication, with the password kept in the system keychain.
+
 ## 0.5.0 — first public preview
 
 The first public build. Installers for macOS (Apple Silicon and Intel),

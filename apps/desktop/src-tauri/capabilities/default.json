@@ -47,6 +47,8 @@
     "allow-key-public",
     "allow-key-install",
     "allow-app-info",
+    "allow-proxy-password-status",
+    "allow-proxy-password-set",
     "allow-update-check",
     "allow-sessions-list",
     "allow-session-create",

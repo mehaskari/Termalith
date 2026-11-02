@@ -45,6 +45,8 @@ fn main() {
             "key_public",
             "key_install",
             "app_info",
+            "proxy_password_status",
+            "proxy_password_set",
             "update_check",
             "sessions_list",
             "session_create",

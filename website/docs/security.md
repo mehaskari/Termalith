@@ -73,4 +73,6 @@ it downloads and installs nothing.
 - Installers are not code-signed yet.
 - RDP/VNC run in external clients; their security depends on those
   clients.
-- SOCKS/HTTP proxy authentication is not supported yet.
+- HTTP proxies receive their password with Basic authentication, which is
+  readable on the way to the proxy; SOCKS5 user/password is likewise
+  unencrypted. Use a proxy on a network you trust.

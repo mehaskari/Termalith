@@ -192,7 +192,7 @@ jobs:
           export TERMALITH_VNCVIEWER="$(command -v vncviewer)"
           xfreerdp3 --version | head -1
           xvfb-run -a cargo test -p remote-desktop --lib freerdp_accepts -- --nocapture
-          xvfb-run -a cargo test -p remote-desktop --test real_servers -- --nocapture || {
+          xvfb-run -a cargo test -p remote-desktop --features embedded --test real_servers -- --nocapture || {
             sudo tail -n 40 /var/log/xrdp.log || true
             exit 1
           }

@@ -15,6 +15,8 @@ use zeroize::Zeroizing;
 
 mod rdp_cert;
 pub use rdp_cert::{CertFingerprint, read_certificate};
+#[cfg(feature = "embedded")]
+pub mod embedded;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum DesktopError {

@@ -143,3 +143,44 @@ async fn tigervnc_viewer_connects_with_the_launch_plan() {
         &after[before..]
     );
 }
+
+/// ADR-030 spike: IronRDP logs in to the real xrdp with the pinned
+/// certificate and decodes the desktop (the login screen at least).
+#[cfg(feature = "embedded")]
+#[test]
+fn embedded_rdp_draws_the_xrdp_desktop() {
+    let Some(addr) = env("TERMALITH_TEST_XRDP") else {
+        eprintln!("TERMALITH_TEST_XRDP not set; skipped");
+        return;
+    };
+    let (host, port) = host_port(&addr);
+    let user = env("TERMALITH_TEST_SSH_USER").unwrap_or_else(|| "nobody".into());
+    let password = env("TERMALITH_TEST_SSH_PASSWORD").unwrap_or_default();
+    let pin = read_certificate(&host, port, &host, Duration::from_secs(10)).unwrap();
+
+    let wrong = remote_desktop::embedded::capture(
+        &host,
+        port,
+        &user,
+        Zeroizing::new(password.clone()),
+        CertFingerprint::of(b"other"),
+        Duration::from_secs(2),
+    );
+    assert!(
+        matches!(wrong, Err(remote_desktop::DesktopError::Certificate(_))),
+        "{wrong:?}"
+    );
+
+    let stats = remote_desktop::embedded::capture(
+        &host,
+        port,
+        &user,
+        Zeroizing::new(password),
+        pin,
+        Duration::from_secs(8),
+    )
+    .unwrap();
+    eprintln!("embedded RDP: {stats:?}");
+    assert!(stats.graphics_updates > 0, "no graphics updates");
+    assert!(stats.drawn_pixels > 0, "nothing was drawn");
+}

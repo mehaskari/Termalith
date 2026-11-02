@@ -191,9 +191,48 @@ fn tls_certificate(
 /// Accepts any certificate and keeps it; handshake signatures are still
 /// checked so the server must hold the certificate's private key.
 #[derive(Debug)]
-struct Capture {
-    provider: Arc<CryptoProvider>,
-    cert: Mutex<Option<Vec<u8>>>,
+pub(crate) struct Capture {
+    pub(crate) provider: Arc<CryptoProvider>,
+    pub(crate) cert: Mutex<Option<Vec<u8>>>,
+}
+
+/// One DER element: (tag, contents, rest).
+fn der(input: &[u8]) -> Option<(u8, &[u8], &[u8])> {
+    let (&tag, rest) = input.split_first()?;
+    let (&first, mut rest) = rest.split_first()?;
+    let len = if first < 0x80 {
+        usize::from(first)
+    } else {
+        let n = usize::from(first & 0x7f);
+        if n == 0 || n > 4 || rest.len() < n {
+            return None;
+        }
+        let len = rest[..n]
+            .iter()
+            .fold(0usize, |a, b| (a << 8) | usize::from(*b));
+        rest = &rest[n..];
+        len
+    };
+    (rest.len() >= len).then(|| (tag, &rest[..len], &rest[len..]))
+}
+
+/// The certificate's subjectPublicKey bits (what CredSSP binds to the TLS
+/// channel). `None` if the certificate cannot be parsed.
+#[cfg_attr(not(feature = "embedded"), allow(dead_code))]
+pub(crate) fn subject_public_key(cert: &[u8]) -> Option<Vec<u8>> {
+    let (_, cert, _) = der(cert)?; // Certificate
+    let (_, mut tbs, _) = der(cert)?; // TBSCertificate
+    if tbs.first() == Some(&0xa0) {
+        tbs = der(tbs)?.2; // [0] version
+    }
+    // serialNumber, signature, issuer, validity, subject
+    for _ in 0..5 {
+        tbs = der(tbs)?.2;
+    }
+    let (_, spki, _) = der(tbs)?; // SubjectPublicKeyInfo
+    let (_, _, rest) = der(spki)?; // algorithm
+    let (tag, bits, _) = der(rest)?;
+    (tag == 0x03 && !bits.is_empty()).then(|| bits[1..].to_vec())
 }
 
 impl ServerCertVerifier for Capture {
@@ -338,6 +377,14 @@ mod tests {
     use super::*;
 
     const T: Duration = Duration::from_secs(10);
+
+    #[test]
+    fn subject_public_key_is_extracted() {
+        let key = rcgen::generate_simple_self_signed(vec!["rdp.test".into()]).unwrap();
+        let spk = subject_public_key(key.cert.der()).unwrap();
+        assert_eq!(spk, key.signing_key.public_key_raw());
+        assert_eq!(subject_public_key(b"garbage"), None);
+    }
 
     #[test]
     fn fingerprint_forms_round_trip() {

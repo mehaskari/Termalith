@@ -139,6 +139,10 @@ jobs:
           # Installers keep their per-format folders (dmg/, nsis/, appimage/…).
           mapfile -t files < <(find dist -type f | sort)
           printf '%s\n' "${files[@]}"
+          # Checksums by file name, for `sha256sum -c` after download.
+          (cd dist && find . -type f -exec sha256sum {} + | sed 's|  \./.*/|  |; s|  \./|  |' | sort -k2) > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          files+=(SHA256SUMS.txt)
           gh release create "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --draft --prerelease \
             --title "Termalith $TAG (preview)" --generate-notes
 

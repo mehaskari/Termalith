@@ -5,6 +5,7 @@ import {
   type AppInfo,
   DEFAULT_SETTINGS,
   type Settings,
+  checkForUpdates,
   getSettings,
   saveSettings,
   setFavorite,
@@ -183,6 +184,7 @@ export function App() {
   const [confirmForget, setConfirmForget] = useState<Tab | null>(null);
   const [importing, setImporting] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const didCheckUpdates = useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [serialOpen, setSerialOpen] = useState(false);
   const [broadcast, setBroadcast] = useState<BroadcastState | null>(null);
@@ -489,6 +491,14 @@ export function App() {
         (s) => {
           setSettings(s);
           localPrefs.current.defaultShell = s.defaultShell;
+          // Opt-in: one quiet request; only a newer version is mentioned.
+          if (s.checkUpdates && !didCheckUpdates.current) {
+            didCheckUpdates.current = true;
+            checkForUpdates().then(
+              (u) => u.newer && setNotice(`Termalith ${u.latest} is available. Open About (ⓘ) to download it.`),
+              () => {},
+            );
+          }
         },
         () => {},
       ),

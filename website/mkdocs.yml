@@ -16,6 +16,7 @@ nav:
   - User Guide: guide.md
   - Security: security.md
   - Changelog: changelog.md
+  - Building and releasing: releasing.md
   - Third-party licenses: third-party.md
 
 extra_css:

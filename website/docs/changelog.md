@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Check for updates** in About (and optionally at startup, off by
+  default): shows a link to a newer release; never downloads or installs
+  anything.
+- Releases include `SHA256SUMS.txt`, and the site documents building from
+  source, verifying downloads and the release process.
 - Keyboard and screen reader support in the session list: arrow-key
   navigation, Shift+F10 for a row's actions, keyboard-operable menus,
   descriptive labels, and **Move to folder…** as an alternative to dragging.

@@ -48,6 +48,11 @@ allow = [
     "MPL-2.0",
 ]
 confidence-threshold = 0.9
+# Mozilla's root certificate list as data (permissive, attribution only),
+# used by the update check's HTTPS client. See ADR-029.
+exceptions = [
+    { allow = ["CDLA-Permissive-2.0"], crate = "webpki-roots" },
+]
 
 [bans]
 multiple-versions = "allow"

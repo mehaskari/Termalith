@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-embedded-close"
+description = "Enables the embedded_close command without any pre-configured scope."
+commands.allow = ["embedded_close"]
+
+[[permission]]
+identifier = "deny-embedded-close"
+description = "Denies the embedded_close command without any pre-configured scope."
+commands.deny = ["embedded_close"]

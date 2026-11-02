@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use protocol_ssh::{ForwardHandle, ForwardKind, SshSession, start_forward};
+use remote_desktop::embedded::{LoginParams, Viewer, ViewerEvent, ViewerInput};
 use remote_desktop::{Client, DesktopTarget, LaunchPlan, Os, Protocol};
 use serde::Serialize;
 use zeroize::Zeroizing;
@@ -73,10 +74,17 @@ impl Drop for Entry {
     }
 }
 
+/// An embedded RDP session (ADR-030, experimental).
+struct Embedded {
+    viewer: Viewer,
+    _forward: Option<ForwardHandle>,
+}
+
 pub struct DesktopHub {
     temp_dir: PathBuf,
     next: AtomicU64,
     entries: Mutex<HashMap<u64, Entry>>,
+    embedded: Mutex<HashMap<u64, Embedded>>,
     certs: Option<CertificateCheck>,
 }
 
@@ -87,6 +95,7 @@ impl DesktopHub {
             temp_dir,
             next: AtomicU64::new(1),
             entries: Mutex::new(HashMap::new()),
+            embedded: Mutex::new(HashMap::new()),
             certs: None,
         }
     }
@@ -149,21 +158,7 @@ impl DesktopHub {
         };
         let cert = match &self.certs {
             Some(check) if client.needs_certificate() => {
-                // Read through the tunnel if there is one; trust is kept
-                // for the real server name.
-                let (host, port) = (target.host.clone(), target.port);
-                let sni = launch.target.host.trim().to_owned();
-                let fp = tokio::task::spawn_blocking(move || {
-                    remote_desktop::read_certificate(&host, port, &sni, CERT_PROBE_TIMEOUT)
-                })
-                .await
-                .map_err(|e| {
-                    AppError::Desktop(remote_desktop::DesktopError::Certificate(e.to_string()))
-                })??;
-                check
-                    .verify(&launch.target.host, launch.target.port, fp)
-                    .await?;
-                Some(fp)
+                Some(Self::trusted_certificate(check, &launch.target, &target).await?)
             }
             _ => None,
         };
@@ -179,6 +174,125 @@ impl DesktopHub {
             state: DesktopState::Running,
         };
         self.start(plan, info, launch.password, forward).await
+    }
+
+    /// Reads the server certificate (through the tunnel end `connect` if
+    /// there is one) and makes sure the user trusts it for the real server.
+    async fn trusted_certificate(
+        check: &CertificateCheck,
+        server: &DesktopTarget,
+        connect: &DesktopTarget,
+    ) -> Result<remote_desktop::CertFingerprint, AppError> {
+        let (host, port) = (connect.host.clone(), connect.port);
+        let sni = server.host.trim().to_owned();
+        let fp = tokio::task::spawn_blocking(move || {
+            remote_desktop::read_certificate(&host, port, &sni, CERT_PROBE_TIMEOUT)
+        })
+        .await
+        .map_err(|e| {
+            AppError::Desktop(remote_desktop::DesktopError::Certificate(e.to_string()))
+        })??;
+        check.verify(&server.host, server.port, fp).await?;
+        Ok(fp)
+    }
+
+    /// Opens an RDP session inside Termalith (experimental). Frames and the
+    /// end of the session arrive through `sink`; the returned id is used for
+    /// input, acks and closing.
+    pub async fn open_embedded(
+        &self,
+        launch: DesktopLaunch,
+        width: u16,
+        height: u16,
+        sink: impl FnMut(ViewerEvent) -> bool + Send + 'static,
+    ) -> Result<u64, AppError> {
+        launch.target.validate()?;
+        if launch.target.protocol != Protocol::Rdp {
+            return Err(AppError::invalid(
+                "session",
+                "only RDP can be shown inside Termalith",
+            ));
+        }
+        let password = launch.password.ok_or(AppError::PasswordRequired)?;
+        let check = self.certs.as_ref().ok_or_else(|| {
+            AppError::invalid("embedded RDP", "certificate checks are not set up")
+        })?;
+        let mut connect_to = launch.target.clone();
+        let forward = match launch.tunnel {
+            Some((session, _)) => {
+                let fwd = start_forward(
+                    session,
+                    SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+                    ForwardKind::Local {
+                        host: connect_to.host.trim().to_owned(),
+                        port: connect_to.port,
+                    },
+                )
+                .await?;
+                connect_to.host = Ipv4Addr::LOCALHOST.to_string();
+                connect_to.port = fwd.local_addr().port();
+                Some(fwd)
+            }
+            None => None,
+        };
+        let pin = Self::trusted_certificate(check, &launch.target, &connect_to).await?;
+        let server = launch.target.clone();
+        let viewer = tokio::task::spawn_blocking(move || {
+            remote_desktop::embedded::start(
+                &LoginParams {
+                    host: &connect_to.host,
+                    port: connect_to.port,
+                    server_name: server.host.trim(),
+                    username: server.username.as_deref().unwrap_or(""),
+                    password,
+                    domain: server.domain.as_deref(),
+                    pin,
+                    width,
+                    height,
+                },
+                sink,
+            )
+        })
+        .await
+        .map_err(|e| {
+            AppError::Desktop(remote_desktop::DesktopError::Launch {
+                client: "embedded RDP".into(),
+                reason: e.to_string(),
+            })
+        })??;
+        let id = self.next.fetch_add(1, Ordering::Relaxed);
+        self.embedded_lock().insert(
+            id,
+            Embedded {
+                viewer,
+                _forward: forward,
+            },
+        );
+        Ok(id)
+    }
+
+    fn embedded_lock(&self) -> std::sync::MutexGuard<'_, HashMap<u64, Embedded>> {
+        self.embedded.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub fn embedded_input(&self, id: u64, events: Vec<ViewerInput>) -> Result<(), AppError> {
+        let map = self.embedded_lock();
+        let e = map.get(&id).ok_or(AppError::NotFound)?;
+        e.viewer.input(events);
+        Ok(())
+    }
+
+    pub fn embedded_ack(&self, id: u64) -> Result<(), AppError> {
+        let map = self.embedded_lock();
+        map.get(&id).ok_or(AppError::NotFound)?.viewer.ack();
+        Ok(())
+    }
+
+    /// Ends an embedded session (also after it closed by itself, to free
+    /// its tunnel).
+    pub fn embedded_close(&self, id: u64) -> Result<(), AppError> {
+        self.embedded_lock().remove(&id).ok_or(AppError::NotFound)?;
+        Ok(())
     }
 
     async fn start(
@@ -227,6 +341,7 @@ impl DesktopHub {
 
     /// Closes everything (application exit).
     pub fn close_all(&self) {
+        self.embedded_lock().clear();
         let ids: Vec<u64> = self.entries().keys().copied().collect();
         for id in ids {
             let _ = self.close(id);

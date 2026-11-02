@@ -265,6 +265,38 @@ mockIPC(
         desktops.set(d.id, d);
         return d;
       }
+      case "embedded_open": {
+        // A gradient desktop drawn in strips, like an RDP server would.
+        const ev = a.onEvent as ChannelLike;
+        const fr = a.onFrame as ChannelLike;
+        const [w, h] = [Number(a.width) || 1024, Number(a.height) || 768];
+        let evIndex = 0;
+        let frIndex = 0;
+        const sendEv = (m: unknown) => window.__TAURI_INTERNALS__.runCallback(ev.id, { index: evIndex++, message: m });
+        const sendFr = (m: unknown) => window.__TAURI_INTERNALS__.runCallback(fr.id, { index: frIndex++, message: m });
+        setTimeout(() => {
+          sendEv({ kind: "connected", width: w, height: h });
+          for (let y = 0; y < h; y += 64) {
+            const rows = Math.min(64, h - y);
+            const buf = new ArrayBuffer(8 + w * rows * 4);
+            const v = new DataView(buf);
+            [0, y, w, rows].forEach((n, i) => v.setUint16(i * 2, n, true));
+            const px = new Uint8ClampedArray(buf, 8);
+            for (let i = 0; i < w * rows; i++) {
+              px[i * 4] = 20 + ((i % w) * 60) / w;
+              px[i * 4 + 1] = 60 + ((y + i / w) * 80) / h;
+              px[i * 4 + 2] = 120;
+              px[i * 4 + 3] = 255;
+            }
+            sendFr(buf);
+          }
+        }, 300);
+        return 1;
+      }
+      case "embedded_input":
+      case "embedded_ack":
+      case "embedded_close":
+        return null;
       case "update_check":
         return {
           current: "0.5.0",

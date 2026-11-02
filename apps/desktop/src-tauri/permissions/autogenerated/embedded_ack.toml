@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-embedded-ack"
+description = "Enables the embedded_ack command without any pre-configured scope."
+commands.allow = ["embedded_ack"]
+
+[[permission]]
+identifier = "deny-embedded-ack"
+description = "Denies the embedded_ack command without any pre-configured scope."
+commands.deny = ["embedded_ack"]

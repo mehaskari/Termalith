@@ -291,6 +291,12 @@ X11 forwarding (`X11Forwarding yes`) and has `xauth` installed.
 install it if it is missing. On macOS the client keeps its own window, so
 Termalith cannot tell when you disconnect.
 
+**RDP: "only offers legacy RDP security"** — the server did not offer TLS,
+so its identity cannot be checked and Termalith refuses to connect. On
+Windows, keep the default security layer (Negotiate or SSL/TLS). On xrdp,
+make sure it can read its certificate (`sudo adduser xrdp ssl-cert`), set
+`security_layer=tls` or `negotiate` in `/etc/xrdp/xrdp.ini` and restart it.
+
 **Serial port: permission denied (Linux)** — add yourself to the `dialout`
 group and log in again.
 

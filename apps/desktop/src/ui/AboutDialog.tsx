@@ -69,7 +69,7 @@ export function AboutDialog({ info, onClose }: { info: AppInfo | null; onClose: 
             Every component and its license text: <Link href={`${SITE}third-party/`}>Third-party licenses</Link>
           </p>
         </details>
-        <p className="hint">Released under the MIT License. © 2026 mehaskari and contributors.</p>
+        <p className="hint">Released under the MIT License. © 2026 Mehdi Askari and contributors.</p>
       </div>
     </Dialog>
   );

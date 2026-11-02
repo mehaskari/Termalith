@@ -261,6 +261,12 @@ first or last row, <kbd>Enter</kbd> connects, and <kbd>Shift</kbd>+<kbd>F10</kbd
 (or the context-menu key) opens the row's actions, which the arrow keys and
 <kbd>Esc</kbd> work in. Rows have descriptive labels for screen readers.
 
+In the tab bar: <kbd>←</kbd> <kbd>→</kbd> switch tabs, <kbd>Enter</kbd>
+moves into the tab (the terminal or file list), <kbd>Delete</kbd> closes it,
+<kbd>F2</kbd> renames it and <kbd>Shift</kbd>+<kbd>F10</kbd> opens its menu.
+In the Files panel: <kbd>↑</kbd> <kbd>↓</kbd> move between files and
+<kbd>Alt</kbd>+<kbd>↑</kbd> or <kbd>Backspace</kbd> opens the parent folder.
+
 ## Settings
 
 App theme and terminal colors (Solarized, Nord, Gruvbox, Tomorrow Night),

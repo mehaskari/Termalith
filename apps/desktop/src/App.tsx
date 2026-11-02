@@ -70,6 +70,7 @@ import { Dialog } from "./ui/Dialog";
 import { FilesPanel } from "./ui/FilesPanel";
 import { HostKeyDialog } from "./ui/HostKeyDialog";
 import { LocalNetworkDialog } from "./ui/LocalNetworkDialog";
+import { focusFirstItem, menuKeyDown } from "./ui/menuKeys";
 import { ImportDialog } from "./ui/ImportDialog";
 import { type PasswordAnswer, PasswordDialog } from "./ui/PasswordDialog";
 import { SessionDialog } from "./ui/SessionDialog";
@@ -166,6 +167,52 @@ export function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [crashes, setCrashes] = useState<CrashReport[]>([]);
   const [tabMenu, setTabMenu] = useState<{ key: number; x: number; y: number } | null>(null);
+  const tabMenuRef = useRef<HTMLDivElement>(null);
+  /** Focus returns here when the tab menu closes from the keyboard. */
+  const tabMenuOpener = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (tabMenu) focusFirstItem(tabMenuRef.current);
+  }, [tabMenu]);
+  const closeTabMenu = () => {
+    setTabMenu(null);
+    tabMenuOpener.current?.focus();
+  };
+  /** Arrow keys switch tabs (focus follows), Enter goes into the tab, Delete closes, F2 renames, Shift+F10 opens the menu. */
+  const tabKey = (e: React.KeyboardEvent<HTMLButtonElement>, t: Tab) => {
+    const i = tabs.findIndex((x) => x.key === t.key);
+    const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+    if (to !== undefined) {
+      e.preventDefault();
+      const next = tabs[(to + tabs.length) % tabs.length];
+      if (next) {
+        setActive(next.key);
+        document.getElementById(`tab-${next.key}`)?.focus();
+      }
+    } else if (e.key === "Enter" && !e.repeat) {
+      // Into the tab's content (the terminal, the file list, …).
+      e.preventDefault();
+      document
+        .getElementById(`pane-${t.key}`)
+        ?.querySelector<HTMLElement>("textarea, input, select, button:not(:disabled)")
+        ?.focus();
+    } else if (e.key === "Delete") {
+      e.preventDefault();
+      requestClose(t.key);
+      // Keep keyboard users in the tab bar (unless a confirmation opened).
+      setTimeout(() => {
+        if (document.activeElement === document.body)
+          document.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
+      }, 50);
+    } else if (e.key === "F2") {
+      e.preventDefault();
+      setRenaming(t.key);
+    } else if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+      e.preventDefault();
+      tabMenuOpener.current = e.currentTarget;
+      const r = e.currentTarget.getBoundingClientRect();
+      setTabMenu({ key: t.key, x: r.left, y: r.bottom });
+    }
+  };
   const [renaming, setRenaming] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   /** macOS blocked a local connection; shown once until dismissed. */
@@ -771,7 +818,7 @@ export function App() {
         }}
       />
       <main className="workspace">
-        <div className="tabbar" role="tablist">
+        <div className="tabbar" role="tablist" aria-label="Open tabs">
           {tabs.map((t) => (
             <div
               key={t.key}
@@ -806,16 +853,27 @@ export function App() {
                 <button
                   type="button"
                   role="tab"
+                  id={`tab-${t.key}`}
                   aria-selected={t.key === active}
+                  aria-controls={`pane-${t.key}`}
+                  tabIndex={t.key === active ? 0 : -1}
                   className="tab-title"
                   onClick={() => setActive(t.key)}
                   onDoubleClick={() => setRenaming(t.key)}
+                  onKeyDown={(e) => tabKey(e, t)}
                 >
                   <span className={`tab-kind ${t.kind}`} aria-hidden="true" />
                   {t.title}
                 </button>
               )}
-              <button type="button" className="tab-close" aria-label={`Close ${t.title}`} onClick={() => requestClose(t.key)}>
+              {/* Not in the Tab order: Delete closes the focused tab. */}
+              <button
+                type="button"
+                className="tab-close"
+                tabIndex={-1}
+                aria-label={`Close ${t.title}`}
+                onClick={() => requestClose(t.key)}
+              >
                 ×
               </button>
             </div>
@@ -824,11 +882,17 @@ export function App() {
             const t = tabs.find((x) => x.key === tabMenu.key) as Tab;
             const canDuplicate = t.kind === "local" || (t.kind === "ssh" && !!t.reconnect);
             const act = (f: () => void) => () => {
-              setTabMenu(null);
+              closeTabMenu();
               f();
             };
             return (
-              <div className="menu tab-menu" role="menu" style={{ position: "fixed", left: tabMenu.x, top: tabMenu.y }}>
+              <div
+                ref={tabMenuRef}
+                className="menu tab-menu"
+                role="menu"
+                style={{ position: "fixed", left: tabMenu.x, top: tabMenu.y }}
+                onKeyDown={(e) => menuKeyDown(e, closeTabMenu)}
+              >
                 <button type="button" role="menuitem" onClick={act(() => setRenaming(t.key))}>
                   Rename…
                 </button>
@@ -875,7 +939,14 @@ export function App() {
             </div>
           )}
           {tabs.map((t) => (
-            <div key={t.key} className="pane" hidden={t.key !== active} role="tabpanel">
+            <div
+              key={t.key}
+              id={`pane-${t.key}`}
+              className="pane"
+              hidden={t.key !== active}
+              role="tabpanel"
+              aria-labelledby={`tab-${t.key}`}
+            >
               {t.kind === "tools" ? (
                 <NetworkTools />
               ) : t.kind === "diff" && t.diff ? (

@@ -286,7 +286,8 @@ export function TerminalView({
     if (!active) return;
     const frame = requestAnimationFrame(() => {
       fitRef.current?.fit();
-      termRef.current?.focus();
+      // Someone moving through the tab bar with the keyboard keeps focus there.
+      if (!document.activeElement?.closest('[role="tablist"]')) termRef.current?.focus();
     });
     return () => cancelAnimationFrame(frame);
   }, [active]);

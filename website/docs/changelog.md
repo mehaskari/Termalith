@@ -7,6 +7,10 @@
   anything.
 - Releases include `SHA256SUMS.txt`, and the site documents building from
   source, verifying downloads and the release process.
+- Keyboard support in the tab bar (arrows, Enter, Delete, F2, Shift+F10)
+  and the Files panel (arrows, Alt+Up/Backspace for the parent folder, menus
+  that work from the keyboard). Light theme colors were darkened slightly so
+  all text meets WCAG AA contrast.
 - Keyboard and screen reader support in the session list: arrow-key
   navigation, Shift+F10 for a row's actions, keyboard-operable menus,
   descriptive labels, and **Move to folder…** as an alternative to dragging.

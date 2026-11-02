@@ -579,6 +579,8 @@ export function openEmbedded(
 
 export const embeddedInput = (id: number, events: EmbeddedInput[]) => invoke<void>("embedded_input", { id, events });
 export const embeddedAck = (id: number) => invoke<void>("embedded_ack", { id });
+export const embeddedResize = (id: number, width: number, height: number) =>
+  invoke<void>("embedded_resize", { id, width, height });
 export const closeEmbedded = (id: number) => invoke<void>("embedded_close", { id });
 
 export function closeDesktop(id: number): Promise<void> {

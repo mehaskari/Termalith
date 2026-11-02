@@ -102,6 +102,7 @@ pub fn run() {
             desktop::embedded_open,
             desktop::embedded_input,
             desktop::embedded_ack,
+            desktop::embedded_resize,
             desktop::embedded_close,
             ssh::host_key_respond,
             ssh::auth_prompt_respond,

@@ -37,6 +37,7 @@
     "allow-embedded-open",
     "allow-embedded-input",
     "allow-embedded-ack",
+    "allow-embedded-resize",
     "allow-embedded-close",
     "allow-host-key-respond",
     "allow-auth-prompt-respond",

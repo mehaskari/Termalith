@@ -295,6 +295,7 @@ mockIPC(
       }
       case "embedded_input":
       case "embedded_ack":
+      case "embedded_resize":
       case "embedded_close":
         return null;
       case "update_check":

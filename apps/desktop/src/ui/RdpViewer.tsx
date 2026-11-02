@@ -4,6 +4,7 @@ import {
   closeEmbedded,
   embeddedAck,
   embeddedInput,
+  embeddedResize,
   isIpcError,
   openEmbedded,
 } from "../terminal/api";
@@ -99,6 +100,31 @@ export function RdpViewer({ sessionId, name, askPassword, onClose }: Props) {
     // A new attempt reconnects; the callbacks read refs, not props.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, attempt]);
+
+  // Follow the tab's size: ask the server to resize (debounced; it may
+  // refuse, then the desktop is scaled).
+  useEffect(() => {
+    if (status.kind !== "connected") return;
+    const stage = canvasRef.current?.parentElement;
+    if (!stage) return;
+    let timer: number | undefined;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const w = Math.round(entry.contentRect.width / 2) * 2;
+        const h = Math.round(entry.contentRect.height / 2) * 2;
+        const c = canvasRef.current;
+        if (idRef.current !== null && c && w >= 200 && h >= 200 && (w !== c.width || h !== c.height))
+          void embeddedResize(idRef.current, w, h).catch(() => {});
+      }, 600);
+    });
+    observer.observe(stage);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timer);
+    };
+  }, [status.kind]);
 
   // Keyboard goes to the desktop as soon as it is shown.
   useEffect(() => {

@@ -206,8 +206,9 @@ inside Termalith*, an RDP session opens in a tab instead of the external
 client, on every system. The server certificate is checked the same way as
 below, the password is asked each time and not saved, and keyboard input
 uses the remote computer's layout. **Ctrl+Alt+Del** is on the tab's
-toolbar. Not yet supported there: clipboard, resizing with the window,
-sound and drive sharing.
+toolbar. The remote desktop follows the tab's size when the server
+supports Display Control (Windows, recent xrdp); otherwise it is scaled.
+Not yet supported there: clipboard, sound and drive sharing.
 
 **Server certificates (Linux):** FreeRDP cannot show its own certificate
 prompt when started from Termalith, so Termalith reads the server's

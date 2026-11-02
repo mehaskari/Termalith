@@ -270,6 +270,13 @@ session.
 (GNOME Keyring, KWallet). Without one, passwords are asked each time and
 never written to disk.
 
+**"No route to host" on macOS, while `ssh` in Terminal works** — macOS
+blocks apps from the local network until you allow it. Open System Settings
+→ Privacy & Security → Local Network and turn on Termalith (turn it off and
+on again if it is already on). Builds that are not signed with a developer
+certificate count as a new app after every update, so this may be needed
+again after installing a new version.
+
 **Host key changed** — this can mean an attack, or a reinstalled server.
 Confirm the new fingerprint with the server's administrator before removing
 the recorded key.

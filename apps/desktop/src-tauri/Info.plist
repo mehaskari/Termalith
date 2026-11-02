@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Shown in macOS's Local Network prompt. Without this permission,
+	     connections to hosts on the local network fail with
+	     "No route to host". -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Termalith connects to servers and devices on your local network over SSH, SFTP, Telnet, RDP and VNC.</string>
+</dict>
+</plist>

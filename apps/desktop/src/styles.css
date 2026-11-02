@@ -988,20 +988,20 @@ code {
   --line: #d6d9d3;
   --text: #1d232b;
   --muted: #5d6874;
-  --accent: #1f7a63;
+  --accent: #1a6b56;
   --accent-ink: #ffffff;
   --danger: #b42318;
-  --warning: #8a6100;
+  --warning: #7a5600;
   --term-bg: #fbfbf9;
   --hover: #e9ebe7;
   --line-strong: #c3c8c0;
-  --accent-soft: rgb(31 122 99 / 0.1);
+  --accent-soft: rgb(26 107 86 / 0.1);
   --shadow: 0 12px 32px rgb(30 35 40 / 0.16), 0 0 0 1px rgb(30 35 40 / 0.06);
-  --p-ssh: #1f7a63;
+  --p-ssh: #1a6b56;
   --p-rdp: #2f5fc4;
-  --p-vnc: #9a6400;
-  --p-telnet: #b5462f;
-  --p-serial: #7a4fc9;
+  --p-vnc: #845500;
+  --p-telnet: #a23d28;
+  --p-serial: #6c44b6;
   --p-local: #56656e;
   color-scheme: light;
 }

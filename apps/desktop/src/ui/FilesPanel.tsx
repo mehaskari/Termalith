@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type DroppedFile,
   type RemoteEntry,
@@ -16,6 +16,7 @@ import {
   sftpUpload,
 } from "../terminal/api";
 import { Dialog } from "./Dialog";
+import { focusFirstItem, menuKeyDown } from "./menuKeys";
 import { TransferHistory } from "./TransferHistory";
 import { formatSize, joinRemote, parentRemote, percent } from "./paths";
 
@@ -138,6 +139,38 @@ export function FilesPanel({
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [op, setOp] = useState<FileOp | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const menuRef = useRef<HTMLSpanElement>(null);
+  /** The ⋯ button that opened the menu; focus returns to it. */
+  const menuOpener = useRef<HTMLButtonElement | null>(null);
+  const closeMenu = () => {
+    setMenuFor(null);
+    menuOpener.current?.focus();
+  };
+  useEffect(() => {
+    if (menuFor !== null) focusFirstItem(menuRef.current);
+  }, [menuFor]);
+
+  /** Up/Down move between rows, Alt+Up or Backspace opens the parent folder. */
+  const listKey = (e: React.KeyboardEvent<HTMLUListElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest(".menu")) return;
+    if ((e.key === "ArrowUp" && e.altKey) || e.key === "Backspace") {
+      if (path && parentRemote(path) !== path) {
+        e.preventDefault();
+        void load(parentRemote(path));
+      }
+      return;
+    }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const rows = [...e.currentTarget.querySelectorAll<HTMLLIElement>(":scope > li")];
+    const i = rows.findIndex((r) => r.contains(target));
+    const next = rows[e.key === "ArrowDown" ? i + 1 : i - 1];
+    const focusable = next?.querySelector<HTMLElement>("button:not(:disabled)");
+    if (focusable) {
+      e.preventDefault();
+      focusable.focus();
+    }
+  };
 
   useEffect(() => {
     if (menuFor === null) return;
@@ -291,11 +324,21 @@ export function FilesPanel({
       )}
       {showHistory && <TransferHistory />}
       {error && <p className="files-error" role="alert">{error}</p>}
-      <ul className="files-list" aria-busy={loading}>
+      <ul
+        className="files-list"
+        aria-busy={loading}
+        aria-label={path ? `Files in ${path} (Alt+Up or Backspace: parent folder)` : "Files"}
+        onKeyDown={listKey}
+      >
         {entries.map((e) => (
           <li key={e.name}>
             {e.kind === "dir" ? (
-              <button type="button" className="file-row dir" onClick={() => path && void load(joinRemote(path, e.name))}>
+              <button
+                type="button"
+                className="file-row dir"
+                aria-label={`Folder ${e.name}`}
+                onClick={() => path && void load(joinRemote(path, e.name))}
+              >
                 <span className="file-icon" aria-hidden="true">▸</span>
                 <span className="file-name">{e.name}</span>
               </button>
@@ -321,11 +364,14 @@ export function FilesPanel({
             <span className="file-menu">
               <button type="button" className="icon" aria-label={`More actions for ${e.name}`} title="More"
                 aria-haspopup="menu" aria-expanded={menuFor === e.name}
-                onClick={() => setMenuFor(menuFor === e.name ? null : e.name)}>
+                onClick={(ev) => {
+                  menuOpener.current = ev.currentTarget;
+                  setMenuFor(menuFor === e.name ? null : e.name);
+                }}>
                 ⋯
               </button>
               {menuFor === e.name && (
-                <span className="menu" role="menu">
+                <span className="menu" role="menu" ref={menuRef} onKeyDown={(ev) => menuKeyDown(ev, closeMenu)}>
                   <button type="button" role="menuitem" onClick={() => { setMenuFor(null); setOp({ kind: "rename", entry: e }); }}>
                     Rename…
                   </button>

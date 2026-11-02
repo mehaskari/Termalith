@@ -1,6 +1,7 @@
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import type { SessionRecord, ShellChoice } from "../terminal/api";
 import { Icon, ProtocolBadge } from "./icons";
+import { focusFirstItem, menuKeyDown } from "./menuKeys";
 import { MoveDialog } from "./MoveDialog";
 import {
   type FolderNode,
@@ -232,20 +233,8 @@ export function Sidebar(p: Props) {
   };
   // Focus the first item when a menu opens, so it works from the keyboard.
   useEffect(() => {
-    if (menu) menuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+    if (menu) focusFirstItem(menuRef.current);
   }, [menu]);
-  const menuNav = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    const items = [...e.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
-    const i = items.indexOf(document.activeElement as HTMLButtonElement);
-    const to = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: items.length - 1 }[e.key];
-    if (to !== undefined) {
-      e.preventDefault();
-      items[(to + items.length) % items.length]?.focus();
-    } else if (e.key === "Escape" || e.key === "Tab") {
-      e.preventDefault();
-      closeMenu();
-    }
-  };
 
   const sessionMenu = (s: SessionRecord): MenuItem[] => [
     { label: "Connect", run: () => p.onConnect(s) },
@@ -712,7 +701,7 @@ export function Sidebar(p: Props) {
           className="menu context-menu"
           role="menu"
           style={{ left: menu.x, top: menu.y }}
-          onKeyDown={menuNav}
+          onKeyDown={(e) => menuKeyDown(e, closeMenu)}
         >
           {menu.items.map((item, i) =>
             item === "sep" ? (

@@ -49,6 +49,20 @@ jobs:
             os: ubuntu-latest
             bin: target/debug/termalith-desktop
             require_sshd: "1"
+          # Extra architectures: not required for merging (branch protection
+          # lists only the three above), so a slow runner never blocks a PR.
+          - name: macOS x64
+            os: macos-15-intel
+            bin: target/debug/termalith-desktop
+            require_sshd: "1"
+          - name: Windows arm64
+            os: windows-11-arm
+            bin: target/debug/termalith-desktop.exe
+            require_sshd: "0"
+          - name: Linux arm64
+            os: ubuntu-24.04-arm
+            bin: target/debug/termalith-desktop
+            require_sshd: "1"
 
     steps:
       # Third-party actions are pinned to full commit SHAs.
@@ -89,6 +103,17 @@ jobs:
             echo "TERMALITH_TEST_SSH_USER=termalith-test"
             echo "TERMALITH_TEST_SSH_PASSWORD=$PW"
           } >> "$GITHUB_ENV"
+
+      # The Windows ARM image ships without Rust.
+      - name: Install rustup (Windows arm64)
+        if: runner.os == 'Windows' && runner.arch == 'ARM64'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) {
+            Invoke-WebRequest https://static.rust-lang.org/rustup/dist/aarch64-pc-windows-msvc/rustup-init.exe -OutFile rustup-init.exe
+            ./rustup-init.exe -y --default-toolchain none --profile minimal
+            "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          }
 
       - name: Install Rust toolchain (from rust-toolchain.toml)
         shell: bash

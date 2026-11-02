@@ -208,12 +208,7 @@ pub async fn telnet_open(
             rec.input.host.trim(),
             rec.input.port,
             via,
-            state
-                .connector
-                .sessions
-                .settings()?
-                .proxy
-                .map(|p| p.to_proxy()),
+            state.connector.proxy().await?,
             size,
             sink,
         )

@@ -122,6 +122,35 @@ pub fn settings_get(state: State<'_, AppState>) -> Result<app_core::Settings, Ip
     Ok(state.connector.sessions.settings()?)
 }
 
+/// Whether a proxy password is saved (the password itself never goes to
+/// the UI).
+#[tauri::command]
+pub fn proxy_password_status(state: State<'_, AppState>) -> Result<bool, IpcError> {
+    Ok(state.connector.has_proxy_password()?)
+}
+
+/// Saves the proxy password in the OS credential store; `None` removes it.
+#[tauri::command]
+pub async fn proxy_password_set(
+    state: State<'_, AppState>,
+    password: Option<String>,
+) -> Result<(), IpcError> {
+    let password = password.map(zeroize::Zeroizing::new);
+    if password.as_ref().is_some_and(|p| p.len() > 255) {
+        return Err(IpcError::coded(
+            "invalid",
+            "the proxy password is longer than 255 bytes",
+        ));
+    }
+    if password.is_some() && !state.secrets_available {
+        return Err(IpcError::coded(
+            "secret_store",
+            "no credential store is available, so the proxy password cannot be saved",
+        ));
+    }
+    Ok(state.connector.set_proxy_password(password).await?)
+}
+
 #[tauri::command]
 pub fn settings_save(
     state: State<'_, AppState>,

@@ -1,5 +1,11 @@
-import { type FormEvent, useState } from "react";
-import { type Settings, type ShellChoice, isIpcError } from "../terminal/api";
+import { type FormEvent, useEffect, useState } from "react";
+import {
+  type Settings,
+  type ShellChoice,
+  isIpcError,
+  proxyPasswordStatus,
+  setProxyPassword,
+} from "../terminal/api";
 import { Dialog } from "./Dialog";
 import { TERMINAL_SCHEMES } from "./theme";
 
@@ -15,6 +21,14 @@ export function SettingsDialog({ initial, shells, onSave, onCancel }: Props) {
   const [s, setS] = useState<Settings>(initial);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<Settings>) => setS((x) => ({ ...x, ...patch }));
+  /** A password is saved in the OS store (never loaded into the UI). */
+  const [hasProxyPassword, setHasProxyPassword] = useState(false);
+  /** Typed replacement; empty keeps the saved one. Cleared after saving. */
+  const [proxyPassword, setProxyPasswordInput] = useState("");
+  const [forgetProxyPassword, setForgetProxyPassword] = useState(false);
+  useEffect(() => {
+    proxyPasswordStatus().then(setHasProxyPassword, () => {});
+  }, []);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -23,7 +37,12 @@ export function SettingsDialog({ initial, shells, onSave, onCancel }: Props) {
       return setError("Scrollback must be 100-100000 lines");
     if (s.proxy && (!s.proxy.host.trim() || !Number.isInteger(s.proxy.port) || s.proxy.port < 1 || s.proxy.port > 65535))
       return setError("Enter the proxy host and a port (1-65535)");
+    const login = !!s.proxy?.username?.trim();
     try {
+      // The password goes to the OS store first, so a failure keeps the dialog open.
+      if (login && proxyPassword) await setProxyPassword(proxyPassword);
+      else if ((!login || forgetProxyPassword) && hasProxyPassword) await setProxyPassword(null);
+      setProxyPasswordInput("");
       await onSave(s);
     } catch (err) {
       setError(isIpcError(err) ? err.message : String(err));
@@ -134,9 +153,45 @@ export function SettingsDialog({ initial, shells, onSave, onCancel }: Props) {
           <span />
         )}
         {s.proxy && (
+          <>
+            <label>
+              Proxy user name (optional)
+              <input
+                value={s.proxy.username ?? ""}
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(e) => s.proxy && set({ proxy: { ...s.proxy, username: e.target.value || null } })}
+              />
+            </label>
+            <label>
+              Proxy password
+              <input
+                type="password"
+                value={proxyPassword}
+                autoComplete="new-password"
+                disabled={!s.proxy.username?.trim() || forgetProxyPassword}
+                placeholder={hasProxyPassword ? "Saved — type to replace" : ""}
+                onChange={(e) => setProxyPasswordInput(e.target.value)}
+              />
+            </label>
+            {hasProxyPassword && s.proxy.username?.trim() && (
+              <label className="checkbox span-2">
+                <input
+                  type="checkbox"
+                  checked={forgetProxyPassword}
+                  onChange={(e) => setForgetProxyPassword(e.target.checked)}
+                />
+                Forget the saved proxy password
+              </label>
+            )}
+          </>
+        )}
+        {s.proxy && (
           <p className="hint span-2">
             SSH and Telnet connections go through the proxy (the first hop only; jump hosts are reached through the
-            first connection). The proxy sees which server you connect to, not the encrypted SSH traffic.
+            first connection). The proxy sees which server you connect to, not the encrypted SSH traffic. The proxy
+            password is kept in the system keychain; with HTTP proxies it is sent in the clear (Basic), so use one you
+            trust.
           </p>
         )}
         <label className="checkbox span-2">

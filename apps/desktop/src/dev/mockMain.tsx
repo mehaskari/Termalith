@@ -273,6 +273,11 @@ mockIPC(
           url: "https://github.com/mehaskari/Termalith/releases/tag/v0.6.0",
           prerelease: true,
         };
+      case "proxy_password_status":
+        return mockProxyPassword;
+      case "proxy_password_set":
+        mockProxyPassword = a.password !== null;
+        return null;
       case "open_local_network_settings":
       case "app_restart":
         return null;
@@ -587,6 +592,7 @@ mockIPC(
   { shouldMockEvents: true },
 );
 
+let mockProxyPassword = false;
 const dropTokens = new Map<number, { name: string; size: number; folder: boolean }>();
 let nextToken = 1;
 // Simulates dragging over and dropping onto the window (real drag-drop is

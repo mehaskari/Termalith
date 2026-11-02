@@ -20,7 +20,7 @@ Termalith is an open-source, cross-platform remote administration workstation fo
 **SSH**
 - Password, private key, ssh-agent and keyboard-interactive (PAM, one-time codes) authentication; secrets are stored only in the OS keychain, and only after a successful login.
 - Strict host-key verification: unknown keys are shown for confirmation, changed keys are refused.
-- Jump hosts (ProxyJump), SOCKS5/HTTP proxy for the first hop, automatic reconnect when a connection drops.
+- Jump hosts (ProxyJump), SOCKS5/HTTP proxy for the first hop (with user name and password), automatic reconnect when a connection drops.
 - Tunnels: local (-L), remote (-R) and dynamic SOCKS (-D), loopback-only unless you allow other machines.
 - X11 forwarding (with cookie substitution, like OpenSSH) and agent forwarding, both opt-in per session.
 - Startup command per session; SSH key manager (generate Ed25519, install a public key on a server).

@@ -202,7 +202,7 @@ impl Connector {
         }
         // The proxy carries only the first hop; later hops run inside it.
         if via.is_none() {
-            opts.proxy = self.sessions.settings()?.proxy.map(|p| p.to_proxy());
+            opts.proxy = self.proxy().await?;
         }
         if depth == 0 && input.x11_forward {
             opts.x11 = Some(local_x11().await?);
@@ -279,6 +279,52 @@ impl Connector {
         tokio::task::spawn_blocking(move || secrets.put(&cred, secret.as_bytes()))
             .await
             .map_err(|e| AppError::Db(e.to_string()))??;
+        Ok(())
+    }
+
+    /// The configured proxy with its login (password from the OS store),
+    /// or `None` for direct connections.
+    pub async fn proxy(&self) -> Result<Option<protocol_ssh::Proxy>, AppError> {
+        let Some(p) = self.sessions.settings()?.proxy else {
+            return Ok(None);
+        };
+        let password = match self.sessions.proxy_credential()? {
+            Some(cred) if p.username.is_some() => self.load_secret(cred).await?,
+            _ => None,
+        };
+        Ok(Some(p.to_proxy(password)))
+    }
+
+    /// Whether a proxy password is saved.
+    pub fn has_proxy_password(&self) -> Result<bool, AppError> {
+        Ok(self.sessions.proxy_credential()?.is_some())
+    }
+
+    /// Saves (or with `None` removes) the proxy password in the OS store.
+    pub async fn set_proxy_password(
+        &self,
+        password: Option<Zeroizing<String>>,
+    ) -> Result<(), AppError> {
+        let old = self.sessions.proxy_credential()?;
+        match password {
+            Some(pw) => {
+                let cred = match old {
+                    Some(c) => c,
+                    None => CredentialRef::generate()?,
+                };
+                self.store_secret(cred.clone(), pw).await?;
+                self.sessions.set_proxy_credential(Some(&cred))?;
+            }
+            None => {
+                if let Some(cred) = old {
+                    let secrets = Arc::clone(&self.secrets);
+                    tokio::task::spawn_blocking(move || secrets.delete(&cred))
+                        .await
+                        .map_err(|e| AppError::Db(e.to_string()))??;
+                }
+                self.sessions.set_proxy_credential(None)?;
+            }
+        }
         Ok(())
     }
 

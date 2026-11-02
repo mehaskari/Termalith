@@ -160,6 +160,11 @@ export const sshConfigImport = (aliases: string[]) =>
 
 export const appInfo = () => invoke<AppInfo>("app_info");
 
+/** Whether a proxy password is saved; the password never reaches the UI. */
+export const proxyPasswordStatus = () => invoke<boolean>("proxy_password_status");
+/** Saves the proxy password in the OS credential store; null removes it. */
+export const setProxyPassword = (password: string | null) => invoke<void>("proxy_password_set", { password });
+
 export interface UpdateInfo {
   current: string;
   latest: string | null;
@@ -341,7 +346,7 @@ export interface Settings {
   /** Terminal color scheme id (see TERMINAL_SCHEMES); "app" follows the app theme. */
   terminalScheme: string;
   /** Proxy for outgoing SSH/Telnet connections (first hop only). */
-  proxy: { kind: "socks5" | "http"; host: string; port: number } | null;
+  proxy: { kind: "socks5" | "http"; host: string; port: number; username?: string | null } | null;
   /** Look for a newer release on GitHub at startup. */
   checkUpdates: boolean;
 }

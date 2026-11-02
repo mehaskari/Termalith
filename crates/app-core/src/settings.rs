@@ -1,7 +1,9 @@
 //! Application settings and portable session export/import.
 
+use credential_store::CredentialRef;
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
 
 use crate::sessions::{AuthMethod, SessionInput, SessionProtocol, SessionStore};
 use crate::{AppError, ImportReport};
@@ -38,10 +40,20 @@ pub struct ProxySetting {
     pub kind: ProxyType,
     pub host: String,
     pub port: u16,
+    /// Login for proxies that require one; the password is kept in the OS
+    /// credential store (see `Connector::set_proxy_password`).
+    #[serde(default)]
+    pub username: Option<String>,
 }
 
 impl ProxySetting {
-    pub fn to_proxy(&self) -> protocol_ssh::Proxy {
+    /// The proxy with its login, when a user name is set.
+    pub fn to_proxy(&self, password: Option<Zeroizing<String>>) -> protocol_ssh::Proxy {
+        let username = self
+            .username
+            .as_deref()
+            .map(str::trim)
+            .filter(|u| !u.is_empty());
         protocol_ssh::Proxy {
             kind: match self.kind {
                 ProxyType::Socks5 => protocol_ssh::ProxyKind::Socks5,
@@ -49,6 +61,10 @@ impl ProxySetting {
             },
             host: self.host.trim().to_owned(),
             port: self.port,
+            auth: username.map(|u| protocol_ssh::ProxyAuth {
+                username: u.to_owned(),
+                password: password.unwrap_or_default(),
+            }),
         }
     }
 }
@@ -139,6 +155,14 @@ impl Settings {
             {
                 return Err(AppError::invalid("proxy", "enter a host and a port"));
             }
+            if let Some(u) = &p.username
+                && (u.len() > 255 || u.chars().any(char::is_control))
+            {
+                return Err(AppError::invalid(
+                    "proxy user name",
+                    "too long or contains control characters",
+                ));
+            }
         }
         if !(100..=100_000).contains(&self.scrollback) {
             return Err(AppError::invalid("scrollback", "must be 100-100000 lines"));
@@ -148,6 +172,8 @@ impl Settings {
 }
 
 const SETTINGS_KEY: &str = "app";
+/// Reference to the proxy password in the OS credential store.
+const PROXY_CREDENTIAL_KEY: &str = "proxy_credential";
 
 impl SessionStore {
     /// Stored settings; defaults for anything missing or unreadable.
@@ -174,6 +200,33 @@ impl SessionStore {
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             params![SETTINGS_KEY, json],
         )?;
+        Ok(())
+    }
+
+    pub fn proxy_credential(&self) -> Result<Option<CredentialRef>, AppError> {
+        let raw: Option<String> = self
+            .conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                [PROXY_CREDENTIAL_KEY],
+                |r| r.get(0),
+            )
+            .optional()?;
+        Ok(raw.and_then(|r| CredentialRef::parse(&r).ok()))
+    }
+
+    pub fn set_proxy_credential(&self, cred: Option<&CredentialRef>) -> Result<(), AppError> {
+        match cred {
+            Some(c) => self.conn().execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![PROXY_CREDENTIAL_KEY, c.as_str()],
+            )?,
+            None => self.conn().execute(
+                "DELETE FROM settings WHERE key = ?1",
+                [PROXY_CREDENTIAL_KEY],
+            )?,
+        };
         Ok(())
     }
 }
@@ -371,15 +424,28 @@ mod tests {
             kind: ProxyType::Socks5,
             host: "".into(),
             port: 1080,
+            username: None,
         });
         assert!(s.save_settings(&custom).is_err(), "proxy needs a host");
         custom.proxy = Some(ProxySetting {
             kind: ProxyType::Http,
             host: "proxy.corp".into(),
             port: 3128,
+            username: Some("alice".into()),
         });
         s.save_settings(&custom).unwrap();
         assert_eq!(s.settings().unwrap().proxy, custom.proxy);
+        let mut bad = custom.clone();
+        bad.proxy.as_mut().unwrap().username = Some("a\nb".into());
+        assert!(
+            s.save_settings(&bad).is_err(),
+            "control characters in the user name"
+        );
+        // A saved proxy from before user names existed still loads.
+        let old: ProxySetting =
+            serde_json::from_str(r#"{"kind":"socks5","host":"p","port":1080}"#).unwrap();
+        assert_eq!(old.username, None);
+        assert!(old.to_proxy(None).auth.is_none());
         // Partial JSON (older version) fills defaults.
         let parsed: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
         assert_eq!(parsed.font_size, 13);

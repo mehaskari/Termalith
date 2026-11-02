@@ -96,6 +96,8 @@ pub struct Settings {
     /// Ask GitHub for a newer release at startup (off by default: no
     /// network request without the user's choice).
     pub check_updates: bool,
+    /// Show RDP sessions inside Termalith (experimental, ADR-030).
+    pub embedded_rdp: bool,
 }
 
 impl Default for Settings {
@@ -115,6 +117,7 @@ impl Default for Settings {
             terminal_scheme: "app".into(),
             proxy: None,
             check_updates: false,
+            embedded_rdp: false,
         }
     }
 }

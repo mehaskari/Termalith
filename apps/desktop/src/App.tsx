@@ -70,6 +70,7 @@ import { Dialog } from "./ui/Dialog";
 import { FilesPanel } from "./ui/FilesPanel";
 import { HostKeyDialog } from "./ui/HostKeyDialog";
 import { LocalNetworkDialog } from "./ui/LocalNetworkDialog";
+import { RdpViewer } from "./ui/RdpViewer";
 import { focusFirstItem, menuKeyDown } from "./ui/menuKeys";
 import { ImportDialog } from "./ui/ImportDialog";
 import { type PasswordAnswer, PasswordDialog } from "./ui/PasswordDialog";
@@ -91,7 +92,7 @@ import { isDesktop, targetLabel } from "./ui/sessionList";
 interface Tab {
   key: number;
   title: string;
-  kind: "local" | "ssh" | "serial" | "tools" | "desktop" | "editor" | "telnet" | "files" | "diff";
+  kind: "local" | "ssh" | "serial" | "tools" | "desktop" | "editor" | "telnet" | "files" | "diff" | "rdp";
   open: Opener;
   terminalId?: TerminalId;
   /** Connection over (failed, or the remote shell exited). */
@@ -475,6 +476,11 @@ export function App() {
         patchTab(key, { sessionId: s.id, reconnect: () => connectSaved(s) });
         return;
       }
+      if (s.protocol === "rdp" && settings.embeddedRdp) {
+        const key = addTab(s.name, "rdp", openLocalTerminal);
+        patchTab(key, { sessionId: s.id });
+        return;
+      }
       if (isDesktop(s)) {
         const key = addTab(s.name, "desktop", openLocalTerminal);
         patchTab(key, { sessionId: s.id });
@@ -488,7 +494,7 @@ export function App() {
         startup: s.startupCommand,
       });
     },
-    [addTab, connect, info, patchTab, runDesktop],
+    [addTab, connect, info, patchTab, runDesktop, settings.embeddedRdp],
   );
 
   // Remote desktop status: poll while a client is running.
@@ -1005,6 +1011,17 @@ export function App() {
                     </div>
                   )}
                 </div>
+              ) : t.kind === "rdp" && t.sessionId ? (
+                <RdpViewer
+                  sessionId={t.sessionId}
+                  name={t.title}
+                  askPassword={() =>
+                    askPassword({ target: t.title, kind: "password", canSave: false, retry: null }).then(
+                      (a) => a?.password ?? null,
+                    )
+                  }
+                  onClose={() => closeTab(t.key)}
+                />
               ) : t.kind === "desktop" ? (
                 <DesktopPane
                   info={t.desktop ?? null}

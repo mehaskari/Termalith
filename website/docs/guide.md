@@ -201,6 +201,14 @@ Choose *Tunnel through* an SSH session to reach a desktop behind a bastion.
 Passwords are never passed on a command line; the client asks for them
 (FreeRDP on Linux receives it on standard input).
 
+**Inside Termalith (experimental):** with *Settings → Show RDP sessions
+inside Termalith*, an RDP session opens in a tab instead of the external
+client, on every system. The server certificate is checked the same way as
+below, the password is asked each time and not saved, and keyboard input
+uses the remote computer's layout. **Ctrl+Alt+Del** is on the tab's
+toolbar. Not yet supported there: clipboard, resizing with the window,
+sound and drive sharing.
+
 **Server certificates (Linux):** FreeRDP cannot show its own certificate
 prompt when started from Termalith, so Termalith reads the server's
 certificate first and asks you, in the same dialog as an unknown SSH host

@@ -349,6 +349,8 @@ export interface Settings {
   proxy: { kind: "socks5" | "http"; host: string; port: number; username?: string | null } | null;
   /** Look for a newer release on GitHub at startup. */
   checkUpdates: boolean;
+  /** Show RDP sessions in a tab (experimental) instead of the external client. */
+  embeddedRdp: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -366,6 +368,7 @@ export const DEFAULT_SETTINGS: Settings = {
   terminalScheme: "app",
   proxy: null,
   checkUpdates: false,
+  embeddedRdp: false,
 };
 
 export const getSettings = () => invoke<Settings>("settings_get");
@@ -525,6 +528,58 @@ export function openDesktop(sessionId: string, password?: string): Promise<Deskt
 export function listDesktops(): Promise<DesktopInfo[]> {
   return invoke("desktop_list");
 }
+
+// Embedded RDP viewer (experimental, ADR-030).
+
+export type EmbeddedEvent = { kind: "connected"; width: number; height: number } | { kind: "closed"; reason: string | null };
+
+export type EmbeddedInput =
+  | { kind: "move"; x: number; y: number }
+  | { kind: "button"; button: number; down: boolean }
+  | { kind: "wheel"; vertical: boolean; units: number }
+  | { kind: "key"; scancode: number; down: boolean }
+  | { kind: "text"; ch: string; down: boolean }
+  | { kind: "releaseAll" };
+
+/** A changed region: RGBA rows. */
+export interface EmbeddedFrame {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rgba: Uint8ClampedArray;
+}
+
+/** Parses the frame wire format: x, y, w, h (u16 LE), then RGBA. */
+export function parseFrame(buf: ArrayBuffer): EmbeddedFrame | null {
+  if (buf.byteLength < 8) return null;
+  const v = new DataView(buf);
+  const [x, y, w, h] = [0, 2, 4, 6].map((o) => v.getUint16(o, true)) as [number, number, number, number];
+  if (buf.byteLength !== 8 + w * h * 4 || w === 0 || h === 0) return null;
+  return { x, y, w, h, rgba: new Uint8ClampedArray(buf, 8) };
+}
+
+export function openEmbedded(
+  sessionId: string,
+  password: string,
+  width: number,
+  height: number,
+  onFrame: (f: EmbeddedFrame) => void,
+  onEvent: (e: EmbeddedEvent) => void,
+): Promise<number> {
+  const frames = new Channel<ArrayBuffer>();
+  frames.onmessage = (buf) => {
+    const f = parseFrame(buf);
+    if (f) onFrame(f);
+  };
+  const events = new Channel<EmbeddedEvent>();
+  events.onmessage = onEvent;
+  return invoke("embedded_open", { sessionId, password, width, height, onFrame: frames, onEvent: events });
+}
+
+export const embeddedInput = (id: number, events: EmbeddedInput[]) => invoke<void>("embedded_input", { id, events });
+export const embeddedAck = (id: number) => invoke<void>("embedded_ack", { id });
+export const closeEmbedded = (id: number) => invoke<void>("embedded_close", { id });
 
 export function closeDesktop(id: number): Promise<void> {
   return invoke("desktop_close", { id });

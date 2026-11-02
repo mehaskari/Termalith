@@ -1,6 +1,6 @@
 // Typed wrappers around the IPC commands. The backend validates all
 // arguments; nothing here is a security boundary.
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel, type InvokeArgs, invoke as tauriInvoke } from "@tauri-apps/api/core";
 
 export type TerminalId = number;
 
@@ -22,6 +22,31 @@ export function isIpcError(e: unknown): e is IpcError {
     typeof (e as IpcError).message === "string"
   );
 }
+
+type BlockedListener = (e: IpcError) => void;
+const localNetworkListeners = new Set<BlockedListener>();
+
+/**
+ * Called whenever a command fails because macOS (probably) blocks the local
+ * network for Termalith. Returns an unsubscribe function.
+ */
+export function onLocalNetworkBlocked(listener: BlockedListener): () => void {
+  localNetworkListeners.add(listener);
+  return () => localNetworkListeners.delete(listener);
+}
+
+/** Every command goes through here so blocked connections are noticed in one place. */
+async function invoke<T>(cmd: string, args?: InvokeArgs): Promise<T> {
+  try {
+    return await tauriInvoke<T>(cmd, args);
+  } catch (e) {
+    if (isIpcError(e) && e.code === "local_network_blocked") for (const l of localNetworkListeners) l(e);
+    throw e;
+  }
+}
+
+export const openLocalNetworkSettings = () => invoke<void>("open_local_network_settings");
+export const restartApp = () => invoke<void>("app_restart");
 
 /** Opens a terminal of the given size and wires its output/exit streams. */
 export type Opener = (

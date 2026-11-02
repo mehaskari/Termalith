@@ -36,6 +36,7 @@ import {
   openLocalTerminal,
   openSsh,
   openSerial,
+  onLocalNetworkBlocked,
   respondHostKey,
   serialSummary,
   splitTerminal,
@@ -67,6 +68,7 @@ import { CommandPalette, type PaletteItem } from "./ui/CommandPalette";
 import { Dialog } from "./ui/Dialog";
 import { FilesPanel } from "./ui/FilesPanel";
 import { HostKeyDialog } from "./ui/HostKeyDialog";
+import { LocalNetworkDialog } from "./ui/LocalNetworkDialog";
 import { ImportDialog } from "./ui/ImportDialog";
 import { type PasswordAnswer, PasswordDialog } from "./ui/PasswordDialog";
 import { SessionDialog } from "./ui/SessionDialog";
@@ -165,6 +167,16 @@ export function App() {
   const [tabMenu, setTabMenu] = useState<{ key: number; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** macOS blocked a local connection; shown once until dismissed. */
+  const [localNetworkHelp, setLocalNetworkHelp] = useState(false);
+  const localNetworkDismissed = useRef(false);
+  useEffect(
+    () =>
+      onLocalNetworkBlocked(() => {
+        if (!localNetworkDismissed.current) setLocalNetworkHelp(true);
+      }),
+    [],
+  );
   const [dropped, setDropped] = useState<DroppedFile[] | null>(null);
   /** Files are being dragged over the window. */
   const [fileHover, setFileHover] = useState(false);
@@ -1154,6 +1166,15 @@ export function App() {
             if (!p) return;
             setAuthPrompts((q) => q.filter((x) => x.requestId !== p.requestId));
             void respondAuthPrompt(p.requestId, answers);
+          }}
+        />
+      )}
+      {localNetworkHelp && (
+        <LocalNetworkDialog
+          onClose={() => {
+            // Later failures still say where to fix it in their message.
+            localNetworkDismissed.current = true;
+            setLocalNetworkHelp(false);
           }}
         />
       )}

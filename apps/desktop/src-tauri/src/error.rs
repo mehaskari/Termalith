@@ -31,6 +31,25 @@ impl IpcError {
             message: message.into(),
             detail: None,
         }
+        .local_network(cfg!(target_os = "macos"))
+    }
+
+    /// macOS answers "No route to host" (EHOSTUNREACH, os error 65) at once
+    /// when Local Network privacy blocks the app. Such errors get their own
+    /// code and a message that says where to fix it; the UI also shows a
+    /// dialog. A host that is really unreachable gives the same error, so
+    /// the wording says "probably".
+    fn local_network(mut self, macos: bool) -> Self {
+        if macos && self.message.contains("(os error 65)") {
+            self.code = "local_network_blocked";
+            self.message = format!(
+                "{} — macOS is probably blocking Termalith from your local network: \
+                 turn Termalith on in System Settings → Privacy & Security → Local Network, \
+                 then quit and reopen Termalith",
+                self.message
+            );
+        }
+        self
     }
 }
 
@@ -142,5 +161,36 @@ mod tests {
     fn password_required_code() {
         let json = serde_json::to_value(IpcError::from(AppError::PasswordRequired)).unwrap();
         assert_eq!(json["code"], "password_required");
+    }
+
+    #[test]
+    fn no_route_to_host_on_macos_points_to_local_network_settings() {
+        let raw = "could not connect: No route to host (os error 65)";
+        let e = IpcError {
+            code: "connect_failed",
+            message: raw.into(),
+            detail: None,
+        };
+        let mac = e.local_network(true);
+        assert_eq!(mac.code, "local_network_blocked");
+        assert!(mac.message.starts_with(raw));
+        assert!(mac.message.contains("Privacy & Security → Local Network"));
+
+        let other = IpcError {
+            code: "connect_failed",
+            message: raw.into(),
+            detail: None,
+        }
+        .local_network(false);
+        assert_eq!(other.code, "connect_failed");
+        assert_eq!(other.message, raw);
+
+        let refused = IpcError {
+            code: "connect_failed",
+            message: "could not connect: Connection refused (os error 61)".into(),
+            detail: None,
+        }
+        .local_network(true);
+        assert_eq!(refused.code, "connect_failed");
     }
 }

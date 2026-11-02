@@ -52,6 +52,38 @@ pub fn open_web_link(url: String) -> Result<(), IpcError> {
     Ok(())
 }
 
+/// macOS: opens System Settings at Privacy & Security → Local Network.
+/// Fixed URL, no input.
+#[tauri::command]
+pub fn open_local_network_settings() -> Result<(), IpcError> {
+    if !cfg!(target_os = "macos") {
+        return Err(IpcError::coded(
+            "unsupported",
+            "only macOS has a Local Network setting",
+        ));
+    }
+    std::process::Command::new("/usr/bin/open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| {
+            IpcError::coded(
+                "open_failed",
+                format!("could not open System Settings: {e}"),
+            )
+        })?;
+    Ok(())
+}
+
+/// Restarts Termalith (a changed Local Network permission applies to a
+/// new process). Open sessions are closed as on quit.
+#[tauri::command]
+pub fn app_restart(app: tauri::AppHandle) {
+    app.restart();
+}
+
 #[cfg(test)]
 mod tests {
     use super::valid_web_url;

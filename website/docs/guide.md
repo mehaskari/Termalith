@@ -271,11 +271,13 @@ session.
 never written to disk.
 
 **"No route to host" on macOS, while `ssh` in Terminal works** — macOS
-blocks apps from the local network until you allow it. Open System Settings
-→ Privacy & Security → Local Network and turn on Termalith (turn it off and
-on again if it is already on). Builds that are not signed with a developer
-certificate count as a new app after every update, so this may be needed
-again after installing a new version.
+blocks apps from the local network until you allow it. Termalith notices
+this and shows **Allow local network access** with a button that opens the
+right page in System Settings (Privacy & Security → Local Network). Turn
+Termalith on (off and on again if it already is), then use **Restart
+Termalith**. Until releases are signed with a developer certificate, every
+new version counts as a new app, so this can come back after an update. If
+it still fails after a restart, restart the Mac once.
 
 **Host key changed** — this can mean an attack, or a reinstalled server.
 Confirm the new fingerprint with the server's administrator before removing

@@ -35,6 +35,8 @@ fn main() {
             "host_key_respond",
             "auth_prompt_respond",
             "open_web_link",
+            "open_local_network_settings",
+            "app_restart",
             "crash_reports",
             "crash_dismiss",
             "frontend_error",

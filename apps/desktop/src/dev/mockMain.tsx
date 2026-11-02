@@ -265,6 +265,9 @@ mockIPC(
         desktops.set(d.id, d);
         return d;
       }
+      case "open_local_network_settings":
+      case "app_restart":
+        return null;
       case "desktop_list":
         return [...desktops.values()];
       case "desktop_close":
@@ -396,6 +399,13 @@ mockIPC(
         const target = req.sessionId ? sessions.get(req.sessionId) : (req.quick as SessionRecord | undefined);
         if (!target) throw { code: "not_found", message: "not found" };
         const hostKey = `${target.host}:${target.port}`;
+        // `?nolan` pretends macOS blocks the local network.
+        if (new URLSearchParams(location.search).has("nolan"))
+          throw {
+            code: "local_network_blocked",
+            message:
+              "could not connect: No route to host (os error 65) — macOS is probably blocking Termalith from your local network: turn Termalith on in System Settings → Privacy & Security → Local Network, then quit and reopen Termalith",
+          };
         if (target.host === "192.168.1.1" && !forgotten.has(hostKey)) {
           throw {
             code: "host_key_changed",

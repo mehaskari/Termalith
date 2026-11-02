@@ -369,6 +369,14 @@ const MIGRATIONS: &[&str] = &[
     );",
     // v13: folders that exist on their own (may be empty).
     "CREATE TABLE folders (path TEXT PRIMARY KEY NOT NULL COLLATE NOCASE);",
+    // v14: RDP server certificates the user trusts (SHA-256, hex).
+    "CREATE TABLE rdp_certificates (
+        host TEXT NOT NULL COLLATE NOCASE,
+        port INTEGER NOT NULL,
+        sha256 TEXT NOT NULL,
+        trusted_at INTEGER NOT NULL,
+        PRIMARY KEY (host, port)
+    );",
 ];
 
 pub struct SessionStore {

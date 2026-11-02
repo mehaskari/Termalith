@@ -81,7 +81,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
             libayatana-appindicator3-dev libssl-dev build-essential \
-            xvfb openssh-server gnome-keyring dbus
+            xvfb openssh-server gnome-keyring dbus freerdp3-x11
 
       # A real root-run sshd and a throwaway account so password
       # authentication can be tested (an unprivileged sshd cannot verify
@@ -158,6 +158,15 @@ jobs:
           else
             cargo test --workspace -- --nocapture
           fi
+
+      # A real FreeRDP against the test RDP endpoint: it must accept the
+      # pinned certificate and refuse any other (ADR-027).
+      - name: FreeRDP certificate pinning (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          export TERMALITH_FREERDP="$(command -v xfreerdp3)"
+          xfreerdp3 --version | head -1
+          xvfb-run -a cargo test -p remote-desktop freerdp_accepts -- --nocapture
 
       - name: TypeScript typecheck
         run: corepack pnpm typecheck

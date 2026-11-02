@@ -4,8 +4,8 @@ use std::time::Duration;
 use std::path::PathBuf;
 
 use app_core::{
-    AuthPromptBroker, Connector, DesktopHub, DroppedFiles, PromptBroker, SessionStore, TerminalHub,
-    TerminalLogs, Transfers, Tunnels,
+    AuthPromptBroker, CertificateCheck, Connector, DesktopHub, DroppedFiles, PromptBroker,
+    SessionStore, TerminalHub, TerminalLogs, Transfers, Tunnels,
 };
 use credential_store::{MemorySecretStore, NativeSecretStore, SecretStore};
 use protocol_ssh::FileKnownHosts;
@@ -126,6 +126,13 @@ impl AppState {
             Arc::clone(&connector.sessions),
         )));
 
+        let desktops = Arc::new(DesktopHub::new(desktop_dir).with_certificate_check(
+            CertificateCheck {
+                store: Arc::clone(&connector.sessions),
+                broker: broker.clone(),
+            },
+        ));
+
         Ok(Self {
             hub: Arc::new(TerminalHub::with_default_flow()),
             connector,
@@ -139,7 +146,7 @@ impl AppState {
             downloads_dir,
             home_dir: app.path().home_dir().ok(),
             agent_available,
-            desktops: Arc::new(DesktopHub::new(desktop_dir)),
+            desktops,
             logs: Arc::new(TerminalLogs::new(logs_dir)),
         })
     }

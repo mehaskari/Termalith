@@ -7,13 +7,17 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use protocol_ssh::{ForwardHandle, ForwardKind, SshSession, start_forward};
 use remote_desktop::{Client, DesktopTarget, LaunchPlan, Os, Protocol};
 use serde::Serialize;
 use zeroize::Zeroizing;
 
-use crate::{AppError, SessionId};
+use crate::{AppError, CertificateCheck, SessionId};
+
+/// How long reading an RDP server certificate may take.
+const CERT_PROBE_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -73,6 +77,7 @@ pub struct DesktopHub {
     temp_dir: PathBuf,
     next: AtomicU64,
     entries: Mutex<HashMap<u64, Entry>>,
+    certs: Option<CertificateCheck>,
 }
 
 impl DesktopHub {
@@ -82,7 +87,15 @@ impl DesktopHub {
             temp_dir,
             next: AtomicU64::new(1),
             entries: Mutex::new(HashMap::new()),
+            certs: None,
         }
+    }
+
+    /// Enables certificate checks for clients that cannot ask themselves.
+    /// Without it such clients accept only certificates the system trusts.
+    pub fn with_certificate_check(mut self, check: CertificateCheck) -> Self {
+        self.certs = Some(check);
+        self
     }
 
     fn entries(&self) -> std::sync::MutexGuard<'_, HashMap<u64, Entry>> {
@@ -134,7 +147,27 @@ impl DesktopHub {
             }
             None => (None, None),
         };
-        let plan = remote_desktop::plan_for(Os::current(), &client, &target, &self.temp_dir)?;
+        let cert = match &self.certs {
+            Some(check) if client.needs_certificate() => {
+                // Read through the tunnel if there is one; trust is kept
+                // for the real server name.
+                let (host, port) = (target.host.clone(), target.port);
+                let sni = launch.target.host.trim().to_owned();
+                let fp = tokio::task::spawn_blocking(move || {
+                    remote_desktop::read_certificate(&host, port, &sni, CERT_PROBE_TIMEOUT)
+                })
+                .await
+                .map_err(|e| {
+                    AppError::Desktop(remote_desktop::DesktopError::Certificate(e.to_string()))
+                })??;
+                check
+                    .verify(&launch.target.host, launch.target.port, fp)
+                    .await?;
+                Some(fp)
+            }
+            _ => None,
+        };
+        let plan = remote_desktop::plan_for(Os::current(), &client, &target, &self.temp_dir, cert)?;
         let info = DesktopInfo {
             id: 0,
             session_id: launch.session_id,

@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use zeroize::Zeroizing;
 
+mod rdp_cert;
+pub use rdp_cert::{CertFingerprint, read_certificate};
+
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum DesktopError {
     #[error("invalid {field}: {reason}")]
@@ -21,6 +24,8 @@ pub enum DesktopError {
     NoClient(&'static str),
     #[error("could not start {client}: {reason}")]
     Launch { client: String, reason: String },
+    #[error("could not check the server certificate: {0}")]
+    Certificate(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -133,6 +138,12 @@ impl Client {
     /// Whether launching this client needs the password up front (it is
     /// written to the client's stdin). Other clients ask for it themselves.
     pub fn reads_password(&self) -> bool {
+        self.id == "xfreerdp"
+    }
+
+    /// Whether Termalith must check the server certificate before launch
+    /// (the client cannot show its own certificate prompt).
+    pub fn needs_certificate(&self) -> bool {
         self.id == "xfreerdp"
     }
 }
@@ -278,12 +289,15 @@ fn rdp_file(t: &DesktopTarget) -> String {
 }
 
 /// Builds the launch plan for `client` on `os`. `temp_dir` holds the
-/// connection file for clients that take one.
+/// connection file for clients that take one. `cert` is the server
+/// certificate the user trusts, for clients that cannot ask themselves
+/// (see [`Client::needs_certificate`]).
 pub fn plan_for(
     os: Os,
     client: &Client,
     t: &DesktopTarget,
     temp_dir: &Path,
+    cert: Option<CertFingerprint>,
 ) -> Result<LaunchPlan, DesktopError> {
     t.validate()?;
     let host = t.host.trim();
@@ -326,11 +340,20 @@ pub fn plan_for(
             if let Some(d) = &t.domain {
                 args.push(format!("/d:{d}"));
             }
-            // Password on stdin, never /p:. Certificates: FreeRDP's trust on
-            // first use store (~/.config/freerdp), since there is no terminal
-            // for its interactive prompt.
+            // Password on stdin, never /p:. FreeRDP's own certificate
+            // prompt needs a terminal, so Termalith checks the certificate
+            // first and FreeRDP accepts exactly that one; anything else is
+            // refused without asking. Both hex forms are listed because
+            // FreeRDP versions compare with and without colons.
             args.push("/from-stdin:force".into());
-            args.push("/cert:tofu".into());
+            args.push(match cert {
+                Some(fp) => format!(
+                    "/cert:deny,fingerprint:sha256:{},fingerprint:sha256:{}",
+                    fp.display(),
+                    fp.hex()
+                ),
+                None => "/cert:deny".into(),
+            });
             LaunchPlan {
                 program: client.program.clone(),
                 args,
@@ -455,6 +478,7 @@ mod tests {
             &client("xfreerdp", Protocol::Rdp),
             &target(Protocol::Rdp),
             Path::new("/tmp"),
+            None,
         )
         .unwrap();
         assert!(p.password_via_stdin);
@@ -462,6 +486,30 @@ mod tests {
         assert!(p.args.iter().all(|a| !a.starts_with("/p:")));
         assert_eq!(p.args[0], "/v:srv.example.com:3389");
         assert!(p.tracks_session);
+        assert!(p.args.contains(&"/cert:deny".to_string()));
+        assert!(!p.args.iter().any(|a| a.contains("tofu")));
+    }
+
+    #[test]
+    fn freerdp_accepts_only_the_trusted_certificate() {
+        let fp = CertFingerprint::of(b"cert");
+        let p = plan_for(
+            Os::Linux,
+            &client("xfreerdp", Protocol::Rdp),
+            &target(Protocol::Rdp),
+            Path::new("/tmp"),
+            Some(fp),
+        )
+        .unwrap();
+        let cert = p.args.iter().find(|a| a.starts_with("/cert:")).unwrap();
+        assert_eq!(
+            cert,
+            &format!(
+                "/cert:deny,fingerprint:sha256:{},fingerprint:sha256:{}",
+                fp.display(),
+                fp.hex()
+            )
+        );
     }
 
     #[test]
@@ -471,6 +519,7 @@ mod tests {
             &client("ms-rdp", Protocol::Rdp),
             &target(Protocol::Rdp),
             Path::new("/tmp"),
+            None,
         )
         .unwrap();
         let (path, body) = p.file.unwrap();
@@ -488,6 +537,7 @@ mod tests {
             &client("screen-sharing", Protocol::Vnc),
             &target(Protocol::Vnc),
             Path::new("/tmp"),
+            None,
         )
         .unwrap();
         assert_eq!(p.args, vec!["vnc://srv.example.com:5900".to_string()]);
@@ -496,6 +546,7 @@ mod tests {
             &client("vncviewer", Protocol::Vnc),
             &target(Protocol::Vnc),
             Path::new("/tmp"),
+            None,
         )
         .unwrap();
         assert_eq!(l.args, vec!["srv.example.com::5900".to_string()]);
@@ -508,6 +559,7 @@ mod tests {
             &client("mstsc", Protocol::Rdp),
             &target(Protocol::Rdp),
             Path::new("C:/tmp"),
+            None,
         )
         .unwrap();
         assert_eq!(p.args, vec!["/v:srv.example.com:3389".to_string()]);

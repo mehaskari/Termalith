@@ -177,7 +177,12 @@ export interface HostKeyPrompt {
   port: number;
   algorithm: string;
   fingerprint: string;
+  /** RDP only: the certificate trusted before, when the server's changed. */
+  previousFingerprint?: string;
 }
+
+/** Algorithm label the backend uses for RDP certificates. */
+export const RDP_CERT_ALGORITHM = "RDP TLS certificate (SHA-256)";
 
 export type HostKeyAnswer = "reject" | "acceptOnce" | "acceptAndSave";
 

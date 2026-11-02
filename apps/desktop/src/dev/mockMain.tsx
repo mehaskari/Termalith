@@ -229,6 +229,29 @@ mockIPC(
         const s = sessions.get(String(a.sessionId));
         if (!s) throw { code: "not_found", message: "not found" };
         const jump = s.jumpVia ? sessions.get(s.jumpVia) : undefined;
+        // RDP certificate check as with FreeRDP on Linux; `?rdpchanged`
+        // pretends the server renewed its certificate.
+        const certKey = `rdp:${s.host}:${s.port}`;
+        const changed = new URLSearchParams(location.search).has("rdpchanged");
+        if (s.protocol === "rdp" && (!trustedHosts.has(certKey) || changed)) {
+          const requestId = nextPrompt++;
+          const answer = await new Promise<HostKeyAnswer>((resolve) => {
+            hostKeyWaiters.set(requestId, resolve);
+            void emit("host-key-prompt", {
+              requestId,
+              host: s.host,
+              port: s.port,
+              algorithm: "RDP TLS certificate (SHA-256)",
+              fingerprint: "3f:a1:9c:5e:0b:77:d2:41:8e:6a:c3:19:f0:5b:2e:94:71:0d:ac:38:e6:52:9b:1f:c4:07:8a:63:d9:2e:b5:10",
+              previousFingerprint: changed
+                ? "a2:6c:11:f8:93:4e:0d:b7:5a:c9:28:e1:7f:30:9d:46:bb:02:e5:1c:68:fa:73:9e:04:d1:2b:85:c6:3a:57:e9"
+                : undefined,
+            });
+          });
+          if (answer === "reject")
+            throw { code: "desktop", message: "could not check the server certificate: the server certificate was not trusted" };
+          if (answer === "acceptAndSave") trustedHosts.add(certKey);
+        }
         const d = {
           id: nextDesktop++,
           sessionId: s.id,

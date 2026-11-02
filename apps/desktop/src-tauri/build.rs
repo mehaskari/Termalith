@@ -45,6 +45,7 @@ fn main() {
             "key_public",
             "key_install",
             "app_info",
+            "update_check",
             "sessions_list",
             "session_create",
             "session_update",

@@ -77,6 +77,9 @@ pub struct Settings {
     pub terminal_scheme: String,
     /// Proxy for outgoing connections; `None` connects directly.
     pub proxy: Option<ProxySetting>,
+    /// Ask GitHub for a newer release at startup (off by default: no
+    /// network request without the user's choice).
+    pub check_updates: bool,
 }
 
 impl Default for Settings {
@@ -95,6 +98,7 @@ impl Default for Settings {
             auto_reconnect: true,
             terminal_scheme: "app".into(),
             proxy: None,
+            check_updates: false,
         }
     }
 }

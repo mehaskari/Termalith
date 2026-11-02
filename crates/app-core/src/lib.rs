@@ -22,6 +22,7 @@ mod ssh_config;
 mod terminals;
 mod transfers;
 mod tunnels;
+mod updates;
 
 pub use auth_prompts::{AuthPrompt, AuthPromptBroker, AuthPromptField};
 pub use connect::{ConnectRequest, Connected, Connector, PasswordInput};
@@ -54,3 +55,4 @@ pub use ssh_config::{
 pub use terminals::{FLOW_HIGH_WATERMARK, TerminalHub};
 pub use transfers::{Download, TransferEvent, TransferRecorder, Transfers, remote_join};
 pub use tunnels::{TunnelInfo, TunnelKind, TunnelSpec, Tunnels};
+pub use updates::{UpdateInfo, check_for_updates, newest_release};

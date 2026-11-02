@@ -265,6 +265,14 @@ mockIPC(
         desktops.set(d.id, d);
         return d;
       }
+      case "update_check":
+        return {
+          current: "0.1.0",
+          latest: "0.2.0",
+          newer: true,
+          url: "https://github.com/mehaskari/Termalith/releases/tag/v0.2.0",
+          prerelease: true,
+        };
       case "open_local_network_settings":
       case "app_restart":
         return null;

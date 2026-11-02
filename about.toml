@@ -12,6 +12,8 @@ accepted = [
     "Unicode-3.0",
     "CC0-1.0",
     "MPL-2.0",
+    # webpki-roots only (Mozilla root certificates as data); see deny.toml.
+    "CDLA-Permissive-2.0",
 ]
 # Notices are for what ships: all platforms the app is built for.
 targets = [

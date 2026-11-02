@@ -18,6 +18,16 @@ pub struct AppInfo {
     agent_available: bool,
 }
 
+/// Compares this version with the newest published release on GitHub.
+/// Never downloads anything.
+#[tauri::command]
+pub async fn update_check() -> Result<app_core::UpdateInfo, IpcError> {
+    tauri::async_runtime::spawn_blocking(|| app_core::check_for_updates(env!("CARGO_PKG_VERSION")))
+        .await
+        .map_err(|e| IpcError::internal(e.to_string()))?
+        .map_err(Into::into)
+}
+
 #[tauri::command]
 pub fn app_info(state: State<'_, AppState>) -> AppInfo {
     AppInfo {

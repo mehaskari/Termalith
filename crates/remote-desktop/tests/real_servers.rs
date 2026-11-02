@@ -136,7 +136,9 @@ async fn tigervnc_viewer_connects_with_the_launch_plan() {
     assert_eq!(code, None, "the viewer should stay connected");
     let after = std::fs::read_to_string(&log).unwrap();
     assert!(
-        after[before..].contains("Connections: accepted"),
+        after[before..]
+            .to_ascii_lowercase()
+            .contains("connections: accepted"),
         "server log after launch:\n{}",
         &after[before..]
     );

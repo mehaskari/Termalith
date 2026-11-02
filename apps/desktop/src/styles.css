@@ -1850,3 +1850,11 @@ button.recording {
   margin-left: 0.3em;
   font-family: var(--mono);
 }
+
+/* Numbered how-to steps inside a dialog. */
+.dialog .steps {
+  margin: 0 0 12px;
+  padding-left: 1.4em;
+  display: grid;
+  gap: 6px;
+}

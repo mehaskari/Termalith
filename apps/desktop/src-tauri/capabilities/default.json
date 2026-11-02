@@ -37,6 +37,8 @@
     "allow-host-key-respond",
     "allow-auth-prompt-respond",
     "allow-open-web-link",
+    "allow-open-local-network-settings",
+    "allow-app-restart",
     "allow-crash-reports",
     "allow-crash-dismiss",
     "allow-frontend-error",

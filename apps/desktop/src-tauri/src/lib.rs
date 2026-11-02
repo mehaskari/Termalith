@@ -102,6 +102,8 @@ pub fn run() {
             ssh::host_key_respond,
             ssh::auth_prompt_respond,
             links::open_web_link,
+            links::open_local_network_settings,
+            links::app_restart,
             crash::crash_reports,
             crash::crash_dismiss,
             crash::frontend_error,

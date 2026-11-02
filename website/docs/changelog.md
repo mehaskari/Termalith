@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-- macOS: the Local Network permission prompt now says why Termalith needs
-  it, and the guide explains the "No route to host" error it causes when
-  denied.
+- macOS: when the local network is blocked for Termalith ("No route to
+  host"), a dialog explains it and opens the right System Settings page,
+  with a button to restart Termalith afterwards. The system prompt now says
+  why the permission is needed.
 - Upload whole folders by dropping them on the Files panel (subfolders
   included). Previously a dropped folder was silently ignored. The panel is
   now outlined while files are dragged over the window.

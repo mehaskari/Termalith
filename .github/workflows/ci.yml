@@ -168,6 +168,11 @@ jobs:
         run: |
           sudo apt-get install -y --no-install-recommends \
             xrdp tigervnc-standalone-server tigervnc-viewer netcat-openbsd
+          # Require TLS (older xrdp falls back to legacy RDP security when
+          # it cannot use its certificate, which Termalith refuses).
+          sudo adduser xrdp ssl-cert || true
+          sudo sed -i 's/^security_layer=.*/security_layer=tls/' /etc/xrdp/xrdp.ini
+          dpkg-query -W xrdp
           sudo systemctl restart xrdp || sudo service xrdp restart
           for _ in $(seq 30); do nc -z 127.0.0.1 3389 && break; sleep 1; done
           Xvnc :5 -rfbport 5905 -localhost -SecurityTypes None -geometry 800x600 \
@@ -181,7 +186,10 @@ jobs:
           export TERMALITH_VNCVIEWER="$(command -v vncviewer)"
           xfreerdp3 --version | head -1
           xvfb-run -a cargo test -p remote-desktop --lib freerdp_accepts -- --nocapture
-          xvfb-run -a cargo test -p remote-desktop --test real_servers -- --nocapture
+          xvfb-run -a cargo test -p remote-desktop --test real_servers -- --nocapture || {
+            sudo tail -n 40 /var/log/xrdp.log || true
+            exit 1
+          }
 
       - name: TypeScript typecheck
         run: corepack pnpm typecheck

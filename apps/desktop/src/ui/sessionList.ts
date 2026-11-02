@@ -108,6 +108,20 @@ export function folderDropPath(from: string, target: string): string | null {
   return joinFolder(target, folderPath(from).at(-1) ?? "");
 }
 
+/**
+ * Where a session (its current folder) or a folder can be moved, for the
+ * keyboard alternative to drag and drop. "" is the top level.
+ */
+export function moveTargets(
+  allPaths: string[],
+  item: { kind: "session"; folder: string | null | undefined } | { kind: "folder"; path: string },
+): string[] {
+  const targets = ["", ...allPaths];
+  if (item.kind === "folder") return targets.filter((t) => folderDropPath(item.path, t) !== null);
+  const current = normalizeFolder(item.folder ?? "").toLowerCase();
+  return targets.filter((t) => t.toLowerCase() !== current);
+}
+
 /** Every folder path, including parents and empty stored folders, sorted. */
 export function allFolderPaths(sessions: SessionRecord[], stored: string[] = []): string[] {
   const seen = new Map<string, string>();

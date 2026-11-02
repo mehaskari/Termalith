@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keyboard and screen reader support in the session list: arrow-key
+  navigation, Shift+F10 for a row's actions, keyboard-operable menus,
+  descriptive labels, and **Move to folder…** as an alternative to dragging.
 - macOS: when the local network is blocked for Termalith ("No route to
   host"), a dialog explains it and opens the right System Settings page,
   with a button to restart Termalith afterwards. The system prompt now says

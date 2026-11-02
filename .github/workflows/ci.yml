@@ -137,6 +137,12 @@ jobs:
       - name: Install frontend dependencies
         run: corepack pnpm install --frozen-lockfile
 
+      # Known vulnerabilities in shipped frontend packages (Rust crates are
+      # checked by cargo-deny). Once per run is enough.
+      - name: Frontend dependency audit
+        if: matrix.name == 'Linux x64'
+        run: corepack pnpm audit --prod
+
       - name: Rust format
         if: runner.os == 'Linux'
         run: cargo fmt --all -- --check

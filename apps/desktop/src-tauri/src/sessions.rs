@@ -190,9 +190,18 @@ pub fn sessions_export(state: State<'_, AppState>) -> Result<ExportResult, IpcEr
     Ok(ExportResult { json, saved_to })
 }
 
+/// Largest pasted import accepted (a few thousand sessions fit easily).
+const MAX_IMPORT_BYTES: usize = 5 * 1024 * 1024;
+
 /// Imports sessions from pasted export JSON.
 #[tauri::command]
 pub fn sessions_import(state: State<'_, AppState>, json: String) -> Result<ImportReport, IpcError> {
+    if json.len() > MAX_IMPORT_BYTES {
+        return Err(IpcError::coded(
+            "invalid",
+            "the import is larger than 5 MiB; split it into smaller files",
+        ));
+    }
     // The same box accepts a Termalith export or a MobaXterm .mxtsessions file.
     if app_core::is_mobaxterm(&json) {
         return Ok(app_core::import_mobaxterm(

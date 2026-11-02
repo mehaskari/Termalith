@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Security hardening from the pre-release review: a stricter content
+  security policy, a size limit on session imports, and a frontend
+  dependency audit in CI.
 - Keyboard support in the tab bar (arrows, Enter, Delete, F2, Shift+F10)
   and the Files panel (arrows, Alt+Up/Backspace for the parent folder, menus
   that work from the keyboard). Light theme colors were darkened slightly so

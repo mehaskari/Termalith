@@ -1,50 +1,12 @@
 # Changelog
 
-## Unreleased
-
-- Security hardening from the pre-release review: a stricter content
-  security policy, a size limit on session imports, and a frontend
-  dependency audit in CI.
-- **Check for updates** in About (and optionally at startup, off by
-  default): shows a link to a newer release; never downloads or installs
-  anything.
-- Releases include `SHA256SUMS.txt`, and the site documents building from
-  source, verifying downloads and the release process.
-- Keyboard support in the tab bar (arrows, Enter, Delete, F2, Shift+F10)
-  and the Files panel (arrows, Alt+Up/Backspace for the parent folder, menus
-  that work from the keyboard). Light theme colors were darkened slightly so
-  all text meets WCAG AA contrast.
-- Keyboard and screen reader support in the session list: arrow-key
-  navigation, Shift+F10 for a row's actions, keyboard-operable menus,
-  descriptive labels, and **Move to folder…** as an alternative to dragging.
-- macOS: when the local network is blocked for Termalith ("No route to
-  host"), a dialog explains it and opens the right System Settings page,
-  with a button to restart Termalith afterwards. The system prompt now says
-  why the permission is needed.
-- Upload whole folders by dropping them on the Files panel (subfolders
-  included). Previously a dropped folder was silently ignored. The panel is
-  now outlined while files are dragged over the window.
-- RDP on Linux: the server certificate is checked by Termalith and shown in
-  a trust dialog (with the old and new fingerprints when it changes);
-  FreeRDP then accepts only that certificate instead of trusting any
-  certificate on first use.
-- Installers for Windows on ARM, Linux on ARM64 and Intel Macs (built and
-  tested in CI; not yet tried on real hardware).
-- Folders are now first-class: create empty folders and subfolders, rename,
-  delete, and drag sessions or folders to move them.
-- A refreshed look: protocol badges (SSH, RDP, VNC, Telnet) in the session
-  tree, drawn icons instead of emoji, a tidier sidebar footer and quieter
-  toolbars.
-- Crash reports: if Termalith closes unexpectedly, the next start shows the
-  saved report with options to copy it or report it on GitHub. Nothing is
-  sent automatically, and reports contain no passwords or terminal contents.
-- A window error now shows a recovery screen with **Reload** instead of a
-  blank window.
-
 ## 0.1.0 — first public preview
 
-The first public build. Installers for macOS (Apple Silicon), Windows and
-Linux are attached to the release; they are not code-signed yet.
+The first public build. Installers for macOS (Apple Silicon and Intel),
+Windows (x64 and ARM64) and Linux (x64 and ARM64) are attached to the
+release with a `SHA256SUMS.txt`; they are not code-signed yet. The ARM and
+Intel Mac builds pass CI on native runners; Windows and Linux ARM64 also had
+a first hands-on run.
 
 **Terminals:** local shells in tabs and split panes with a choice of installed
 shell, find, shortcuts, color schemes, copy-on-select and right-click paste
@@ -57,14 +19,22 @@ keys; jump hosts; SOCKS5/HTTP proxy; local, remote and SOCKS tunnels; X11 and
 agent forwarding (opt-in); startup commands; automatic reconnect; an SSH key
 manager.
 
-**Files:** SFTP panel and file-browser tabs, uploads by drag and drop,
-transfer queue with retry, folders/rename/delete, a remote text editor with
+**Files:** SFTP panel and file-browser tabs, uploads of files and whole
+folders by drag and drop, transfer queue with retry, folders/rename/delete, a remote text editor with
 conflict detection.
 
 **Other connections:** RDP and VNC through the installed client (optionally
-tunnelled), serial consoles, Telnet (also through a jump host), network tools
+tunnelled; on Linux the RDP server certificate is checked by Termalith and
+pinned for FreeRDP), serial consoles, Telnet (also through a jump host), network tools
 (ping, traceroute, TCP check, port scan, DNS, subnet calculator,
 Wake-on-LAN).
 
-**Sessions:** collapsible folder tree, favorites, tags, search, "open all";
-import from `~/.ssh/config` and MobaXterm; export/import without secrets.
+**Sessions:** folder tree with empty folders, subfolders and drag-to-move,
+favorites, tags, search, "open all"; import from `~/.ssh/config` and
+MobaXterm; export/import without secrets.
+
+**App:** keyboard navigation and screen-reader labels in the session list,
+tab bar and Files panel; WCAG AA contrast in both themes; local crash
+reports (never sent automatically) and a recovery screen; **Check for
+updates** (manual, or at startup if enabled; links only); on macOS a guide
+when the Local Network permission blocks connections.

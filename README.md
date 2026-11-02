@@ -4,7 +4,7 @@
 
 Termalith is an open-source, cross-platform remote administration workstation for system and network administrators: SSH terminals, SFTP, remote desktop, tunnels, serial and Telnet consoles and network tools in one app. It is built with Tauri 2, Rust, React and TypeScript.
 
-> **Status: early preview (0.1).** Most features are in daily use on macOS. Windows and Linux builds pass CI (unit and integration tests, a launch smoke test) but have had little hands-on use. Expect rough edges, and please report them.
+> **Status: early preview (0.1).** Most features are in daily use on macOS. Windows and Linux builds pass CI (unit and integration tests, real-server tests, a launch smoke test) and have had a first hands-on run on ARM64. Expect rough edges, and please report them.
 
 ## Features
 
@@ -27,30 +27,33 @@ Termalith is an open-source, cross-platform remote administration workstation fo
 
 **Files**
 - SFTP panel next to a terminal, or a file-browser tab without a shell.
-- Upload by drag and drop, downloads, folders, rename, delete (no recursive delete), transfer queue with retry.
+- Upload files and whole folders by drag and drop, downloads, folders, rename, delete (no recursive delete), transfer queue with retry.
 - Edit a remote text file in place; saving refuses to overwrite changes made on the server meanwhile.
 - Compare two remote text files side by side; transfer history (last 500, metadata only).
 
 **Other connections**
-- RDP and VNC through the installed client (Windows App/Microsoft Remote Desktop and Screen Sharing on macOS, Remote Desktop Connection on Windows, FreeRDP/TigerVNC on Linux), optionally through an SSH tunnel.
+- RDP and VNC through the installed client (Windows App/Microsoft Remote Desktop and Screen Sharing on macOS, Remote Desktop Connection on Windows, FreeRDP/TigerVNC on Linux), optionally through an SSH tunnel. On Linux, Termalith checks the RDP server certificate like an SSH host key and FreeRDP accepts only that one.
 - Serial consoles (COM/tty) and Telnet (marked as unencrypted; can go through an SSH jump host).
 - Network tools: ping, traceroute, TCP port check, port scan, DNS lookup, subnet calculator, Wake-on-LAN.
 
 **Sessions**
-- Folder tree with subfolders: create, rename, delete and drag to move sessions and folders; favorites, tags and search; "open all" for a folder.
+- Folder tree with subfolders: create, rename, delete and move sessions and folders (drag, or **Move to folder…** from the keyboard); favorites, tags and search; "open all" for a folder.
 - Import from `~/.ssh/config` and from MobaXterm `.mxtsessions` exports; export/import as JSON (never containing secrets).
 
-**Diagnostics**
+**App**
+- Keyboard navigation and screen-reader labels in the session list, tab bar and Files panel; WCAG AA contrast in both themes.
 - Crash reports kept locally and shown on the next start (copy, or report on GitHub; never sent automatically); a recovery screen with Reload if the window hits an error.
+- **Check for updates** in About (or at startup, if you turn it on): links to a newer release, never installs anything. No telemetry.
 
-Not yet: embedded RDP/VNC (external clients are used), code-signed installers.
+Not yet: embedded RDP/VNC (external clients are used), code-signed installers, automatic updates.
 
 ## Install
 
-Pre-release installers are built by GitHub Actions for macOS (Apple Silicon and Intel DMG), Windows (x64 and ARM64, NSIS and MSI) and Linux (x64 and ARM64, AppImage and deb). The Intel Mac and ARM builds pass CI on native runners but have had no hands-on use yet. They are **not code-signed yet**:
+Pre-release installers are on the [Releases](https://github.com/mehaskari/Termalith/releases) page for macOS (Apple Silicon and Intel DMG), Windows (x64 and ARM64, NSIS and MSI) and Linux (x64 and ARM64, AppImage and deb), with a `SHA256SUMS.txt` to verify them. They are **not code-signed yet**:
 
 - macOS: right-click the app and choose **Open** the first time.
 - Windows: SmartScreen may warn; choose **More info → Run anyway**.
+- macOS: if connections to machines on your network fail with "No route to host", allow Termalith under System Settings → Privacy & Security → Local Network (Termalith shows this too).
 
 ## Build from source
 
@@ -64,7 +67,7 @@ corepack pnpm test                     # frontend tests
 corepack pnpm --filter @termalith/desktop tauri build   # installers for this OS
 ```
 
-A UI preview without the Rust backend: `corepack pnpm --filter @termalith/desktop dev`, then open `http://localhost:1420/mock.html`.
+Full instructions, including the release process: [Building and releasing](https://mehaskari.github.io/Termalith/releasing/). A UI preview without the Rust backend: `corepack pnpm --filter @termalith/desktop dev`, then open `http://localhost:1420/mock.html`.
 
 ## Security
 

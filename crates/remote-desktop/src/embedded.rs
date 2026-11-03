@@ -166,7 +166,11 @@ fn connect(
         .ok_or_else(|| failed("resolve", "no address"))?;
     let tcp = TcpStream::connect_timeout(&addr, Duration::from_secs(10))
         .map_err(|e| failed("connect", e))?;
-    tcp.set_read_timeout(Some(Duration::from_millis(500)))
+    // Generous while connecting (slow servers and links, NLA); the session
+    // switches to short polling timeouts once it runs.
+    tcp.set_read_timeout(Some(CONNECT_TIMEOUT))
+        .map_err(|e| failed("socket", e))?;
+    tcp.set_write_timeout(Some(CONNECT_TIMEOUT))
         .map_err(|e| failed("socket", e))?;
     let client_addr = tcp.local_addr().map_err(|e| failed("socket", e))?;
 
@@ -251,6 +255,12 @@ fn connect(
 pub fn capture(p: &LoginParams<'_>, duration: Duration) -> Result<CaptureStats, DesktopError> {
     let start = Instant::now();
     let (result, mut framed, _clip) = connect(p)?;
+    framed
+        .get_inner_mut()
+        .0
+        .sock
+        .set_read_timeout(Some(Duration::from_millis(500)))
+        .map_err(|e| failed("socket", e))?;
     let mut image = DecodedImage::new(
         PixelFormat::RgbA32,
         result.desktop_size.width,
@@ -500,6 +510,9 @@ enum Control {
     Ack,
     Close,
 }
+
+/// Longest wait for one server answer while connecting and logging in.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Frames sent but not yet drawn; more changes are merged meanwhile.
 const MAX_FRAMES_IN_FLIGHT: usize = 2;

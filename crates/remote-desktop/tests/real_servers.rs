@@ -230,6 +230,10 @@ fn embedded_rdp_against_xrdp() {
     eprintln!("viewer: {frames} frames, {bytes} bytes in 6 s");
     assert!(frames > 0, "no frames");
 
+    // Offering clipboard text must not disturb the session (xrdp's login
+    // screen may not open the clipboard channel; then nothing is sent).
+    viewer.clipboard("copied in termalith".into());
+
     // Resize through Display Control; servers without it keep the size.
     viewer.resize(800, 600);
     let deadline = Instant::now() + Duration::from_secs(8);
@@ -241,7 +245,7 @@ fn embedded_rdp_against_xrdp() {
                 viewer.ack();
             }
             Ok(ViewerEvent::Closed { reason }) => panic!("closed during resize: {reason:?}"),
-            Err(_) => {}
+            Ok(ViewerEvent::Clipboard(_)) | Err(_) => {}
         }
     }
     eprintln!("viewer resize to 800x600: {resized:?} (None = server kept its size)");

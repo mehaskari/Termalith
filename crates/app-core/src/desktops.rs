@@ -291,6 +291,15 @@ impl DesktopHub {
         Ok(())
     }
 
+    pub fn embedded_clipboard(&self, id: u64, text: String) -> Result<(), AppError> {
+        let map = self.embedded_lock();
+        map.get(&id)
+            .ok_or(AppError::NotFound)?
+            .viewer
+            .clipboard(text);
+        Ok(())
+    }
+
     pub fn embedded_ack(&self, id: u64) -> Result<(), AppError> {
         let map = self.embedded_lock();
         map.get(&id).ok_or(AppError::NotFound)?.viewer.ack();

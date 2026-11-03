@@ -531,7 +531,10 @@ export function listDesktops(): Promise<DesktopInfo[]> {
 
 // Embedded RDP viewer (experimental, ADR-030).
 
-export type EmbeddedEvent = { kind: "connected"; width: number; height: number } | { kind: "closed"; reason: string | null };
+export type EmbeddedEvent =
+  | { kind: "connected"; width: number; height: number }
+  | { kind: "clipboard"; text: string }
+  | { kind: "closed"; reason: string | null };
 
 export type EmbeddedInput =
   | { kind: "move"; x: number; y: number }
@@ -579,6 +582,8 @@ export function openEmbedded(
 
 export const embeddedInput = (id: number, events: EmbeddedInput[]) => invoke<void>("embedded_input", { id, events });
 export const embeddedAck = (id: number) => invoke<void>("embedded_ack", { id });
+/** Offers text copied here to the remote computer. */
+export const embeddedClipboard = (id: number, text: string) => invoke<void>("embedded_clipboard", { id, text });
 export const embeddedResize = (id: number, width: number, height: number) =>
   invoke<void>("embedded_resize", { id, width, height });
 export const closeEmbedded = (id: number) => invoke<void>("embedded_close", { id });

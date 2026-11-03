@@ -16,7 +16,7 @@ Download the installer for your system from the
 
 | System | File | First launch |
 |---|---|---|
-| macOS 11 or newer, Apple Silicon | `Termalith_x.y.z_aarch64.dmg` | The app is not signed yet: right-click it and choose **Open**. |
+| macOS 11 or newer, Apple Silicon | `Termalith_x.y.z_aarch64.dmg` | Not signed with a developer certificate yet: open it once, then choose **Open Anyway** in System Settings → Privacy & Security (macOS 14 and older: right-click → **Open**). |
 | macOS 11 or newer, Intel | `Termalith_x.y.z_x64.dmg` | As above. |
 | Windows 10/11, x64 | `…_x64-setup.exe` or `…_x64_en-US.msi` | SmartScreen may warn: **More info → Run anyway**. |
 | Windows 11, ARM | `…_arm64-setup.exe` or `…_arm64_en-US.msi` | As above. |

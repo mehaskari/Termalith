@@ -51,7 +51,7 @@ Not yet: embedded RDP/VNC (external clients are used), code-signed installers, a
 
 Pre-release installers are on the [Releases](https://github.com/mehaskari/Termalith/releases) page for macOS (Apple Silicon and Intel DMG), Windows (x64 and ARM64, NSIS and MSI) and Linux (x64 and ARM64, AppImage and deb), with a `SHA256SUMS.txt` to verify them. They are **not code-signed yet**:
 
-- macOS: right-click the app and choose **Open** the first time.
+- macOS: drag Termalith to Applications and open it; macOS refuses the first time. Then choose **Open Anyway** in System Settings → Privacy & Security (on macOS 14 and older, right-click the app and choose **Open**).
 - Windows: SmartScreen may warn; choose **More info → Run anyway**.
 - macOS: if connections to machines on your network fail with "No route to host", allow Termalith under System Settings → Privacy & Security → Local Network (Termalith shows this too).
 

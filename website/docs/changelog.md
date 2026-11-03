@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- macOS: the app bundle is now signed ad hoc as a whole. Before, only the
+  executable was, so a downloaded app could be reported as "damaged"
+  instead of offering **Open Anyway**.
+- Releases now install every installer (DMG, MSI, NSIS, deb, AppImage) on
+  its own system in CI and start the installed app before publishing.
 - Experimental: RDP sessions inside Termalith, in a tab, on every system
   (Settings → Show RDP sessions inside Termalith), built on IronRDP. The
   server certificate check applies. Text clipboard both ways, and the

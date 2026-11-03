@@ -246,6 +246,7 @@ jobs:
           $env:TERMALITH_TEST_WINRDP_USER = "termalith-rdp"
           $env:TERMALITH_TEST_WINRDP_PASSWORD = $pw
           $env:TERMALITH_TEST_WINRDP_DOMAIN = $env:COMPUTERNAME
+          $env:TERMALITH_RDP_DEBUG = "1"
           cargo test -p remote-desktop --features embedded --test windows_rdp -- --nocapture
 
       - name: Smoke test (Windows)

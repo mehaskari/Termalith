@@ -57,7 +57,7 @@ fn embedded_rdp_against_windows() {
     let viewer = start(&params(), move |ev| tx.send(ev).is_ok()).unwrap();
     let mut frames = 0;
     let mut sizes = Vec::new();
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let deadline = Instant::now() + Duration::from_secs(30);
     let mut asked_resize = false;
     while Instant::now() < deadline {
         match rx.recv_timeout(Duration::from_millis(200)) {

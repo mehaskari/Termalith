@@ -538,8 +538,11 @@ const POLL: Duration = Duration::from_millis(15);
 /// Without Display Control a resize reconnects at the new size, once the
 /// requests have stopped for this long (a window being dragged)...
 const RESIZE_SETTLE: Duration = Duration::from_millis(1500);
-/// ...and not before the server had time to open Display Control.
+/// ...and not before the server had time to open Display Control...
 const DISPLAY_CONTROL_WAIT: Duration = Duration::from_secs(4);
+/// ...or when a Display Control request was not followed by the new size
+/// within this time (servers that accept the channel but ignore it).
+const DISPLAY_CONTROL_ANSWER: Duration = Duration::from_secs(3);
 
 /// What the session thread keeps to log in again at a new size (servers
 /// without Display Control). The password stays in this thread's memory
@@ -886,7 +889,8 @@ fn session(
     let mut local_text: Option<String> = None;
     // Requested size and when: sent once Display Control is ready (it opens
     // some time after login), or a reconnect at that size where it never does.
-    let mut pending_resize: Option<(u32, u32, Instant)> = None;
+    // The last element is when it went out through Display Control.
+    let mut pending_resize: Option<(u32, u32, Instant, Option<Instant>)> = None;
     let mut canvas: Option<Canvas> = None;
     // Display Control channel state, logged when it changes (diagnostics).
     let mut display_control = (false, false);
@@ -961,7 +965,7 @@ fn session(
                         );
                     // Sent once Display Control is ready (below); a newer
                     // request replaces an unsent one.
-                    pending_resize = Some((w, h, Instant::now()));
+                    pending_resize = Some((w, h, Instant::now(), None));
                 }
                 Ok(Control::Clipboard(text)) => {
                     local_text = Some(text);
@@ -1024,7 +1028,7 @@ fn session(
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(Ended::Done),
             Err(e) => return Err(format!("connection lost: {e}")),
         }
-        if let Some((w, h, asked)) = pending_resize {
+        if let Some((w, h, asked, sent)) = pending_resize {
             let size = canvas
                 .as_ref()
                 .map_or((image.width(), image.height()), |c| (c.width, c.height));
@@ -1034,19 +1038,21 @@ fn session(
             );
             if wanted == size {
                 pending_resize = None;
-            } else if let Some(frame) = stage.encode_resize(w, h, None, None) {
-                pending_resize = None;
+            } else if sent.is_none()
+                && let Some(frame) = stage.encode_resize(w, h, None, None)
+            {
+                pending_resize = Some((w, h, asked, Some(Instant::now())));
                 debug(&format!("resize to {w}x{h} sent"));
                 let frame = frame.map_err(|e| format!("resize: {e}"))?;
                 framed
                     .write_all(&frame)
                     .map_err(|e| format!("write: {e}"))?;
-            } else if !display_control.0
-                && asked.elapsed() >= RESIZE_SETTLE
+            } else if asked.elapsed() >= RESIZE_SETTLE
                 && started.elapsed() >= DISPLAY_CONTROL_WAIT
+                && sent.is_none_or(|t| t.elapsed() >= DISPLAY_CONTROL_ANSWER)
             {
-                // No Display Control: log in again at the new size (Windows
-                // reconnects to the same session).
+                // No (working) Display Control: log in again at the new
+                // size (Windows reconnects to the same session).
                 if let Ok(outputs) = stage.graceful_shutdown() {
                     let _ = write(&mut framed, outputs, &mut dirty);
                 }

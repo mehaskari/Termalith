@@ -111,6 +111,26 @@ jobs:
       - name: Build installers
         run: corepack pnpm --filter @termalith/desktop tauri build --bundles ${{ matrix.bundles }}
 
+      # Install each installer like a user would and start the installed
+      # app (it must open a terminal and clean up its shell).
+      - name: Install and launch (macOS)
+        if: runner.os == 'macOS'
+        run: bash scripts/installer-test.sh target/release/bundle
+
+      - name: Install and launch (Linux, Xvfb)
+        if: runner.os == 'Linux'
+        env:
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          sudo apt-get install -y --no-install-recommends xvfb
+          xvfb-run -a bash scripts/installer-test.sh target/release/bundle
+
+      - name: Install and launch (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/installer-test.ps1 -Bundle target\release\bundle
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: termalith-${{ matrix.slug }}

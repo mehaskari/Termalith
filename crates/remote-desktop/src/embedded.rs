@@ -703,7 +703,10 @@ fn run(
                 ActiveStageOutput::GraphicsUpdate(r) => {
                     *dirty = Some(union(*dirty, (r.left, r.top, r.right, r.bottom)));
                 }
-                ActiveStageOutput::DeactivateAll => next = Next::Reactivate,
+                ActiveStageOutput::DeactivateAll => {
+                    debug("server deactivated the session (reactivation follows)");
+                    next = Next::Reactivate
+                }
                 ActiveStageOutput::Terminate(_) => return Ok(Next::Stop),
                 _ => {}
             }
@@ -803,6 +806,7 @@ fn run(
             && let Some(frame) = stage.encode_resize(w, h, None, None)
         {
             pending_resize = None;
+            debug(&format!("resize to {w}x{h} sent"));
             let frame = frame.map_err(|e| format!("resize: {e}"))?;
             framed
                 .write_all(&frame)
@@ -848,6 +852,14 @@ fn run(
                 return Ok(());
             }
         }
+    }
+}
+
+/// Diagnostics for tests and troubleshooting (`TERMALITH_RDP_DEBUG=1`);
+/// never includes credentials or screen contents.
+fn debug(message: &str) {
+    if std::env::var_os("TERMALITH_RDP_DEBUG").is_some() {
+        eprintln!("rdp: {message}");
     }
 }
 

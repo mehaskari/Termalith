@@ -792,6 +792,8 @@ fn run(
     // (they arrive some time after login; servers without it never send them).
     let mut pending_resize: Option<(u32, u32)> = None;
     let mut canvas: Option<Canvas> = None;
+    // Display Control channel state, logged when it changes (diagnostics).
+    let mut display_control = (false, false);
     /// What handling a batch of outputs asks the loop to do next.
     enum Next {
         Go,
@@ -900,6 +902,16 @@ fn run(
                             return Ok(());
                         }
                     }
+                }
+                let state = stage
+                    .get_dvc::<ironrdp_displaycontrol::client::DisplayControlClient>()
+                    .map_or((false, false), |c| (true, c.processor().ready()));
+                if state != display_control {
+                    display_control = state;
+                    debug(&format!(
+                        "display control: channel open {}, capabilities {}",
+                        state.0, state.1
+                    ));
                 }
                 if let Some((width, height)) = pump_graphics(&mut stage, &mut canvas, &mut dirty) {
                     in_flight = 0;

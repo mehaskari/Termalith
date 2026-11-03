@@ -681,6 +681,9 @@ fn run(
     let mut in_flight = 0usize;
     // Last text copied here, served when the remote pastes.
     let mut local_text: Option<String> = None;
+    // Requested size waiting for the server's Display Control capabilities
+    // (they arrive some time after login; servers without it never send them).
+    let mut pending_resize: Option<(u32, u32)> = None;
     /// What handling a batch of outputs asks the loop to do next.
     enum Next {
         Go,
@@ -747,13 +750,9 @@ fn run(
                             u32::from(w),
                             u32::from(h),
                         );
-                    // None: the server offered no Display Control; keep the size.
-                    if let Some(frame) = stage.encode_resize(w, h, None, None) {
-                        let frame = frame.map_err(|e| format!("resize: {e}"))?;
-                        framed
-                            .write_all(&frame)
-                            .map_err(|e| format!("write: {e}"))?;
-                    }
+                    // Sent once Display Control is ready (below); a newer
+                    // request replaces an unsent one.
+                    pending_resize = Some((w, h));
                 }
                 Ok(Control::Clipboard(text)) => {
                     local_text = Some(text);
@@ -799,6 +798,15 @@ fn run(
                 ) => {}
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(()),
             Err(e) => return Err(format!("connection lost: {e}")),
+        }
+        if let Some((w, h)) = pending_resize
+            && let Some(frame) = stage.encode_resize(w, h, None, None)
+        {
+            pending_resize = None;
+            let frame = frame.map_err(|e| format!("resize: {e}"))?;
+            framed
+                .write_all(&frame)
+                .map_err(|e| format!("write: {e}"))?;
         }
         loop {
             let ev = clip.lock().unwrap_or_else(|p| p.into_inner()).pop_front();

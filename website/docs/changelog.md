@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Embedded RDP** uses the graphics pipeline (RDPEGFX) where the server
+  offers it, and follows the tab's size: in place where the server
+  supports resizing, otherwise by logging in again at the new size once
+  you stop resizing (Windows reconnects to the same session).
+
 ## 0.5.0 — first public preview
 
 The first public build. Installers for macOS (Apple Silicon and Intel),

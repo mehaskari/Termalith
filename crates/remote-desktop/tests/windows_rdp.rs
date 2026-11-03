@@ -1,5 +1,6 @@
 //! Embedded RDP against the Windows Remote Desktop service of the CI
-//! runner (NLA/CredSSP, a real Windows certificate, Display Control).
+//! runner (NLA/CredSSP, a real Windows certificate, the graphics pipeline
+//! and Display Control).
 //! Skipped unless the workflow sets TERMALITH_TEST_WINRDP.
 
 #![cfg(all(windows, feature = "embedded"))]
@@ -65,7 +66,9 @@ fn embedded_rdp_against_windows() {
             Ok(ViewerEvent::Frame { .. }) => {
                 frames += 1;
                 viewer.ack();
-                if frames == 20 && !asked_resize {
+                // With the graphics pipeline only changes arrive, so a
+                // few frames are enough to know the desktop is up.
+                if frames == 3 && !asked_resize {
                     asked_resize = true;
                     viewer.clipboard("from termalith".into());
                     viewer.resize(1024, 768);
@@ -78,5 +81,11 @@ fn embedded_rdp_against_windows() {
     }
     eprintln!("windows viewer: {frames} frames, sizes {sizes:?}");
     assert!(frames > 0, "no frames");
+    // Resizing: Display Control where the server offers it, otherwise a
+    // new login at the new size.
+    assert!(
+        sizes.contains(&(1024, 768)),
+        "the server did not resize the desktop: {sizes:?}"
+    );
     viewer.close();
 }

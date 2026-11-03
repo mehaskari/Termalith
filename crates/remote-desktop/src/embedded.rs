@@ -12,6 +12,7 @@ use ironrdp_blocking::Framed;
 use ironrdp_connector::sspi::NetworkRequest;
 use ironrdp_connector::sspi::network_client::NetworkClient;
 use ironrdp_connector::{ClientConnector, ConnectionOutcome, Credentials, DesktopSize, ServerName};
+use ironrdp_egfx::client::{GraphicsPipelineClient, GraphicsPipelineHandler};
 use ironrdp_graphics::image_processing::PixelFormat;
 use ironrdp_pdu::gcc::{ConnectionType, KeyboardType};
 use ironrdp_pdu::rdp::capability_sets::{MajorPlatformType, RailSupportLevel};
@@ -122,7 +123,9 @@ fn config(username: &str, password: &str, size: DesktopSize) -> ironrdp_connecto
         enable_server_pointer: false,
         pointer_software_rendering: true,
         multitransport_flags: None,
-        support_dyn_vc_gfx_protocol: false,
+        // The graphics pipeline (RDPEGFX, registered in `connect`): Windows
+        // only offers Display Control (resizing) to clients that use it.
+        support_dyn_vc_gfx_protocol: true,
     }
 }
 
@@ -177,10 +180,15 @@ fn connect(
     let mut framed = Framed::new(tcp);
     let mut cfg = config(username, password, size);
     cfg.domain = p.domain.map(str::to_owned);
-    // Display Control lets the viewer resize the remote desktop.
-    let drdynvc = ironrdp_dvc::DrdynvcClient::new().with_dynamic_channel(
-        ironrdp_displaycontrol::client::DisplayControlClient::new(|_| Ok(Vec::new())),
-    );
+    // Display Control lets the viewer resize the remote desktop; the
+    // graphics pipeline carries the desktop on servers that support it
+    // (without an H.264 decoder only its RemoteFX/planar/ClearCodec codecs
+    // are advertised).
+    let drdynvc = ironrdp_dvc::DrdynvcClient::new()
+        .with_dynamic_channel(ironrdp_displaycontrol::client::DisplayControlClient::new(
+            |_| Ok(Vec::new()),
+        ))
+        .with_dynamic_channel(GraphicsPipelineClient::new(Box::new(GfxEvents), None));
     let clip_queue = clipboard::Queue::default();
     let cliprdr = ironrdp_cliprdr::CliprdrClient::new(Box::new(clipboard::TextBackend {
         queue: clip_queue.clone(),
@@ -285,6 +293,7 @@ pub fn capture(p: &LoginParams<'_>, duration: Duration) -> Result<CaptureStats, 
         first_update: None,
         drawn_pixels: 0,
     };
+    let mut canvas: Option<Canvas> = None;
     let deadline = Instant::now() + duration;
     while Instant::now() < deadline {
         let (action, payload) = match framed.read_pdu() {
@@ -311,17 +320,25 @@ pub fn capture(p: &LoginParams<'_>, duration: Duration) -> Result<CaptureStats, 
                     stats.graphics_updates += 1;
                     stats.first_update.get_or_insert_with(|| start.elapsed());
                 }
-                ActiveStageOutput::Terminate(_) => return Ok(finish(stats, &image)),
+                ActiveStageOutput::Terminate(_) => return Ok(finish(stats, &image, &canvas)),
                 _ => {}
             }
         }
+        let mut dirty = None;
+        if let Some((w, h)) = pump_graphics(&mut stage, &mut canvas, &mut dirty) {
+            (stats.width, stats.height) = (w, h);
+        }
+        if dirty.is_some() {
+            stats.graphics_updates += 1;
+            stats.first_update.get_or_insert_with(|| start.elapsed());
+        }
     }
-    Ok(finish(stats, &image))
+    Ok(finish(stats, &image, &canvas))
 }
 
-fn finish(mut stats: CaptureStats, image: &DecodedImage) -> CaptureStats {
-    stats.drawn_pixels = image
-        .data()
+fn finish(mut stats: CaptureStats, image: &DecodedImage, canvas: &Option<Canvas>) -> CaptureStats {
+    let data = canvas.as_ref().map_or(image.data(), |c| &c.data[..]);
+    stats.drawn_pixels = data
         .as_chunks::<4>()
         .0
         .iter()
@@ -518,6 +535,87 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 /// How often the session loop looks at viewer input while the server is quiet.
 const POLL: Duration = Duration::from_millis(15);
+/// Without Display Control a resize reconnects at the new size, once the
+/// requests have stopped for this long (a window being dragged)...
+const RESIZE_SETTLE: Duration = Duration::from_millis(1500);
+/// ...and not before the server had time to open Display Control...
+const DISPLAY_CONTROL_WAIT: Duration = Duration::from_secs(4);
+/// ...or when a Display Control request was not followed by the new size
+/// within this time (servers that accept the channel but ignore it).
+const DISPLAY_CONTROL_ANSWER: Duration = Duration::from_secs(3);
+
+/// What the session thread keeps to log in again at a new size (servers
+/// without Display Control). The password stays in this thread's memory
+/// for the session's life and is wiped when it ends.
+struct Login {
+    host: String,
+    port: u16,
+    server_name: String,
+    username: String,
+    password: Zeroizing<String>,
+    domain: Option<String>,
+    pin: CertFingerprint,
+    width: u16,
+    height: u16,
+}
+
+impl Login {
+    fn of(p: &LoginParams<'_>) -> Self {
+        Self {
+            host: p.host.to_owned(),
+            port: p.port,
+            server_name: p.server_name.to_owned(),
+            username: p.username.to_owned(),
+            password: p.password.clone(),
+            domain: p.domain.map(str::to_owned),
+            pin: p.pin,
+            width: p.width,
+            height: p.height,
+        }
+    }
+
+    fn params(&self) -> LoginParams<'_> {
+        LoginParams {
+            host: &self.host,
+            port: self.port,
+            server_name: &self.server_name,
+            username: &self.username,
+            password: self.password.clone(),
+            domain: self.domain.as_deref(),
+            pin: self.pin,
+            width: self.width,
+            height: self.height,
+        }
+    }
+}
+
+/// Connects and switches the socket to the session's short polling reads.
+fn connect_session(
+    p: &LoginParams<'_>,
+) -> Result<
+    (
+        ironrdp_connector::ConnectionResult,
+        Framed<Tls>,
+        clipboard::Queue,
+    ),
+    DesktopError,
+> {
+    let (result, mut framed, clip) = connect(p)?;
+    framed
+        .get_inner_mut()
+        .0
+        .sock
+        .set_read_timeout(Some(POLL))
+        .map_err(|e| failed("socket", e))?;
+    Ok((result, framed, clip))
+}
+
+/// How one connection's session ended.
+enum Ended {
+    Done,
+    /// Log in again at this size.
+    Resize(u16, u16),
+}
 
 /// Handle to a running session. Dropping it closes the session.
 pub struct Viewer {
@@ -563,19 +661,14 @@ pub fn start(
     p: &LoginParams<'_>,
     sink: impl FnMut(ViewerEvent) -> bool + Send + 'static,
 ) -> Result<Viewer, DesktopError> {
-    let (result, mut framed, clip) = connect(p)?;
-    framed
-        .get_inner_mut()
-        .0
-        .sock
-        .set_read_timeout(Some(POLL))
-        .map_err(|e| failed("socket", e))?;
+    let (result, framed, clip) = connect_session(p)?;
+    let login = Login::of(p);
     let (tx, rx) = std::sync::mpsc::sync_channel(256);
     std::thread::Builder::new()
         .name("rdp-session".into())
         .spawn(move || {
             let mut sink = sink;
-            let reason = run(result, framed, rx, clip, &mut sink).err();
+            let reason = run(login, result, framed, &rx, clip, &mut sink).err();
             sink(ViewerEvent::Closed { reason });
         })
         .map_err(|e| failed("thread", e))?;
@@ -590,15 +683,92 @@ fn union(a: Option<(u16, u16, u16, u16)>, b: (u16, u16, u16, u16)) -> (u16, u16,
     }
 }
 
+/// The graphics pipeline's handler: everything it decodes is read from the
+/// client's compositor instead (`pump_graphics`).
+struct GfxEvents;
+
+impl GraphicsPipelineHandler for GfxEvents {
+    fn on_capabilities_confirmed(&mut self, caps: &ironrdp_egfx::pdu::CapabilitySet) {
+        debug(&format!("graphics pipeline active: {caps:?}"));
+    }
+
+    fn on_reset_graphics(&mut self, width: u32, height: u32) {
+        debug(&format!("graphics output reset to {width}x{height}"));
+    }
+}
+
+/// The desktop as the graphics pipeline draws it (RGBA), used instead of
+/// the legacy framebuffer once the server sends graphics that way.
+struct Canvas {
+    width: u16,
+    height: u16,
+    data: Vec<u8>,
+}
+
+impl Canvas {
+    fn new(width: u16, height: u16) -> Self {
+        Self {
+            width,
+            height,
+            data: vec![0; usize::from(width) * usize::from(height) * 4],
+        }
+    }
+
+    /// Copies an update in; returns the inclusive rectangle it changed.
+    fn blit(
+        &mut self,
+        r: &ironrdp_pdu::geometry::ExclusiveRectangle,
+        data: &[u8],
+    ) -> Option<(u16, u16, u16, u16)> {
+        let src_w = usize::from(r.right.saturating_sub(r.left));
+        let right = r.right.min(self.width);
+        let bottom = r.bottom.min(self.height);
+        if r.left >= right || r.top >= bottom {
+            return None;
+        }
+        let w = usize::from(right - r.left);
+        let stride = usize::from(self.width) * 4;
+        for (i, row) in (r.top..bottom).enumerate() {
+            let src = data.get(i * src_w * 4..i * src_w * 4 + w * 4)?;
+            let dst = usize::from(row) * stride + usize::from(r.left) * 4;
+            self.data[dst..dst + w * 4].copy_from_slice(src);
+        }
+        Some((r.left, r.top, right - 1, bottom - 1))
+    }
+}
+
+/// Moves what the graphics pipeline drew into `canvas` and widens `dirty`.
+/// Returns the new desktop size when the server reset the output.
+fn pump_graphics(
+    stage: &mut ironrdp_session::ActiveStage,
+    canvas: &mut Option<Canvas>,
+    dirty: &mut Option<(u16, u16, u16, u16)>,
+) -> Option<(u16, u16)> {
+    let mut channel = stage.get_dvc_mut::<GraphicsPipelineClient>()?;
+    let gfx = channel.processor_mut();
+    let reset = gfx.take_output_reset();
+    if let Some((w, h)) = reset {
+        *canvas = Some(Canvas::new(w, h));
+        *dirty = None;
+    }
+    if let Some(c) = canvas.as_mut() {
+        for update in gfx.drain_output() {
+            if let Some(r) = c.blit(&update.region, &update.data) {
+                *dirty = Some(union(*dirty, r));
+            }
+        }
+    }
+    reset
+}
+
 /// RGBA pixels of an inclusive rectangle, alpha forced opaque.
-fn crop(image: &DecodedImage, r: (u16, u16, u16, u16)) -> ViewerEvent {
-    let (iw, ih) = (usize::from(image.width()), usize::from(image.height()));
+fn crop(data: &[u8], width: u16, height: u16, r: (u16, u16, u16, u16)) -> ViewerEvent {
+    let (iw, ih) = (usize::from(width), usize::from(height));
     let left = usize::from(r.0).min(iw.saturating_sub(1));
     let top = usize::from(r.1).min(ih.saturating_sub(1));
     let right = usize::from(r.2).min(iw.saturating_sub(1));
     let bottom = usize::from(r.3).min(ih.saturating_sub(1));
     let (w, h) = (right - left + 1, bottom - top + 1);
-    let data = image.data();
     let mut rgba = Vec::with_capacity(w * h * 4);
     for row in top..=bottom {
         let start = (row * iw + left) * 4;
@@ -660,12 +830,35 @@ fn to_operation(input: ViewerInput) -> Option<ironrdp_input::Operation> {
 }
 
 fn run(
-    result: ironrdp_connector::ConnectionResult,
+    mut login: Login,
+    mut result: ironrdp_connector::ConnectionResult,
     mut framed: Framed<Tls>,
-    rx: std::sync::mpsc::Receiver<Control>,
-    clip: clipboard::Queue,
+    rx: &std::sync::mpsc::Receiver<Control>,
+    mut clip: clipboard::Queue,
     sink: &mut impl FnMut(ViewerEvent) -> bool,
 ) -> Result<(), String> {
+    loop {
+        match session(result, framed, rx, clip, sink)? {
+            Ended::Done => return Ok(()),
+            Ended::Resize(width, height) => {
+                debug(&format!("reconnecting at {width}x{height}"));
+                (login.width, login.height) = (width, height);
+                (result, framed, clip) =
+                    connect_session(&login.params()).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+}
+
+/// One connection: graphics, input, clipboard and resizing until it ends.
+fn session(
+    result: ironrdp_connector::ConnectionResult,
+    mut framed: Framed<Tls>,
+    rx: &std::sync::mpsc::Receiver<Control>,
+    clip: clipboard::Queue,
+    sink: &mut impl FnMut(ViewerEvent) -> bool,
+) -> Result<Ended, String> {
+    let started = Instant::now();
     let mut image = DecodedImage::new(
         PixelFormat::RgbA32,
         result.desktop_size.width,
@@ -688,15 +881,19 @@ fn run(
         width: image.width(),
         height: image.height(),
     }) {
-        return Ok(());
+        return Ok(Ended::Done);
     }
     let mut dirty: Option<(u16, u16, u16, u16)> = None;
     let mut in_flight = 0usize;
     // Last text copied here, served when the remote pastes.
     let mut local_text: Option<String> = None;
-    // Requested size waiting for the server's Display Control capabilities
-    // (they arrive some time after login; servers without it never send them).
-    let mut pending_resize: Option<(u32, u32)> = None;
+    // Requested size and when: sent once Display Control is ready (it opens
+    // some time after login), or a reconnect at that size where it never does.
+    // The last element is when it went out through Display Control.
+    let mut pending_resize: Option<(u32, u32, Instant, Option<Instant>)> = None;
+    let mut canvas: Option<Canvas> = None;
+    // Display Control channel state, logged when it changes (diagnostics).
+    let mut display_control = (false, false);
     /// What handling a batch of outputs asks the loop to do next.
     enum Next {
         Go,
@@ -745,7 +942,7 @@ fn run(
                             .map_err(|e| format!("input: {e}"))?;
                         match write(&mut framed, outputs, &mut dirty)? {
                             Next::Go => {}
-                            Next::Stop => return Ok(()),
+                            Next::Stop => return Ok(Ended::Done),
                             Next::Reactivate => {
                                 reactivate(&activation, &mut framed, &mut stage, &mut image)?;
                                 dirty = None;
@@ -754,7 +951,7 @@ fn run(
                                     width: image.width(),
                                     height: image.height(),
                                 }) {
-                                    return Ok(());
+                                    return Ok(Ended::Done);
                                 }
                             }
                         }
@@ -768,7 +965,7 @@ fn run(
                         );
                     // Sent once Display Control is ready (below); a newer
                     // request replaces an unsent one.
-                    pending_resize = Some((w, h));
+                    pending_resize = Some((w, h, Instant::now(), None));
                 }
                 Ok(Control::Clipboard(text)) => {
                     local_text = Some(text);
@@ -781,7 +978,7 @@ fn run(
                     if let Ok(outputs) = stage.graceful_shutdown() {
                         let _ = write(&mut framed, outputs, &mut dirty);
                     }
-                    return Ok(());
+                    return Ok(Ended::Done);
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => break,
             }
@@ -793,7 +990,7 @@ fn run(
                     .map_err(|e| format!("decode: {e}"))?;
                 match write(&mut framed, outputs, &mut dirty)? {
                     Next::Go => {}
-                    Next::Stop => return Ok(()),
+                    Next::Stop => return Ok(Ended::Done),
                     Next::Reactivate => {
                         reactivate(&activation, &mut framed, &mut stage, &mut image)?;
                         dirty = None;
@@ -802,8 +999,24 @@ fn run(
                             width: image.width(),
                             height: image.height(),
                         }) {
-                            return Ok(());
+                            return Ok(Ended::Done);
                         }
+                    }
+                }
+                let state = stage
+                    .get_dvc::<ironrdp_displaycontrol::client::DisplayControlClient>()
+                    .map_or((false, false), |c| (true, c.processor().ready()));
+                if state != display_control {
+                    display_control = state;
+                    debug(&format!(
+                        "display control: channel open {}, capabilities {}",
+                        state.0, state.1
+                    ));
+                }
+                if let Some((width, height)) = pump_graphics(&mut stage, &mut canvas, &mut dirty) {
+                    in_flight = 0;
+                    if !sink(ViewerEvent::Connected { width, height }) {
+                        return Ok(Ended::Done);
                     }
                 }
             }
@@ -812,18 +1025,39 @@ fn run(
                     e.kind(),
                     std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
                 ) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(Ended::Done),
             Err(e) => return Err(format!("connection lost: {e}")),
         }
-        if let Some((w, h)) = pending_resize
-            && let Some(frame) = stage.encode_resize(w, h, None, None)
-        {
-            pending_resize = None;
-            debug(&format!("resize to {w}x{h} sent"));
-            let frame = frame.map_err(|e| format!("resize: {e}"))?;
-            framed
-                .write_all(&frame)
-                .map_err(|e| format!("write: {e}"))?;
+        if let Some((w, h, asked, sent)) = pending_resize {
+            let size = canvas
+                .as_ref()
+                .map_or((image.width(), image.height()), |c| (c.width, c.height));
+            let wanted = (
+                u16::try_from(w).unwrap_or(u16::MAX),
+                u16::try_from(h).unwrap_or(u16::MAX),
+            );
+            if wanted == size {
+                pending_resize = None;
+            } else if sent.is_none()
+                && let Some(frame) = stage.encode_resize(w, h, None, None)
+            {
+                pending_resize = Some((w, h, asked, Some(Instant::now())));
+                debug(&format!("resize to {w}x{h} sent"));
+                let frame = frame.map_err(|e| format!("resize: {e}"))?;
+                framed
+                    .write_all(&frame)
+                    .map_err(|e| format!("write: {e}"))?;
+            } else if asked.elapsed() >= RESIZE_SETTLE
+                && started.elapsed() >= DISPLAY_CONTROL_WAIT
+                && sent.is_none_or(|t| t.elapsed() >= DISPLAY_CONTROL_ANSWER)
+            {
+                // No (working) Display Control: log in again at the new
+                // size (Windows reconnects to the same session).
+                if let Ok(outputs) = stage.graceful_shutdown() {
+                    let _ = write(&mut framed, outputs, &mut dirty);
+                }
+                return Ok(Ended::Resize(wanted.0, wanted.1));
+            }
         }
         loop {
             let ev = clip.lock().unwrap_or_else(|p| p.into_inner()).pop_front();
@@ -841,7 +1075,7 @@ fn run(
                 })?,
                 clipboard::ClipEvent::RemoteText(text) => {
                     if !sink(ViewerEvent::Clipboard(text)) {
-                        return Ok(());
+                        return Ok(Ended::Done);
                     }
                 }
                 clipboard::ClipEvent::DataRequested(format) => {
@@ -861,8 +1095,12 @@ fn run(
             && let Some(r) = dirty.take()
         {
             in_flight += 1;
-            if !sink(crop(&image, r)) {
-                return Ok(());
+            let frame = match &canvas {
+                Some(c) => crop(&c.data, c.width, c.height, r),
+                None => crop(image.data(), image.width(), image.height(), r),
+            };
+            if !sink(frame) {
+                return Ok(Ended::Done);
             }
         }
     }
@@ -976,17 +1214,51 @@ mod tests {
     #[test]
     fn crop_copies_rows_and_makes_pixels_opaque() {
         let image = DecodedImage::new(PixelFormat::RgbA32, 4, 3);
-        let ViewerEvent::Frame { x, y, w, h, rgba } = crop(&image, (1, 1, 2, 2)) else {
+        let crop = |r| crop(image.data(), image.width(), image.height(), r);
+        let ViewerEvent::Frame { x, y, w, h, rgba } = crop((1, 1, 2, 2)) else {
             unreachable!()
         };
         assert_eq!((x, y, w, h), (1, 1, 2, 2));
         assert_eq!(rgba.len(), 16);
         assert!(rgba.as_chunks::<4>().0.iter().all(|p| p[3] == 255));
         // Out-of-range coordinates are clamped to the image.
-        let ViewerEvent::Frame { w, h, .. } = crop(&image, (3, 2, 100, 100)) else {
+        let ViewerEvent::Frame { w, h, .. } = crop((3, 2, 100, 100)) else {
             unreachable!()
         };
         assert_eq!((w, h), (1, 1));
+    }
+
+    #[test]
+    fn graphics_pipeline_updates_land_on_the_canvas() {
+        use ironrdp_pdu::geometry::ExclusiveRectangle;
+        let mut canvas = Canvas::new(4, 3);
+        // A 2x2 update at (1, 1): exclusive right/bottom.
+        let region = ExclusiveRectangle {
+            left: 1,
+            top: 1,
+            right: 3,
+            bottom: 3,
+        };
+        let pixels: Vec<u8> = (0..16).collect();
+        assert_eq!(canvas.blit(&region, &pixels), Some((1, 1, 2, 2)));
+        assert_eq!(&canvas.data[(4 + 1) * 4..(4 + 3) * 4], &pixels[..8]);
+        assert_eq!(&canvas.data[(8 + 1) * 4..(8 + 3) * 4], &pixels[8..]);
+        // Clipped at the edge; short data is ignored, not a panic.
+        let wide = ExclusiveRectangle {
+            left: 3,
+            top: 0,
+            right: 6,
+            bottom: 1,
+        };
+        assert_eq!(canvas.blit(&wide, &[7; 12]), Some((3, 0, 3, 0)));
+        assert_eq!(canvas.blit(&wide, &[7; 2]), None);
+        let outside = ExclusiveRectangle {
+            left: 4,
+            top: 0,
+            right: 5,
+            bottom: 1,
+        };
+        assert_eq!(canvas.blit(&outside, &[0; 4]), None);
     }
 
     #[test]

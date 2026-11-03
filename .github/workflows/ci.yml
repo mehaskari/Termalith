@@ -219,6 +219,30 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: xvfb-run -a bash scripts/smoke-test.sh ${{ matrix.bin }}
 
+      # Embedded RDP against the runner's own Remote Desktop service (NLA,
+      # a real Windows certificate). Informational until it has proven
+      # stable on hosted runners, so it cannot block merges.
+      - name: Embedded RDP against Windows Remote Desktop (Windows x64)
+        if: ${{ !cancelled() && matrix.name == 'Windows x64' }}
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $pw = "Tl!" + [guid]::NewGuid().ToString("N").Substring(0, 20) + "a1"
+          Write-Host "::add-mask::$pw"
+          net user termalith-rdp $pw /add | Out-Null
+          net localgroup "Remote Desktop Users" termalith-rdp /add | Out-Null
+          Set-ItemProperty 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 0
+          Start-Service TermService -ErrorAction SilentlyContinue
+          for ($i = 0; $i -lt 30; $i++) {
+            if ((Test-NetConnection 127.0.0.1 -Port 3389 -WarningAction SilentlyContinue).TcpTestSucceeded) { break }
+            Start-Sleep -Seconds 1
+          }
+          $env:TERMALITH_TEST_WINRDP = "127.0.0.1:3389"
+          $env:TERMALITH_TEST_WINRDP_USER = "termalith-rdp"
+          $env:TERMALITH_TEST_WINRDP_PASSWORD = $pw
+          $env:TERMALITH_TEST_WINRDP_DOMAIN = $env:COMPUTERNAME
+          cargo test -p remote-desktop --features embedded --test windows_rdp -- --nocapture
+
       - name: Smoke test (Windows)
         if: ${{ !cancelled() && runner.os == 'Windows' }}
         shell: pwsh

@@ -66,7 +66,9 @@ fn embedded_rdp_against_windows() {
             Ok(ViewerEvent::Frame { .. }) => {
                 frames += 1;
                 viewer.ack();
-                if frames == 20 && !asked_resize {
+                // With the graphics pipeline only changes arrive, so a
+                // few frames are enough to know the desktop is up.
+                if frames == 3 && !asked_resize {
                     asked_resize = true;
                     viewer.clipboard("from termalith".into());
                     viewer.resize(1024, 768);

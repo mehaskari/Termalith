@@ -1,26 +1,13 @@
 # Changelog
 
-## Unreleased
-
-- macOS: the app bundle is now signed ad hoc as a whole. Before, only the
-  executable was, so a downloaded app could be reported as "damaged"
-  instead of offering **Open Anyway**.
-- Releases now install every installer (DMG, MSI, NSIS, deb, AppImage) on
-  its own system in CI and start the installed app before publishing.
-- Experimental: RDP sessions inside Termalith, in a tab, on every system
-  (Settings → Show RDP sessions inside Termalith), built on IronRDP. The
-  server certificate check applies. Text clipboard both ways, and the
-  desktop follows the tab's size when the server supports it.
-- Proxy login: SOCKS5 user name/password (RFC 1929) and HTTP Basic
-  authentication, with the password kept in the system keychain.
-
 ## 0.5.0 — first public preview
 
 The first public build. Installers for macOS (Apple Silicon and Intel),
 Windows (x64 and ARM64) and Linux (x64 and ARM64) are attached to the
-release with a `SHA256SUMS.txt`; they are not code-signed yet. The ARM and
-Intel Mac builds pass CI on native runners; Windows and Linux ARM64 also had
-a first hands-on run.
+release with a `SHA256SUMS.txt`; they are not code-signed with a developer
+certificate yet (the Mac app is signed ad hoc). Before each release, every
+installer is installed on its own system in CI and the installed app is
+started.
 
 **Terminals:** local shells in tabs and split panes with a choice of installed
 shell, find, shortcuts, color schemes, copy-on-select and right-click paste
@@ -29,8 +16,9 @@ variables, session logs and "save output", a command palette.
 
 **SSH:** password, key, ssh-agent and keyboard-interactive (one-time codes)
 login; secrets in the OS keychain only after a successful login; strict host
-keys; jump hosts; SOCKS5/HTTP proxy; local, remote and SOCKS tunnels; X11 and
-agent forwarding (opt-in); startup commands; automatic reconnect; an SSH key
+keys; jump hosts; local, remote and SOCKS tunnels; X11 and
+agent forwarding (opt-in); SOCKS5/HTTP proxy with optional login; startup
+commands; automatic reconnect; an SSH key
 manager.
 
 **Files:** SFTP panel and file-browser tabs, uploads of files and whole
@@ -42,6 +30,12 @@ tunnelled; on Linux the RDP server certificate is checked by Termalith and
 pinned for FreeRDP), serial consoles, Telnet (also through a jump host), network tools
 (ping, traceroute, TCP check, port scan, DNS, subnet calculator,
 Wake-on-LAN).
+
+**Experimental:** RDP inside Termalith, in a tab on every system (Settings →
+Show RDP sessions inside Termalith), built on IronRDP: certificate check,
+NLA login, keyboard with the remote layout, mouse, text clipboard both ways.
+The desktop keeps its size and is scaled to the tab (resizing the remote
+desktop is not working yet).
 
 **Sessions:** folder tree with empty folders, subfolders and drag-to-move,
 favorites, tags, search, "open all"; import from `~/.ssh/config` and

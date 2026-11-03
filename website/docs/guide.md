@@ -211,8 +211,8 @@ inside Termalith*, an RDP session opens in a tab instead of the external
 client, on every system. The server certificate is checked the same way as
 below, the password is asked each time and not saved, and keyboard input
 uses the remote computer's layout. **Ctrl+Alt+Del** is on the tab's
-toolbar. The remote desktop follows the tab's size when the server
-supports Display Control (Windows, recent xrdp); otherwise it is scaled.
+toolbar. The remote desktop keeps the size it opened with and is
+scaled to the tab; resizing it with the window is not working yet.
 Copied text goes both ways: text copied on the remote computer lands on
 your clipboard, and your clipboard is offered to the remote computer when
 the desktop gets focus. Not yet supported there: files on the clipboard,

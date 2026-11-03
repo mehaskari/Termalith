@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-embedded-clipboard"
+description = "Enables the embedded_clipboard command without any pre-configured scope."
+commands.allow = ["embedded_clipboard"]
+
+[[permission]]
+identifier = "deny-embedded-clipboard"
+description = "Denies the embedded_clipboard command without any pre-configured scope."
+commands.deny = ["embedded_clipboard"]

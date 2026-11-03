@@ -213,7 +213,10 @@ below, the password is asked each time and not saved, and keyboard input
 uses the remote computer's layout. **Ctrl+Alt+Del** is on the tab's
 toolbar. The remote desktop follows the tab's size when the server
 supports Display Control (Windows, recent xrdp); otherwise it is scaled.
-Not yet supported there: clipboard, sound and drive sharing.
+Copied text goes both ways: text copied on the remote computer lands on
+your clipboard, and your clipboard is offered to the remote computer when
+the desktop gets focus. Not yet supported there: files on the clipboard,
+sound and drive sharing.
 
 **Server certificates (Linux):** FreeRDP cannot show its own certificate
 prompt when started from Termalith, so Termalith reads the server's

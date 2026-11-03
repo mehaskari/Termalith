@@ -33,7 +33,7 @@ Darwin)
   bash "$HERE/smoke-test.sh" "$BIN"
   ;;
 Linux)
-  DEB=$(ls "$BUNDLE"/deb/*.deb | head -1)
+  DEB=$(realpath "$(ls "$BUNDLE"/deb/*.deb | head -1)")
   echo "== deb: $DEB"
   sudo apt-get install -y --no-install-recommends "$DEB" >/dev/null
   BIN=$(dpkg -L "$(dpkg-deb -f "$DEB" Package)" | grep -E '^/usr/bin/' | head -1)

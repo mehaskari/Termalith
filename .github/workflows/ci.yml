@@ -229,8 +229,13 @@ jobs:
         run: |
           $pw = "Tl!" + [guid]::NewGuid().ToString("N").Substring(0, 20) + "a1"
           Write-Host "::add-mask::$pw"
-          net user termalith-rdp $pw /add | Out-Null
-          net localgroup "Remote Desktop Users" termalith-rdp /add | Out-Null
+          # New-LocalUser: `net user` asks a Y/N question for passwords over
+          # 14 characters and creates nothing without an answer.
+          $secure = ConvertTo-SecureString $pw -AsPlainText -Force
+          New-LocalUser -Name termalith-rdp -Password $secure -PasswordNeverExpires | Out-Null
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member termalith-rdp
+          Add-LocalGroupMember -Group "Users" -Member termalith-rdp -ErrorAction SilentlyContinue
+          Get-LocalUser termalith-rdp | Format-Table Name, Enabled | Out-String | Write-Host
           Set-ItemProperty 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 0
           Start-Service TermService -ErrorAction SilentlyContinue
           for ($i = 0; $i -lt 30; $i++) {

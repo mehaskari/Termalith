@@ -35,6 +35,22 @@ pub struct CaptureStats {
     pub drawn_pixels: usize,
 }
 
+/// An error with its sources, so wrapped causes (e.g. inside CredSSP) are
+/// not lost.
+fn error_chain(e: &(dyn std::error::Error + 'static)) -> String {
+    let mut out = e.to_string();
+    let mut source = e.source();
+    while let Some(s) = source {
+        let text = s.to_string();
+        if !out.contains(&text) {
+            out.push_str(": ");
+            out.push_str(&text);
+        }
+        source = s.source();
+    }
+    out
+}
+
 fn failed(what: &str, e: impl std::fmt::Display) -> DesktopError {
     DesktopError::Launch {
         client: "embedded RDP".into(),
@@ -220,7 +236,7 @@ fn connect(
         public_key,
         None,
     )
-    .map_err(|e| failed("login", e))?;
+    .map_err(|e| failed("login", error_chain(&e)))?;
     let result = match outcome {
         ConnectionOutcome::Connected(r) => r,
         ConnectionOutcome::Redirected(_) => {

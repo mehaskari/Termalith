@@ -40,7 +40,16 @@ fn embedded_rdp_against_windows() {
         height: 720,
     };
 
-    let stats = capture(&params(), Duration::from_secs(15)).unwrap();
+    let stats = match capture(&params(), Duration::from_secs(15)) {
+        Ok(s) => s,
+        Err(e) => {
+            // Diagnose: the same login without a domain name.
+            let mut p = params();
+            p.domain = None;
+            let second = capture(&p, Duration::from_secs(15));
+            panic!("capture failed: {e}; without a domain: {second:?}");
+        }
+    };
     eprintln!("windows embedded RDP: {stats:?}");
     assert!(stats.graphics_updates > 0, "no graphics updates");
 

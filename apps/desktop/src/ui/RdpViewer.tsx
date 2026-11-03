@@ -3,6 +3,7 @@ import {
   type EmbeddedInput,
   closeEmbedded,
   embeddedAck,
+  embeddedClipboard,
   embeddedInput,
   embeddedResize,
   isIpcError,
@@ -38,6 +39,8 @@ export function RdpViewer({ sessionId, name, askPassword, onClose }: Props) {
   const flushPending = useRef(false);
   const [status, setStatus] = useState<Status>({ kind: "connecting" });
   const [attempt, setAttempt] = useState(0);
+  /** Last text exchanged, so the same text is not offered back and forth. */
+  const lastClipboard = useRef<string | null>(null);
   /** One password prompt per attempt, even if the effect runs twice (StrictMode). */
   const prompt = useRef<{ attempt: number; answer: Promise<string | null> } | null>(null);
 
@@ -77,6 +80,10 @@ export function RdpViewer({ sessionId, name, askPassword, onClose }: Props) {
                 c.height = e.height;
               }
               setStatus({ kind: "connected", width: e.width, height: e.height });
+            } else if (e.kind === "clipboard") {
+              // Copied on the remote computer: put it on this one's clipboard.
+              lastClipboard.current = e.text;
+              void navigator.clipboard.writeText(e.text).catch(() => {});
             } else {
               setStatus({ kind: "closed", message: e.reason });
               if (idRef.current !== null) void closeEmbedded(idRef.current).catch(() => {});
@@ -125,6 +132,21 @@ export function RdpViewer({ sessionId, name, askPassword, onClose }: Props) {
       window.clearTimeout(timer);
     };
   }, [status.kind]);
+
+  /** Offers this computer's clipboard text to the remote (on focus). */
+  const offerClipboard = () => {
+    const id = idRef.current;
+    if (id === null) return;
+    navigator.clipboard.readText().then(
+      (text) => {
+        if (text && text !== lastClipboard.current && text.length <= 1_000_000) {
+          lastClipboard.current = text;
+          void embeddedClipboard(id, text).catch(() => {});
+        }
+      },
+      () => {},
+    );
+  };
 
   // Keyboard goes to the desktop as soon as it is shown.
   useEffect(() => {
@@ -211,6 +233,7 @@ export function RdpViewer({ sessionId, name, askPassword, onClose }: Props) {
           onKeyDown={(e) => key(e, true)}
           onKeyUp={(e) => key(e, false)}
           onBlur={() => send({ kind: "releaseAll" })}
+          onFocus={offerClipboard}
           onMouseMove={(e) => send({ kind: "move", ...remote(e) })}
           onMouseDown={(e) => {
             e.currentTarget.focus();

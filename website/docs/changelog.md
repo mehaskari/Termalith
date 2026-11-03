@@ -4,7 +4,8 @@
 
 - Experimental: RDP sessions inside Termalith, in a tab, on every system
   (Settings → Show RDP sessions inside Termalith), built on IronRDP. The
-  server certificate check applies; clipboard and resizing come later.
+  server certificate check applies. Text clipboard both ways, and the
+  desktop follows the tab's size when the server supports it.
 - Proxy login: SOCKS5 user name/password (RFC 1929) and HTTP Basic
   authentication, with the password kept in the system keychain.
 

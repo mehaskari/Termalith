@@ -115,8 +115,17 @@ async fn launch_for(
 #[derive(Serialize, Clone)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum EmbeddedEventDto {
-    Connected { width: u16, height: u16 },
-    Closed { reason: Option<String> },
+    Connected {
+        width: u16,
+        height: u16,
+    },
+    /// The remote computer copied this text.
+    Clipboard {
+        text: String,
+    },
+    Closed {
+        reason: Option<String>,
+    },
 }
 
 /// Input from the viewer; keys are PC/AT scan codes.
@@ -187,6 +196,7 @@ pub async fn embedded_open(
         ViewerEvent::Connected { width, height } => on_event
             .send(EmbeddedEventDto::Connected { width, height })
             .is_ok(),
+        ViewerEvent::Clipboard(text) => on_event.send(EmbeddedEventDto::Clipboard { text }).is_ok(),
         ViewerEvent::Closed { reason } => {
             on_event.send(EmbeddedEventDto::Closed { reason }).is_ok()
         }
@@ -209,6 +219,25 @@ pub fn embedded_input(
     Ok(state
         .desktops
         .embedded_input(id, events.into_iter().map(Into::into).collect())?)
+}
+
+/// Largest clipboard text offered to the remote (1 MiB).
+const MAX_CLIPBOARD: usize = 1024 * 1024;
+
+/// Offers text copied on this computer to the remote one.
+#[tauri::command]
+pub fn embedded_clipboard(
+    state: State<'_, AppState>,
+    id: u64,
+    text: String,
+) -> Result<(), IpcError> {
+    if text.len() > MAX_CLIPBOARD {
+        return Err(IpcError::coded(
+            "invalid",
+            "the clipboard text is larger than 1 MiB",
+        ));
+    }
+    Ok(state.desktops.embedded_clipboard(id, text)?)
 }
 
 /// Asks the server to resize the desktop to the viewer's size.

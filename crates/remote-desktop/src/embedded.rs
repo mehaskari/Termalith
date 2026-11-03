@@ -130,7 +130,14 @@ pub struct LoginParams<'a> {
 /// TCP, X.224 negotiation, TLS with the pinned certificate, login.
 fn connect(
     p: &LoginParams<'_>,
-) -> Result<(ironrdp_connector::ConnectionResult, Framed<Tls>), DesktopError> {
+) -> Result<
+    (
+        ironrdp_connector::ConnectionResult,
+        Framed<Tls>,
+        clipboard::Queue,
+    ),
+    DesktopError,
+> {
     let (host, port, username, password, pin) = (p.host, p.port, p.username, &p.password, p.pin);
     let size = DesktopSize {
         width: p.width.clamp(200, 8192),
@@ -154,7 +161,13 @@ fn connect(
     let drdynvc = ironrdp_dvc::DrdynvcClient::new().with_dynamic_channel(
         ironrdp_displaycontrol::client::DisplayControlClient::new(|_| Ok(Vec::new())),
     );
-    let mut connector = ClientConnector::new(cfg, client_addr).with_static_channel(drdynvc);
+    let clip_queue = clipboard::Queue::default();
+    let cliprdr = ironrdp_cliprdr::CliprdrClient::new(Box::new(clipboard::TextBackend {
+        queue: clip_queue.clone(),
+    }));
+    let mut connector = ClientConnector::new(cfg, client_addr)
+        .with_static_channel(drdynvc)
+        .with_static_channel(cliprdr);
     let should_upgrade = ironrdp_blocking::connect_begin(&mut framed, &mut connector)
         .map_err(|e| failed("negotiation", e))?;
 
@@ -215,13 +228,13 @@ fn connect(
         }
     };
 
-    Ok((result, framed))
+    Ok((result, framed, clip_queue))
 }
 
 /// Connects, logs in and reads the desktop for `duration` (measuring).
 pub fn capture(p: &LoginParams<'_>, duration: Duration) -> Result<CaptureStats, DesktopError> {
     let start = Instant::now();
-    let (result, mut framed) = connect(p)?;
+    let (result, mut framed, _clip) = connect(p)?;
     let mut image = DecodedImage::new(
         PixelFormat::RgbA32,
         result.desktop_size.width,
@@ -291,6 +304,129 @@ fn finish(mut stats: CaptureStats, image: &DecodedImage) -> CaptureStats {
     stats
 }
 
+/// Text clipboard (CF_UNICODETEXT) shared with the viewer. The backend's
+/// callbacks only queue events; the session loop acts on them, because
+/// replies go through the session's channel encoder.
+mod clipboard {
+    use std::collections::VecDeque;
+    use std::sync::{Arc, Mutex};
+
+    use ironrdp_cliprdr::backend::CliprdrBackend;
+    use ironrdp_cliprdr::pdu::{
+        ClipboardFormat, ClipboardFormatId, ClipboardGeneralCapabilityFlags, FileContentsRequest,
+        FileContentsResponse, FormatDataRequest, FormatDataResponse, LockDataId,
+    };
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub enum ClipEvent {
+        /// The server wants our format list (start of the session).
+        AnnounceFormats,
+        /// The remote copied something that includes text.
+        RemoteHasText,
+        /// The remote's text arrived.
+        RemoteText(String),
+        /// The remote pastes and asks for our data in this format.
+        DataRequested(ClipboardFormatId),
+    }
+
+    pub type Queue = Arc<Mutex<VecDeque<ClipEvent>>>;
+
+    #[derive(Debug)]
+    pub struct TextBackend {
+        pub queue: Queue,
+    }
+
+    impl TextBackend {
+        fn push(&self, e: ClipEvent) {
+            self.queue
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .push_back(e);
+        }
+    }
+
+    impl ironrdp_pdu::AsAny for TextBackend {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+    }
+
+    /// UTF-16LE with a terminating NUL, as CF_UNICODETEXT carries it.
+    pub fn encode_text(text: &str) -> Vec<u8> {
+        text.encode_utf16()
+            .chain(std::iter::once(0))
+            .flat_map(u16::to_le_bytes)
+            .collect()
+    }
+
+    /// Up to the first NUL; invalid sequences are replaced.
+    pub fn decode_text(data: &[u8]) -> String {
+        let units: Vec<u16> = data
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|b| u16::from_le_bytes(*b))
+            .take_while(|u| *u != 0)
+            .collect();
+        String::from_utf16_lossy(&units)
+    }
+
+    pub fn text_format() -> ClipboardFormat {
+        ClipboardFormat::new(ClipboardFormatId::CF_UNICODETEXT)
+    }
+
+    impl CliprdrBackend for TextBackend {
+        fn temporary_directory(&self) -> &str {
+            ".termalith-cliprdr"
+        }
+        fn client_capabilities(&self) -> ClipboardGeneralCapabilityFlags {
+            ClipboardGeneralCapabilityFlags::empty()
+        }
+        fn on_ready(&mut self) {}
+        fn on_request_format_list(&mut self) {
+            self.push(ClipEvent::AnnounceFormats);
+        }
+        fn on_process_negotiated_capabilities(&mut self, _: ClipboardGeneralCapabilityFlags) {}
+        fn on_remote_copy(&mut self, formats: &[ClipboardFormat]) {
+            if formats
+                .iter()
+                .any(|f| f.id() == ClipboardFormatId::CF_UNICODETEXT)
+            {
+                self.push(ClipEvent::RemoteHasText);
+            }
+        }
+        fn on_format_data_request(&mut self, request: FormatDataRequest) {
+            self.push(ClipEvent::DataRequested(request.format));
+        }
+        fn on_format_data_response(&mut self, response: FormatDataResponse<'_>) {
+            if !response.is_error() {
+                self.push(ClipEvent::RemoteText(decode_text(response.data())));
+            }
+        }
+        fn on_file_contents_request(&mut self, _: FileContentsRequest) {}
+        fn on_file_contents_response(&mut self, _: FileContentsResponse<'_>) {}
+        fn on_lock(&mut self, _: LockDataId) {}
+        fn on_unlock(&mut self, _: LockDataId) {}
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn unicode_text_round_trips() {
+            let s = "héllo 👋 سلام";
+            let enc = encode_text(s);
+            assert_eq!(&enc[enc.len() - 2..], &[0, 0], "NUL-terminated");
+            assert_eq!(decode_text(&enc), s);
+            assert_eq!(decode_text(&[0x41, 0, 0, 0, 0x42, 0]), "A", "stops at NUL");
+        }
+    }
+}
+
 /// Events from a live session to the viewer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ViewerEvent {
@@ -304,6 +440,8 @@ pub enum ViewerEvent {
         h: u16,
         rgba: Vec<u8>,
     },
+    /// The remote computer copied this text.
+    Clipboard(String),
     /// The session ended; `reason` is set when it was not a normal close.
     Closed { reason: Option<String> },
 }
@@ -340,6 +478,8 @@ enum Control {
     Input(Vec<ViewerInput>),
     /// Ask the server for a new desktop size (it may adjust or refuse it).
     Resize(u16, u16),
+    /// Text copied on this computer, offered to the remote.
+    Clipboard(String),
     /// The viewer drew one frame.
     Ack,
     Close,
@@ -366,6 +506,12 @@ impl Viewer {
         self.tx.send(Control::Resize(width, height)).is_ok()
     }
 
+    /// Offers locally copied text to the remote computer (it is sent when
+    /// the remote pastes).
+    pub fn clipboard(&self, text: String) -> bool {
+        self.tx.send(Control::Clipboard(text)).is_ok()
+    }
+
     pub fn ack(&self) -> bool {
         self.tx.send(Control::Ack).is_ok()
     }
@@ -388,7 +534,7 @@ pub fn start(
     p: &LoginParams<'_>,
     sink: impl FnMut(ViewerEvent) -> bool + Send + 'static,
 ) -> Result<Viewer, DesktopError> {
-    let (result, mut framed) = connect(p)?;
+    let (result, mut framed, clip) = connect(p)?;
     framed
         .get_inner_mut()
         .0
@@ -400,7 +546,7 @@ pub fn start(
         .name("rdp-session".into())
         .spawn(move || {
             let mut sink = sink;
-            let reason = run(result, framed, rx, &mut sink).err();
+            let reason = run(result, framed, rx, clip, &mut sink).err();
             sink(ViewerEvent::Closed { reason });
         })
         .map_err(|e| failed("thread", e))?;
@@ -488,6 +634,7 @@ fn run(
     result: ironrdp_connector::ConnectionResult,
     mut framed: Framed<Tls>,
     rx: std::sync::mpsc::Receiver<Control>,
+    clip: clipboard::Queue,
     sink: &mut impl FnMut(ViewerEvent) -> bool,
 ) -> Result<(), String> {
     let mut image = DecodedImage::new(
@@ -516,6 +663,8 @@ fn run(
     }
     let mut dirty: Option<(u16, u16, u16, u16)> = None;
     let mut in_flight = 0usize;
+    // Last text copied here, served when the remote pastes.
+    let mut local_text: Option<String> = None;
     /// What handling a batch of outputs asks the loop to do next.
     enum Next {
         Go,
@@ -590,6 +739,12 @@ fn run(
                             .map_err(|e| format!("write: {e}"))?;
                     }
                 }
+                Ok(Control::Clipboard(text)) => {
+                    local_text = Some(text);
+                    clip_send(&mut framed, &mut stage, |c| {
+                        c.initiate_copy(&[clipboard::text_format()])
+                    })?;
+                }
                 Ok(Control::Ack) => in_flight = in_flight.saturating_sub(1),
                 Ok(Control::Close) | Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     if let Ok(outputs) = stage.graceful_shutdown() {
@@ -629,6 +784,38 @@ fn run(
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(()),
             Err(e) => return Err(format!("connection lost: {e}")),
         }
+        loop {
+            let ev = clip.lock().unwrap_or_else(|p| p.into_inner()).pop_front();
+            let Some(ev) = ev else { break };
+            match ev {
+                clipboard::ClipEvent::AnnounceFormats => {
+                    let formats: Vec<_> = local_text
+                        .iter()
+                        .map(|_| clipboard::text_format())
+                        .collect();
+                    clip_send(&mut framed, &mut stage, |c| c.initiate_copy(&formats))?;
+                }
+                clipboard::ClipEvent::RemoteHasText => clip_send(&mut framed, &mut stage, |c| {
+                    c.initiate_paste(ironrdp_cliprdr::pdu::ClipboardFormatId::CF_UNICODETEXT)
+                })?,
+                clipboard::ClipEvent::RemoteText(text) => {
+                    if !sink(ViewerEvent::Clipboard(text)) {
+                        return Ok(());
+                    }
+                }
+                clipboard::ClipEvent::DataRequested(format) => {
+                    let response = match (&local_text, format) {
+                        (Some(t), ironrdp_cliprdr::pdu::ClipboardFormatId::CF_UNICODETEXT) => {
+                            ironrdp_cliprdr::pdu::OwnedFormatDataResponse::new_data(
+                                clipboard::encode_text(t),
+                            )
+                        }
+                        _ => ironrdp_cliprdr::pdu::OwnedFormatDataResponse::new_error(),
+                    };
+                    clip_send(&mut framed, &mut stage, |c| c.submit_format_data(response))?;
+                }
+            }
+        }
         if in_flight < MAX_FRAMES_IN_FLIGHT
             && let Some(r) = dirty.take()
         {
@@ -638,6 +825,26 @@ fn run(
             }
         }
     }
+}
+
+/// Runs a clipboard channel action and sends what it produced.
+fn clip_send(
+    framed: &mut Framed<Tls>,
+    stage: &mut ironrdp_session::ActiveStage,
+    action: impl FnOnce(
+        &mut ironrdp_cliprdr::CliprdrClient,
+    ) -> ironrdp_pdu::PduResult<
+        ironrdp_cliprdr::CliprdrSvcMessages<ironrdp_cliprdr::Client>,
+    >,
+) -> Result<(), String> {
+    let Some(c) = stage.get_svc_processor_mut::<ironrdp_cliprdr::CliprdrClient>() else {
+        return Ok(()); // the server did not open the clipboard channel
+    };
+    let messages = action(c).map_err(|e| format!("clipboard: {e}"))?;
+    let frame = stage
+        .process_svc_processor_messages(messages)
+        .map_err(|e| format!("clipboard: {e}"))?;
+    framed.write_all(&frame).map_err(|e| format!("write: {e}"))
 }
 
 /// Deactivation-Reactivation Sequence (after a resize): renegotiates the

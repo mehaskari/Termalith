@@ -234,9 +234,10 @@ fn embedded_rdp_against_xrdp() {
     // screen may not open the clipboard channel; then nothing is sent).
     viewer.clipboard("copied in termalith".into());
 
-    // Resize through Display Control; servers without it keep the size.
+    // Resize: xrdp 0.9 has no Display Control, so the viewer logs in again
+    // at the new size.
     viewer.resize(800, 600);
-    let deadline = Instant::now() + Duration::from_secs(8);
+    let deadline = Instant::now() + Duration::from_secs(15);
     let mut resized = None;
     while Instant::now() < deadline && resized.is_none() {
         match rx.recv_timeout(Duration::from_millis(200)) {
@@ -248,7 +249,8 @@ fn embedded_rdp_against_xrdp() {
             Ok(ViewerEvent::Clipboard(_)) | Err(_) => {}
         }
     }
-    eprintln!("viewer resize to 800x600: {resized:?} (None = server kept its size)");
+    eprintln!("viewer resize to 800x600: {resized:?}");
+    assert_eq!(resized, Some((800, 600)));
     viewer.close();
     loop {
         match rx.recv_timeout(Duration::from_secs(10)) {

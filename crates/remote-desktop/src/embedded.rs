@@ -535,6 +535,84 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 /// How often the session loop looks at viewer input while the server is quiet.
 const POLL: Duration = Duration::from_millis(15);
+/// Without Display Control a resize reconnects at the new size, once the
+/// requests have stopped for this long (a window being dragged)...
+const RESIZE_SETTLE: Duration = Duration::from_millis(1500);
+/// ...and not before the server had time to open Display Control.
+const DISPLAY_CONTROL_WAIT: Duration = Duration::from_secs(4);
+
+/// What the session thread keeps to log in again at a new size (servers
+/// without Display Control). The password stays in this thread's memory
+/// for the session's life and is wiped when it ends.
+struct Login {
+    host: String,
+    port: u16,
+    server_name: String,
+    username: String,
+    password: Zeroizing<String>,
+    domain: Option<String>,
+    pin: CertFingerprint,
+    width: u16,
+    height: u16,
+}
+
+impl Login {
+    fn of(p: &LoginParams<'_>) -> Self {
+        Self {
+            host: p.host.to_owned(),
+            port: p.port,
+            server_name: p.server_name.to_owned(),
+            username: p.username.to_owned(),
+            password: p.password.clone(),
+            domain: p.domain.map(str::to_owned),
+            pin: p.pin,
+            width: p.width,
+            height: p.height,
+        }
+    }
+
+    fn params(&self) -> LoginParams<'_> {
+        LoginParams {
+            host: &self.host,
+            port: self.port,
+            server_name: &self.server_name,
+            username: &self.username,
+            password: self.password.clone(),
+            domain: self.domain.as_deref(),
+            pin: self.pin,
+            width: self.width,
+            height: self.height,
+        }
+    }
+}
+
+/// Connects and switches the socket to the session's short polling reads.
+fn connect_session(
+    p: &LoginParams<'_>,
+) -> Result<
+    (
+        ironrdp_connector::ConnectionResult,
+        Framed<Tls>,
+        clipboard::Queue,
+    ),
+    DesktopError,
+> {
+    let (result, mut framed, clip) = connect(p)?;
+    framed
+        .get_inner_mut()
+        .0
+        .sock
+        .set_read_timeout(Some(POLL))
+        .map_err(|e| failed("socket", e))?;
+    Ok((result, framed, clip))
+}
+
+/// How one connection's session ended.
+enum Ended {
+    Done,
+    /// Log in again at this size.
+    Resize(u16, u16),
+}
 
 /// Handle to a running session. Dropping it closes the session.
 pub struct Viewer {
@@ -580,19 +658,14 @@ pub fn start(
     p: &LoginParams<'_>,
     sink: impl FnMut(ViewerEvent) -> bool + Send + 'static,
 ) -> Result<Viewer, DesktopError> {
-    let (result, mut framed, clip) = connect(p)?;
-    framed
-        .get_inner_mut()
-        .0
-        .sock
-        .set_read_timeout(Some(POLL))
-        .map_err(|e| failed("socket", e))?;
+    let (result, framed, clip) = connect_session(p)?;
+    let login = Login::of(p);
     let (tx, rx) = std::sync::mpsc::sync_channel(256);
     std::thread::Builder::new()
         .name("rdp-session".into())
         .spawn(move || {
             let mut sink = sink;
-            let reason = run(result, framed, rx, clip, &mut sink).err();
+            let reason = run(login, result, framed, &rx, clip, &mut sink).err();
             sink(ViewerEvent::Closed { reason });
         })
         .map_err(|e| failed("thread", e))?;
@@ -754,12 +827,35 @@ fn to_operation(input: ViewerInput) -> Option<ironrdp_input::Operation> {
 }
 
 fn run(
-    result: ironrdp_connector::ConnectionResult,
+    mut login: Login,
+    mut result: ironrdp_connector::ConnectionResult,
     mut framed: Framed<Tls>,
-    rx: std::sync::mpsc::Receiver<Control>,
-    clip: clipboard::Queue,
+    rx: &std::sync::mpsc::Receiver<Control>,
+    mut clip: clipboard::Queue,
     sink: &mut impl FnMut(ViewerEvent) -> bool,
 ) -> Result<(), String> {
+    loop {
+        match session(result, framed, rx, clip, sink)? {
+            Ended::Done => return Ok(()),
+            Ended::Resize(width, height) => {
+                debug(&format!("reconnecting at {width}x{height}"));
+                (login.width, login.height) = (width, height);
+                (result, framed, clip) =
+                    connect_session(&login.params()).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+}
+
+/// One connection: graphics, input, clipboard and resizing until it ends.
+fn session(
+    result: ironrdp_connector::ConnectionResult,
+    mut framed: Framed<Tls>,
+    rx: &std::sync::mpsc::Receiver<Control>,
+    clip: clipboard::Queue,
+    sink: &mut impl FnMut(ViewerEvent) -> bool,
+) -> Result<Ended, String> {
+    let started = Instant::now();
     let mut image = DecodedImage::new(
         PixelFormat::RgbA32,
         result.desktop_size.width,
@@ -782,15 +878,15 @@ fn run(
         width: image.width(),
         height: image.height(),
     }) {
-        return Ok(());
+        return Ok(Ended::Done);
     }
     let mut dirty: Option<(u16, u16, u16, u16)> = None;
     let mut in_flight = 0usize;
     // Last text copied here, served when the remote pastes.
     let mut local_text: Option<String> = None;
-    // Requested size waiting for the server's Display Control capabilities
-    // (they arrive some time after login; servers without it never send them).
-    let mut pending_resize: Option<(u32, u32)> = None;
+    // Requested size and when: sent once Display Control is ready (it opens
+    // some time after login), or a reconnect at that size where it never does.
+    let mut pending_resize: Option<(u32, u32, Instant)> = None;
     let mut canvas: Option<Canvas> = None;
     // Display Control channel state, logged when it changes (diagnostics).
     let mut display_control = (false, false);
@@ -842,7 +938,7 @@ fn run(
                             .map_err(|e| format!("input: {e}"))?;
                         match write(&mut framed, outputs, &mut dirty)? {
                             Next::Go => {}
-                            Next::Stop => return Ok(()),
+                            Next::Stop => return Ok(Ended::Done),
                             Next::Reactivate => {
                                 reactivate(&activation, &mut framed, &mut stage, &mut image)?;
                                 dirty = None;
@@ -851,7 +947,7 @@ fn run(
                                     width: image.width(),
                                     height: image.height(),
                                 }) {
-                                    return Ok(());
+                                    return Ok(Ended::Done);
                                 }
                             }
                         }
@@ -865,7 +961,7 @@ fn run(
                         );
                     // Sent once Display Control is ready (below); a newer
                     // request replaces an unsent one.
-                    pending_resize = Some((w, h));
+                    pending_resize = Some((w, h, Instant::now()));
                 }
                 Ok(Control::Clipboard(text)) => {
                     local_text = Some(text);
@@ -878,7 +974,7 @@ fn run(
                     if let Ok(outputs) = stage.graceful_shutdown() {
                         let _ = write(&mut framed, outputs, &mut dirty);
                     }
-                    return Ok(());
+                    return Ok(Ended::Done);
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => break,
             }
@@ -890,7 +986,7 @@ fn run(
                     .map_err(|e| format!("decode: {e}"))?;
                 match write(&mut framed, outputs, &mut dirty)? {
                     Next::Go => {}
-                    Next::Stop => return Ok(()),
+                    Next::Stop => return Ok(Ended::Done),
                     Next::Reactivate => {
                         reactivate(&activation, &mut framed, &mut stage, &mut image)?;
                         dirty = None;
@@ -899,7 +995,7 @@ fn run(
                             width: image.width(),
                             height: image.height(),
                         }) {
-                            return Ok(());
+                            return Ok(Ended::Done);
                         }
                     }
                 }
@@ -916,7 +1012,7 @@ fn run(
                 if let Some((width, height)) = pump_graphics(&mut stage, &mut canvas, &mut dirty) {
                     in_flight = 0;
                     if !sink(ViewerEvent::Connected { width, height }) {
-                        return Ok(());
+                        return Ok(Ended::Done);
                     }
                 }
             }
@@ -925,18 +1021,37 @@ fn run(
                     e.kind(),
                     std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
                 ) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(Ended::Done),
             Err(e) => return Err(format!("connection lost: {e}")),
         }
-        if let Some((w, h)) = pending_resize
-            && let Some(frame) = stage.encode_resize(w, h, None, None)
-        {
-            pending_resize = None;
-            debug(&format!("resize to {w}x{h} sent"));
-            let frame = frame.map_err(|e| format!("resize: {e}"))?;
-            framed
-                .write_all(&frame)
-                .map_err(|e| format!("write: {e}"))?;
+        if let Some((w, h, asked)) = pending_resize {
+            let size = canvas
+                .as_ref()
+                .map_or((image.width(), image.height()), |c| (c.width, c.height));
+            let wanted = (
+                u16::try_from(w).unwrap_or(u16::MAX),
+                u16::try_from(h).unwrap_or(u16::MAX),
+            );
+            if wanted == size {
+                pending_resize = None;
+            } else if let Some(frame) = stage.encode_resize(w, h, None, None) {
+                pending_resize = None;
+                debug(&format!("resize to {w}x{h} sent"));
+                let frame = frame.map_err(|e| format!("resize: {e}"))?;
+                framed
+                    .write_all(&frame)
+                    .map_err(|e| format!("write: {e}"))?;
+            } else if !display_control.0
+                && asked.elapsed() >= RESIZE_SETTLE
+                && started.elapsed() >= DISPLAY_CONTROL_WAIT
+            {
+                // No Display Control: log in again at the new size (Windows
+                // reconnects to the same session).
+                if let Ok(outputs) = stage.graceful_shutdown() {
+                    let _ = write(&mut framed, outputs, &mut dirty);
+                }
+                return Ok(Ended::Resize(wanted.0, wanted.1));
+            }
         }
         loop {
             let ev = clip.lock().unwrap_or_else(|p| p.into_inner()).pop_front();
@@ -954,7 +1069,7 @@ fn run(
                 })?,
                 clipboard::ClipEvent::RemoteText(text) => {
                     if !sink(ViewerEvent::Clipboard(text)) {
-                        return Ok(());
+                        return Ok(Ended::Done);
                     }
                 }
                 clipboard::ClipEvent::DataRequested(format) => {
@@ -979,7 +1094,7 @@ fn run(
                 None => crop(image.data(), image.width(), image.height(), r),
             };
             if !sink(frame) {
-                return Ok(());
+                return Ok(Ended::Done);
             }
         }
     }

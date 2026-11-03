@@ -81,7 +81,8 @@ fn embedded_rdp_against_windows() {
     }
     eprintln!("windows viewer: {frames} frames, sizes {sizes:?}");
     assert!(frames > 0, "no frames");
-    // Resizing goes through Display Control over the graphics pipeline.
+    // Resizing: Display Control where the server offers it, otherwise a
+    // new login at the new size.
     assert!(
         sizes.contains(&(1024, 768)),
         "the server did not resize the desktop: {sizes:?}"

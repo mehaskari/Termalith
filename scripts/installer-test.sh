@@ -47,8 +47,9 @@ Linux)
   cp "$APPIMAGE" "$WORK/t.AppImage" && chmod +x "$WORK/t.AppImage"
   # Hosted runners have no FUSE; extracting runs the same payload.
   (cd "$WORK" && ./t.AppImage --appimage-extract >/dev/null)
-  BIN=$(ls "$WORK"/squashfs-root/usr/bin/* | head -1)
-  bash "$HERE/smoke-test.sh" "$BIN"
+  # Start through AppRun as the AppImage does: it sets the working
+  # directory WebKit's bundled helper processes are found from.
+  (cd "$WORK/squashfs-root" && bash "$HERE/smoke-test.sh" ./AppRun)
   ;;
 *)
   echo "unsupported OS"; exit 1 ;;

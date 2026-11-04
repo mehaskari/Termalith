@@ -179,6 +179,10 @@ works on Linux servers; on others the bar says so.
 - **Files** on an SSH tab opens the SFTP panel; **⇅** on a session opens a
   file-browser tab without a shell (**Open terminal** adds a shell on the
   same connection).
+- **⇣** in the Files panel of an SSH tab makes the panel follow the
+  terminal's folder. Shells that report their folder work at once; for
+  others Termalith offers to type one line into the terminal so that bash
+  or zsh does, until the shell exits. Nothing on the server is changed.
 - An **FTPS** or **FTP** session (Type in the session dialog) opens the same
   file browser. FTPS uses explicit TLS: you check the server's certificate
   once, as for RDP, and the connection fails if the certificate changes

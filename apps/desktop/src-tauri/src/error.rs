@@ -100,6 +100,7 @@ impl From<SshError> for IpcError {
             SshError::TooLarge { .. } => Self::new("too_large", message),
             SshError::Modified(_) => Self::new("remote_modified", message),
             SshError::NotAFile(_) => Self::new("not_a_file", message),
+            SshError::Remote(_) => Self::new("remote_refused", message),
             SshError::Io(_) => Self::new("io", message),
         }
     }

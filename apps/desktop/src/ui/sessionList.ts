@@ -58,7 +58,7 @@ export function groupSessions(sessions: SessionRecord[]): SessionGroup[] {
   return groups;
 }
 
-export const DEFAULT_PORT: Record<SessionProtocol, number> = { ssh: 22, rdp: 3389, vnc: 5900, telnet: 23 };
+export const DEFAULT_PORT: Record<SessionProtocol, number> = { ssh: 22, rdp: 3389, vnc: 5900, telnet: 23, ftp: 21 };
 
 export function isDesktop(s: Pick<SessionInput, "protocol">): boolean {
   return s.protocol === "rdp" || s.protocol === "vnc";
@@ -180,6 +180,7 @@ export function authLabel(s: Pick<SessionRecord, "auth" | "hasSavedSecret" | "pr
   if (s.protocol === "rdp") return "RDP";
   if (s.protocol === "vnc") return "VNC";
   if (s.protocol === "telnet") return "Telnet";
+  if (s.protocol === "ftp") return s.hasSavedSecret ? "saved" : "FTP";
   if (s.auth.kind === "keyFile") return "key";
   if (s.auth.kind === "agent") return "agent";
   return s.hasSavedSecret ? "saved" : "";
@@ -335,7 +336,7 @@ export function parseForm(
       username,
       auth,
       folder: f.folder.trim() || null,
-      jumpVia: f.jumpVia || null,
+      jumpVia: (f.protocol !== "ftp" && f.jumpVia) || null,
       protocol: f.protocol,
       domain: domain || null,
       tags,

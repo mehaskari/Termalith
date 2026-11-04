@@ -50,6 +50,7 @@ import {
   stopLog,
   closeDesktop,
   telnetTerminal,
+  openFtpFiles,
   openSshFiles,
   closeTerminal,
   type ShellChoice,
@@ -94,6 +95,8 @@ interface Tab {
   key: number;
   title: string;
   kind: "local" | "ssh" | "serial" | "tools" | "desktop" | "editor" | "telnet" | "files" | "diff" | "rdp";
+  /** A files tab on a protocol without terminals (FTP). */
+  noShell?: boolean;
   open: Opener;
   terminalId?: TerminalId;
   /** Connection over (failed, or the remote shell exited). */
@@ -427,12 +430,14 @@ export function App() {
   /** A file browser tab on a saved SSH session (no shell). */
   const openFilesTab = useCallback(
     (s: SessionRecord) => {
+      const ftp = s.protocol === "ftp";
       const key = addTab(`${s.name} (files)`, "files", openLocalTerminal);
-      patchTab(key, { sessionId: s.id });
+      patchTab(key, { sessionId: s.id, noShell: ftp });
       withLogin(
         s.name,
         { canSave: info?.secretsAvailable ?? false, keyAuth: s.auth.kind === "keyFile", savedSecret: s.hasSavedSecret },
-        (password, savePassword) => openSshFiles({ sessionId: s.id, password, savePassword }),
+        (password, savePassword) =>
+          (ftp ? openFtpFiles : openSshFiles)({ sessionId: s.id, password, savePassword }),
       ).then(
         (r) => patchTab(key, { terminalId: r.id }),
         (e) => patchTab(key, { ended: true, desktopError: isIpcError(e) ? e.message : String(e) }),
@@ -488,7 +493,7 @@ export function App() {
         void runDesktop(key, s);
         return;
       }
-      if (s.filesOnly) {
+      if (s.filesOnly || s.protocol === "ftp") {
         openFilesTab(s);
         return;
       }
@@ -979,16 +984,18 @@ export function App() {
                       <div className="pane-toolbar">
                         <span />
                         <span className="pane-actions">
-                          <button
-                            type="button"
-                            title="Open a terminal on this connection (no second login)"
-                            onClick={() => {
-                              if (t.terminalId !== undefined)
-                                addTab(t.title.replace(/ \(files\)$/, ""), "ssh", splitTerminal(t.terminalId));
-                            }}
-                          >
-                            Open terminal
-                          </button>
+                          {!t.noShell && (
+                            <button
+                              type="button"
+                              title="Open a terminal on this connection (no second login)"
+                              onClick={() => {
+                                if (t.terminalId !== undefined)
+                                  addTab(t.title.replace(/ \(files\)$/, ""), "ssh", splitTerminal(t.terminalId));
+                              }}
+                            >
+                              Open terminal
+                            </button>
+                          )}
                         </span>
                       </div>
                       <FilesPanel

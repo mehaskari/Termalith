@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Server monitor:** an optional bar under SSH terminals shows CPU, load,
+  memory, disk and network for Linux servers.
 - **Files-only sessions:** an SSH session can open straight as a file
   browser over SFTP, without a terminal. They show an SFTP badge.
 - **Embedded RDP** uses the graphics pipeline (RDPEGFX) where the server

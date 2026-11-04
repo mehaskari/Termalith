@@ -178,6 +178,21 @@ export interface UpdateInfo {
 
 /** Asks GitHub for the newest published release; never downloads anything. */
 export const checkForUpdates = () => invoke<UpdateInfo>("update_check");
+
+export interface ServerStats {
+  cpuPercent: number | null;
+  load1: number;
+  memTotal: number;
+  memUsed: number;
+  diskTotal: number;
+  diskUsed: number;
+  rxPerSec: number | null;
+  txPerSec: number | null;
+}
+
+/** `null` on servers the monitor cannot read (not Linux). */
+export const serverStats = (id: TerminalId) => invoke<ServerStats | null>("server_stats", { id });
+export const serverStatsStop = (id: TerminalId) => invoke<void>("server_stats_stop", { id });
 export const listSessions = () => invoke<SessionRecord[]>("sessions_list");
 export const createSession = (input: SessionInput) =>
   invoke<SessionRecord>("session_create", { input });
@@ -353,6 +368,7 @@ export interface Settings {
   checkUpdates: boolean;
   /** Show RDP sessions in a tab (experimental) instead of the external client. */
   embeddedRdp: boolean;
+  serverMonitor: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -371,6 +387,7 @@ export const DEFAULT_SETTINGS: Settings = {
   proxy: null,
   checkUpdates: false,
   embeddedRdp: false,
+  serverMonitor: false,
 };
 
 export const getSettings = () => invoke<Settings>("settings_get");

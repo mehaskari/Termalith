@@ -300,6 +300,19 @@ mockIPC(
       case "embedded_clipboard":
       case "embedded_close":
         return null;
+      case "server_stats":
+        return {
+          cpuPercent: 12 + Math.random() * 30,
+          load1: 0.42,
+          memTotal: 8 * 1024 ** 3,
+          memUsed: 3.1 * 1024 ** 3,
+          diskTotal: 100 * 1024 ** 3,
+          diskUsed: 42 * 1024 ** 3,
+          rxPerSec: 120000,
+          txPerSec: 34000,
+        };
+      case "server_stats_stop":
+        return null;
       case "update_check":
         return {
           current: "0.5.0",

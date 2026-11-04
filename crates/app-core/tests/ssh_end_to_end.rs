@@ -469,6 +469,29 @@ fn event_sink() -> (
     )
 }
 
+/// The monitor's fixed command against a real server: values on Linux,
+/// `None` on systems without `/proc`.
+#[tokio::test(flavor = "multi_thread")]
+async fn server_monitor_reads_a_real_server() {
+    use app_core::ServerMonitor;
+    let Some(r) = rig() else { return };
+    let session = trusted_connection(&r).await;
+    let monitor = ServerMonitor::default();
+    let first = monitor.sample(1, &session).await.unwrap();
+    if !cfg!(target_os = "linux") {
+        assert_eq!(first, None);
+        return;
+    }
+    let first = first.expect("Linux server");
+    assert_eq!(first.cpu_percent, None, "needs two samples");
+    assert!(first.mem_total > 0 && first.mem_used <= first.mem_total);
+    assert!(first.disk_total > 0 && first.disk_used <= first.disk_total);
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+    let second = monitor.sample(1, &session).await.unwrap().unwrap();
+    assert!(second.rx_per_sec.is_some() && second.tx_per_sec.is_some());
+    monitor.forget(1);
+}
+
 /// SFTP upload and download rate over the test sshd (loopback). Prints
 /// MB/s; the floor only catches a broken transfer loop.
 #[tokio::test(flavor = "multi_thread")]

@@ -54,6 +54,8 @@ fn main() {
             "proxy_password_status",
             "proxy_password_set",
             "update_check",
+            "server_stats",
+            "server_stats_stop",
             "sessions_list",
             "session_create",
             "session_update",

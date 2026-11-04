@@ -56,6 +56,8 @@
     "allow-proxy-password-status",
     "allow-proxy-password-set",
     "allow-update-check",
+    "allow-server-stats",
+    "allow-server-stats-stop",
     "allow-sessions-list",
     "allow-session-create",
     "allow-session-update",

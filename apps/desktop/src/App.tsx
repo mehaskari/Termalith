@@ -76,6 +76,7 @@ import { ImportDialog } from "./ui/ImportDialog";
 import { type PasswordAnswer, PasswordDialog } from "./ui/PasswordDialog";
 import { SessionDialog } from "./ui/SessionDialog";
 import { TunnelsPanel } from "./ui/TunnelsPanel";
+import { ServerMonitor } from "./ui/ServerMonitor";
 import { SnippetsPanel } from "./ui/SnippetsPanel";
 import { NetworkTools } from "./ui/NetworkTools";
 import { BroadcastDialog } from "./ui/BroadcastDialog";
@@ -1223,6 +1224,9 @@ export function App() {
                   />
                 )}
               </div>
+              {settings.serverMonitor && t.kind === "ssh" && t.terminalId !== undefined && !t.ended && (
+                <ServerMonitor terminalId={t.terminalId} active={t.key === active} />
+              )}
               </>
               )}
             </div>

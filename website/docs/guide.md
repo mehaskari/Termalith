@@ -167,6 +167,13 @@ new Ed25519 key (optionally with a passphrase), copies a public key, and
 server (the folder and file get safe permissions; a key is never added
 twice).
 
+### Server monitor
+
+Turn on **Show a server monitor under SSH terminals** in Settings to see
+CPU, load, memory, the root disk and network rate under the active SSH
+tab. It runs a read-only command on the server every 3 seconds, and only
+works on Linux servers; on others the bar says so.
+
 ## Files
 
 - **Files** on an SSH tab opens the SFTP panel; **⇅** on a session opens a

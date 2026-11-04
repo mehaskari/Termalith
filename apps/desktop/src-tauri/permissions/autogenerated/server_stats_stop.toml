@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-server-stats-stop"
+description = "Enables the server_stats_stop command without any pre-configured scope."
+commands.allow = ["server_stats_stop"]
+
+[[permission]]
+identifier = "deny-server-stats-stop"
+description = "Denies the server_stats_stop command without any pre-configured scope."
+commands.deny = ["server_stats_stop"]

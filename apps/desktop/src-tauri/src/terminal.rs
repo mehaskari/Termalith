@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tauri::State;
 use tauri::ipc::{Channel, InvokeResponseBody};
 
-use app_core::{LogInfo, LogTap, tapped};
+use app_core::{LogInfo, LogTap, ServerStats, tapped};
 use terminal_pty::{ExitInfo, TerminalEvent, TerminalEventSink, TerminalSize};
 
 use crate::error::IpcError;
@@ -129,6 +129,22 @@ pub async fn terminal_resize(
 ) -> Result<(), IpcError> {
     let size = TerminalSize::new(cols, rows)?;
     Ok(state.hub.resize(id, size).await?)
+}
+
+/// Server monitor values for an SSH terminal; `None` on servers without
+/// `/proc`. The command run on the server is fixed in `app_core`.
+#[tauri::command]
+pub async fn server_stats(
+    state: State<'_, AppState>,
+    id: u64,
+) -> Result<Option<ServerStats>, IpcError> {
+    let session = state.hub.ssh_session(id)?;
+    Ok(state.monitor.sample(id, &session).await?)
+}
+
+#[tauri::command]
+pub fn server_stats_stop(state: State<'_, AppState>, id: u64) {
+    state.monitor.forget(id);
 }
 
 #[tauri::command]

@@ -63,6 +63,10 @@ pub enum SshError {
     #[error("{0} is not a regular file")]
     NotAFile(String),
 
+    /// A file server other than SFTP refused an operation (ADR-031).
+    #[error("{0}")]
+    Remote(String),
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }

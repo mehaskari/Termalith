@@ -9,11 +9,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use credential_store::{CredentialRef, SecretStore};
+use protocol_ftp::{FtpClient, FtpConfig, FtpError};
 use protocol_ssh::{
     Auth, ConnectOptions, KbdInteractive, KnownHostsStore, SshError, SshSession, Target,
 };
 use zeroize::Zeroizing;
 
+use crate::remote_files::ftp_error;
 use crate::sessions::{
     AuthMethod, MAX_JUMP_DEPTH, SessionId, SessionInput, SessionProtocol, SessionStore,
 };
@@ -105,6 +107,65 @@ impl Connector {
                 })
             }
         }
+    }
+
+    /// Logs in to a saved FTP session. Like SSH, a typed password is saved
+    /// only after a successful login.
+    pub async fn connect_ftp(
+        &self,
+        id: &SessionId,
+        secret: PasswordInput,
+    ) -> Result<(FtpClient, String), AppError> {
+        let rec = self.sessions.get(id)?;
+        if rec.input.protocol != SessionProtocol::Ftp {
+            return Err(AppError::invalid("session", "not an FTP session"));
+        }
+        // The proxy setting promises that connections go through it.
+        if self.proxy().await?.is_some() {
+            return Err(AppError::invalid(
+                "proxy",
+                "FTP cannot use the proxy yet; turn it off in Settings to connect",
+            ));
+        }
+        let (typed, save) = match secret {
+            PasswordInput::Provided { secret, save } => (Some(secret), save),
+            PasswordInput::None => (None, false),
+        };
+        let used_saved = typed.is_none() && rec.credential.is_some();
+        let password = match typed.clone() {
+            Some(s) => Some(s),
+            None => match &rec.credential {
+                Some(c) => self.load_secret(c.clone()).await?,
+                None => None,
+            },
+        };
+        // An empty user name logs in anonymously.
+        if password.is_none() && !rec.input.username.is_empty() {
+            return Err(AppError::PasswordRequired);
+        }
+        let client = FtpClient::connect(FtpConfig {
+            host: rec.input.host.clone(),
+            port: rec.input.port,
+            username: rec.input.username.clone(),
+            password: password.unwrap_or_default(),
+        })
+        .await;
+        let client = match client {
+            Ok(c) => c,
+            Err(FtpError::AuthFailed) if used_saved => return Err(AppError::PasswordRequired),
+            Err(e) => return Err(ftp_error(e).into()),
+        };
+        if save && let Some(secret) = typed {
+            let cred = match &rec.credential {
+                Some(c) => c.clone(),
+                None => CredentialRef::generate()?,
+            };
+            self.store_secret(cred.clone(), secret).await?;
+            if rec.credential.is_none() {
+                self.sessions.set_credential(id, Some(&cred))?;
+            }
+        }
+        Ok((client, rec.input.name))
     }
 
     async fn connect_saved(

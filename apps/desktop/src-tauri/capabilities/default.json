@@ -30,6 +30,7 @@
     "allow-net-wake",
     "allow-ssh-open",
     "allow-ssh-files-open",
+    "allow-ftp-files-open",
     "allow-desktop-clients",
     "allow-desktop-open",
     "allow-desktop-list",

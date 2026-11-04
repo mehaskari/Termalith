@@ -99,6 +99,7 @@ seed({ name: "core switch", host: "10.0.0.254", port: 23, username: "", auth: { 
 seed({ name: "edge-fw", host: "10.0.0.1", port: 22, username: "admin", auth: { kind: "password" }, folder: "Network / Firewalls" });
 seed({ name: "replica-2", host: "10.0.0.12", port: 22, username: "postgres", auth: { kind: "agent" }, folder: "Production / DB" });
 seed({ name: "backups", host: "10.0.1.30", port: 22, username: "admin", auth: { kind: "password" }, folder: null, filesOnly: true });
+seed({ name: "public mirror", host: "ftp.example.com", port: 21, username: "", auth: { kind: "password" }, folder: null, protocol: "ftp" });
 seed({ name: "lab vnc", host: "192.168.1.40", port: 5900, username: "", auth: { kind: "password" }, folder: null, protocol: "vnc" });
 
 const mockFolders = new Set<string>(["Lab/Switches"]);
@@ -204,11 +205,12 @@ mockIPC(
         return `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMockMockMock ${a.name}`;
       case "key_install":
         return { added: !installedKeys.has(a.name as string) && !!installedKeys.add(a.name as string), path: "/home/deploy/.ssh/authorized_keys" };
+      case "ftp_files_open":
       case "ssh_files_open": {
         const req = a.request as { sessionId?: string; password?: string };
         const s = req.sessionId ? sessions.get(req.sessionId) : undefined;
         if (!s) throw { code: "not_found", message: "not found" };
-        if (s.auth.kind === "password" && !s.hasSavedSecret && req.password !== "secret")
+        if (s.auth.kind === "password" && !s.hasSavedSecret && s.username && req.password !== "secret")
           throw { code: req.password ? "auth_failed" : "password_required", message: "a password is required" };
         return { id: nextTerm++, label: s.name };
       }

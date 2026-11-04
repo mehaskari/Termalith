@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **FTP sessions:** browse, transfer, edit, rename and delete files on FTP
+  servers in the same file browser. FTP is not encrypted, and the session
+  dialog says so.
 - **Server monitor:** an optional bar under SSH terminals shows CPU, load,
   memory, disk and network for Linux servers.
 - **Files-only sessions:** an SSH session can open straight as a file

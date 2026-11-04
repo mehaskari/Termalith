@@ -361,6 +361,7 @@ button.icon.starred .ic {
 }
 .proto-ssh,
 .proto-sftp,
+.proto-ftp,
 .proto-files {
   --c: var(--p-ssh);
 }

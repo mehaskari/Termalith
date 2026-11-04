@@ -95,6 +95,7 @@ pub fn run() {
             nettools::net_wake,
             ssh::ssh_open,
             ssh::ssh_files_open,
+            ssh::ftp_files_open,
             desktop::desktop_clients,
             desktop::desktop_open,
             desktop::desktop_list,

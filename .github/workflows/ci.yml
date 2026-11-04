@@ -169,6 +169,18 @@ jobs:
       # real xrdp (certificate read, pinned, wrong pin refused; ADR-027),
       # and TigerVNC's viewer against Xvnc with the launch plan Termalith
       # uses. Localhost only, ephemeral runner.
+      - name: FTP against a real server
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          python3 -m venv "$RUNNER_TEMP/ftp"
+          "$RUNNER_TEMP/ftp/bin/pip" install -q pyftpdlib==2.2.0
+          root="$(mktemp -d)"
+          export TERMALITH_TEST_FTP_PASSWORD="$(openssl rand -hex 16)"
+          "$RUNNER_TEMP/ftp/bin/python" scripts/ftp-test-server.py "$root" 2121 &
+          for _ in $(seq 30); do nc -z 127.0.0.1 2121 && break; sleep 1; done
+          TERMALITH_TEST_FTP=127.0.0.1:2121 cargo test -p protocol-ftp --test real_server -- --nocapture
+
       - name: Remote desktop against real servers (Linux)
         if: runner.os == 'Linux'
         run: |

@@ -108,7 +108,7 @@ export function closeTerminal(id: TerminalId): Promise<void> {
 
 export type AuthMethod = { kind: "password" } | { kind: "keyFile"; path: string } | { kind: "agent" };
 
-export type SessionProtocol = "ssh" | "rdp" | "vnc" | "telnet";
+export type SessionProtocol = "ssh" | "rdp" | "vnc" | "telnet" | "ftp";
 
 export interface SessionInput {
   name: string;
@@ -720,6 +720,10 @@ export const telnetTerminal =
     invoke<TerminalId>("telnet_open", { sessionId, cols, rows, ...channels(onOutput, onExit) });
 
 /** Connects a saved session without a shell, for a file browser tab. */
+export function openFtpFiles(request: SshOpenRequest): Promise<{ id: TerminalId; label: string }> {
+  return invoke("ftp_files_open", { request });
+}
+
 export function openSshFiles(request: SshOpenRequest): Promise<{ id: TerminalId; label: string }> {
   return invoke("ssh_files_open", { request });
 }

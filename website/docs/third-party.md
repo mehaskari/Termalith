@@ -9,7 +9,7 @@ packages via pnpm) and covers what ships in the app on all platforms.
 
 | License | Crates |
 |---|---|
-| MIT License | 517 |
+| MIT License | 525 |
 | Unicode License v3 | 19 |
 | Apache License 2.0 | 13 |
 | BSD 3-Clause "New" or "Revised" License | 8 |
@@ -3466,6 +3466,39 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
+Used by: `tokio-rustls 0.26.6`
+
+```text
+Copyright (c) 2017 quininer kel
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
 Used by: `signal-hook-registry 1.4.8`
 
 ```text
@@ -6105,6 +6138,35 @@ SOFTWARE.
 
 ### MIT License
 
+Used by: `lazy-regex 3.6.2`
+
+```text
+MIT License
+
+Copyright (c) 2018 Canop
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
+
+### MIT License
+
 Used by: `ico 0.6.0`
 
 ```text
@@ -6870,7 +6932,7 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `termalith-desktop 0.5.0`, `app-core 0.5.0`, `credential-store 0.5.0`, `network-tools 0.5.0`, `protocol-ssh 0.5.0`, `protocol-telnet 0.5.0`, `remote-desktop 0.5.0`, `serial-console 0.5.0`, `terminal-pty 0.5.0`, `test-sshd 0.5.0`, `asn1-rs-impl 0.2.0`, `block2 0.6.2`, `brotli-decompressor 6.2.0`, `chrono 0.4.45`, `delegate 0.13.5`, `dispatch2 0.3.1`, `dlopen2 0.8.2`, `dlopen2_derive 0.4.3`, `dpi 0.1.2`, `ironrdp-bulk 0.2.0`, `ironrdp-rdpei 0.3.0`, `md5 0.8.1`, `objc2-app-kit 0.3.2`, `objc2-core-foundation 0.3.2`, `objc2-core-graphics 0.3.2`, `objc2-encode 4.1.0`, `objc2-exception-helper 0.1.1`, `objc2-foundation 0.3.2`, `objc2-quartz-core 0.3.2`, `objc2-web-kit 0.3.2`, `objc2 0.6.5`, `webview2-com-macros 0.8.1`, `webview2-com-sys 0.39.1`, `webview2-com 0.39.1`, `wide 0.7.33`, `windows-collections 0.3.2`, `windows-core 0.62.2`, `windows-future 0.3.2`, `windows-implement 0.60.2`, `windows-interface 0.59.3`, `windows-link 0.2.1`, `windows-numerics 0.3.1`, `windows-registry 0.6.1`, `windows-result 0.4.1`, `windows-strings 0.5.1`, `windows-sys 0.52.0`, `windows-sys 0.61.2`, `windows-targets 0.52.6`, `windows-threading 0.2.1`, `windows-version 0.1.7`, `windows 0.62.2`, `windows_x86_64_gnu 0.52.6`, `windows_x86_64_msvc 0.52.6`, `winscard 0.4.0`
+Used by: `termalith-desktop 0.5.0`, `app-core 0.5.0`, `credential-store 0.5.0`, `network-tools 0.5.0`, `protocol-ftp 0.5.0`, `protocol-ssh 0.5.0`, `protocol-telnet 0.5.0`, `remote-desktop 0.5.0`, `serial-console 0.5.0`, `terminal-pty 0.5.0`, `test-sshd 0.5.0`, `asn1-rs-impl 0.2.0`, `block2 0.6.2`, `brotli-decompressor 6.2.0`, `chrono 0.4.45`, `delegate 0.13.5`, `dispatch2 0.3.1`, `dlopen2 0.8.2`, `dlopen2_derive 0.4.3`, `dpi 0.1.2`, `ironrdp-bulk 0.2.0`, `ironrdp-rdpei 0.3.0`, `lazy-regex-proc_macros 3.6.2`, `md5 0.8.1`, `objc2-app-kit 0.3.2`, `objc2-core-foundation 0.3.2`, `objc2-core-graphics 0.3.2`, `objc2-encode 4.1.0`, `objc2-exception-helper 0.1.1`, `objc2-foundation 0.3.2`, `objc2-quartz-core 0.3.2`, `objc2-web-kit 0.3.2`, `objc2 0.6.5`, `suppaftp 12.2.1`, `webview2-com-macros 0.8.1`, `webview2-com-sys 0.39.1`, `webview2-com 0.39.1`, `wide 0.7.33`, `windows-collections 0.3.2`, `windows-core 0.62.2`, `windows-future 0.3.2`, `windows-implement 0.60.2`, `windows-interface 0.59.3`, `windows-link 0.2.1`, `windows-numerics 0.3.1`, `windows-registry 0.6.1`, `windows-result 0.4.1`, `windows-strings 0.5.1`, `windows-sys 0.52.0`, `windows-sys 0.61.2`, `windows-targets 0.52.6`, `windows-threading 0.2.1`, `windows-version 0.1.7`, `windows 0.62.2`, `windows_x86_64_gnu 0.52.6`, `windows_x86_64_msvc 0.52.6`, `winscard 0.4.0`
 
 ```text
 MIT License
@@ -7109,7 +7171,7 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `adler2 2.0.1`, `anyhow 1.0.104`, `async-channel 2.5.0`, `async-executor 1.14.1`, `async-io 2.6.0`, `async-lock 3.4.2`, `async-process 2.5.0`, `async-signal 0.2.14`, `async-task 4.7.1`, `async-trait 0.1.92`, `atomic-waker 1.1.2`, `blocking 1.7.0`, `camino 1.2.6`, `cargo-platform 0.1.9`, `cargo_metadata 0.19.2`, `concurrent-queue 2.5.0`, `curve25519-dalek-derive 0.1.1`, `displaydoc 0.2.7`, `dtoa 1.0.11`, `dyn-clone 1.0.20`, `endi 1.1.1`, `erased-serde 0.4.11`, `event-listener-strategy 0.5.4`, `event-listener 5.4.2`, `fastrand 2.5.0`, `futures-lite 2.6.1`, `group 0.14.0`, `ironrdp-blocking 0.12.0`, `ironrdp-connector 0.12.0`, `ironrdp-core 0.3.1`, `ironrdp-displaycontrol 0.10.0`, `ironrdp-dvc 0.10.0`, `ironrdp-egfx 0.5.0`, `ironrdp-error 0.2.1`, `ironrdp-graphics 0.11.0`, `ironrdp-input 0.9.0`, `ironrdp-pdu 0.11.0`, `ironrdp-session 0.13.0`, `ironrdp-svc 0.10.0`, `itoa 1.0.18`, `lazy_static 1.5.1`, `linux-raw-sys 0.12.1`, `minimal-lexical 0.2.1`, `once_cell 1.21.4`, `ordered-stream 0.2.0`, `parking 2.2.1`, `picky-asn1-der 0.5.7`, `picky-asn1-x509 0.15.6`, `picky-asn1 0.10.2`, `picky-krb 0.12.4`, `picky 7.0.0-rc.26`, `pin-project-lite 0.2.17`, `piper 0.2.5`, `polling 3.11.0`, `proc-macro-crate 1.3.1`, `proc-macro-crate 2.0.2`, `proc-macro-crate 3.5.0`, `proc-macro2 1.0.107`, `quote 1.0.47`, `rustix 1.1.6`, `rustversion 1.0.23`, `semver 1.0.28`, `serde-untagged 0.1.9`, `serde 1.0.229`, `serde_bytes 0.11.19`, `serde_core 1.0.229`, `serde_derive 1.0.229`, `serde_derive_internals 0.29.1`, `serde_json 1.0.154`, `serde_repr 0.1.21`, `servo_arc 0.4.3`, `sspi 0.23.0`, `syn 1.0.109`, `syn 2.0.119`, `syn 3.0.9`, `thiserror-impl 1.0.69`, `thiserror-impl 2.0.21`, `thiserror 1.0.69`, `thiserror 2.0.21`, `typeid 1.0.3`, `unicode-ident 1.0.27`, `utf8-zero 0.8.1`, `x11-dl 2.21.0`, `x11 2.21.0`, `zmij 1.0.23`, `zvariant_utils 4.2.0`
+Used by: `adler2 2.0.1`, `anyhow 1.0.104`, `async-channel 2.5.0`, `async-executor 1.14.1`, `async-io 2.6.0`, `async-lock 3.4.2`, `async-process 2.5.0`, `async-signal 0.2.14`, `async-task 4.7.1`, `async-trait 0.1.92`, `atomic-waker 1.1.2`, `blocking 1.7.0`, `camino 1.2.6`, `cargo-platform 0.1.9`, `cargo_metadata 0.19.2`, `concurrent-queue 2.5.0`, `curve25519-dalek-derive 0.1.1`, `displaydoc 0.2.7`, `dtoa 1.0.11`, `dyn-clone 1.0.20`, `endi 1.1.1`, `erased-serde 0.4.11`, `event-listener-strategy 0.5.4`, `event-listener 5.4.2`, `fastrand 2.5.0`, `futures-lite 2.6.1`, `group 0.14.0`, `ironrdp-blocking 0.12.0`, `ironrdp-cliprdr 0.9.0`, `ironrdp-connector 0.12.0`, `ironrdp-core 0.3.1`, `ironrdp-displaycontrol 0.10.0`, `ironrdp-dvc 0.10.0`, `ironrdp-egfx 0.5.0`, `ironrdp-error 0.2.1`, `ironrdp-graphics 0.11.0`, `ironrdp-input 0.9.0`, `ironrdp-pdu 0.11.0`, `ironrdp-session 0.13.0`, `ironrdp-svc 0.10.0`, `itoa 1.0.18`, `lazy_static 1.5.1`, `linux-raw-sys 0.12.1`, `minimal-lexical 0.2.1`, `once_cell 1.21.4`, `ordered-stream 0.2.0`, `parking 2.2.1`, `picky-asn1-der 0.5.7`, `picky-asn1-x509 0.15.6`, `picky-asn1 0.10.2`, `picky-krb 0.12.4`, `picky 7.0.0-rc.26`, `pin-project-internal 1.1.13`, `pin-project-lite 0.2.17`, `pin-project 1.1.13`, `piper 0.2.5`, `polling 3.11.0`, `proc-macro-crate 1.3.1`, `proc-macro-crate 2.0.2`, `proc-macro-crate 3.5.0`, `proc-macro2 1.0.107`, `quote 1.0.47`, `rustix 1.1.6`, `rustversion 1.0.23`, `semver 1.0.28`, `serde-untagged 0.1.9`, `serde 1.0.229`, `serde_bytes 0.11.19`, `serde_core 1.0.229`, `serde_derive 1.0.229`, `serde_derive_internals 0.29.1`, `serde_json 1.0.154`, `serde_repr 0.1.21`, `servo_arc 0.4.3`, `sspi 0.23.0`, `syn 1.0.109`, `syn 2.0.119`, `syn 3.0.9`, `thiserror-impl 1.0.69`, `thiserror-impl 2.0.21`, `thiserror 1.0.69`, `thiserror 2.0.21`, `typeid 1.0.3`, `unicode-ident 1.0.27`, `utf8-zero 0.8.1`, `x11-dl 2.21.0`, `x11 2.21.0`, `zmij 1.0.23`, `zvariant_utils 4.2.0`
 
 ```text
 Permission is hereby granted, free of charge, to any

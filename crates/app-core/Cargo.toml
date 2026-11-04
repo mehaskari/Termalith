@@ -9,6 +9,7 @@ rust-version.workspace = true
 
 [dependencies]
 credential-store = { path = "../credential-store" }
+protocol-ftp = { path = "../protocol-ftp" }
 getrandom = "0.3"
 protocol-ssh = { path = "../protocol-ssh" }
 protocol-telnet = { path = "../protocol-telnet" }

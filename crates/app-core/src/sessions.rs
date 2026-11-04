@@ -65,6 +65,8 @@ pub enum SessionProtocol {
     Vnc,
     /// Unencrypted Telnet (legacy network gear).
     Telnet,
+    /// File browser over FTP, without a terminal.
+    Ftp,
 }
 
 impl SessionProtocol {
@@ -74,6 +76,7 @@ impl SessionProtocol {
             SessionProtocol::Rdp => "rdp",
             SessionProtocol::Vnc => "vnc",
             SessionProtocol::Telnet => "telnet",
+            SessionProtocol::Ftp => "ftp",
         }
     }
 
@@ -83,6 +86,7 @@ impl SessionProtocol {
             "rdp" => SessionProtocol::Rdp,
             "vnc" => SessionProtocol::Vnc,
             "telnet" => SessionProtocol::Telnet,
+            "ftp" => SessionProtocol::Ftp,
             _ => return None,
         })
     }
@@ -235,6 +239,12 @@ impl SessionInput {
         }
         if self.x11_forward && self.protocol != SessionProtocol::Ssh {
             return Err(AppError::invalid("X11 forwarding", "only for SSH sessions"));
+        }
+        if self.protocol == SessionProtocol::Ftp && self.jump_via.is_some() {
+            return Err(AppError::invalid(
+                "jump host",
+                "FTP sessions connect directly",
+            ));
         }
         if self.files_only {
             if self.protocol != SessionProtocol::Ssh {
@@ -393,6 +403,36 @@ const MIGRATIONS: &[&str] = &[
     );",
     // v15: sessions that open as a file browser, without a terminal.
     "ALTER TABLE sessions ADD COLUMN files_only INTEGER NOT NULL DEFAULT 0;",
+    // v16: FTP sessions. Rebuilt for the protocol CHECK constraint, as in v11.
+    "CREATE TABLE sessions_v16 (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        host TEXT NOT NULL,
+        port INTEGER NOT NULL CHECK (port BETWEEN 1 AND 65535),
+        username TEXT NOT NULL,
+        auth_kind TEXT NOT NULL CHECK (auth_kind IN ('password', 'key_file', 'agent')),
+        key_path TEXT,
+        credential_ref TEXT,
+        folder TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        jump_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+        favorite INTEGER NOT NULL DEFAULT 0,
+        protocol TEXT NOT NULL DEFAULT 'ssh'
+            CHECK (protocol IN ('ssh', 'rdp', 'vnc', 'telnet', 'ftp')),
+        domain TEXT,
+        tags TEXT NOT NULL DEFAULT '[]',
+        forward_agent INTEGER NOT NULL DEFAULT 0,
+        x11_forward INTEGER NOT NULL DEFAULT 0,
+        startup_command TEXT,
+        files_only INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT INTO sessions_v16 SELECT id, name, host, port, username, auth_kind, key_path,
+        credential_ref, folder, created_at, updated_at, jump_session_id, favorite, protocol,
+        domain, tags, forward_agent, x11_forward, startup_command, files_only FROM sessions;
+    DROP TABLE sessions;
+    ALTER TABLE sessions_v16 RENAME TO sessions;
+    CREATE INDEX sessions_name ON sessions (name COLLATE NOCASE);",
 ];
 
 pub struct SessionStore {
@@ -986,6 +1026,21 @@ mod tests {
         assert!(c.validate().is_err(), "one line only");
         s.protocol = SessionProtocol::Vnc;
         assert!(s.validate().is_err());
+    }
+
+    #[test]
+    fn ftp_sessions_connect_directly() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let jump = store.create(&input()).unwrap();
+        let mut ftp = input();
+        ftp.protocol = SessionProtocol::Ftp;
+        let rec = store.create(&ftp).unwrap();
+        assert_eq!(
+            store.get(&rec.id).unwrap().input.protocol,
+            SessionProtocol::Ftp
+        );
+        ftp.jump_via = Some(jump.id);
+        assert!(store.create(&ftp).is_err());
     }
 
     #[test]

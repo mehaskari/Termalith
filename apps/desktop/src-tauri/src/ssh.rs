@@ -82,6 +82,22 @@ pub async fn ssh_files_open(
     })
 }
 
+/// Connects a saved FTP session; the id works like [`ssh_files_open`]'s.
+#[tauri::command]
+pub async fn ftp_files_open(
+    state: State<'_, AppState>,
+    request: SshOpenRequest,
+) -> Result<SshOpened, IpcError> {
+    let ConnectRequest::Saved { id, secret } = connect_request(&state, request)? else {
+        return Err(IpcError::internal("FTP sessions must be saved"));
+    };
+    let (client, label) = state.connector.connect_ftp(&id, secret).await?;
+    Ok(SshOpened {
+        id: state.hub.open_ftp(std::sync::Arc::new(client)),
+        label,
+    })
+}
+
 #[tauri::command]
 pub async fn ssh_open(
     state: State<'_, AppState>,

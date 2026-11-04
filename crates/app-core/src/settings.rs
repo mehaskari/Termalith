@@ -98,6 +98,9 @@ pub struct Settings {
     pub check_updates: bool,
     /// Show RDP sessions inside Termalith (experimental, ADR-030).
     pub embedded_rdp: bool,
+    /// Show the server monitor bar under SSH terminals (runs a read-only
+    /// command on the server every few seconds).
+    pub server_monitor: bool,
 }
 
 impl Default for Settings {
@@ -118,6 +121,7 @@ impl Default for Settings {
             proxy: None,
             check_updates: false,
             embedded_rdp: false,
+            server_monitor: false,
         }
     }
 }

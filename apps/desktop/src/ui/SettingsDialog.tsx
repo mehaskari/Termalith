@@ -214,6 +214,10 @@ export function SettingsDialog({ initial, shells, onSave, onCancel }: Props) {
           <input type="checkbox" checked={s.embeddedRdp} onChange={(e) => set({ embeddedRdp: e.target.checked })} />
           Show RDP sessions inside Termalith (experimental; otherwise the installed client opens)
         </label>
+        <label className="checkbox span-2">
+          <input type="checkbox" checked={s.serverMonitor} onChange={(e) => set({ serverMonitor: e.target.checked })} />
+          Show a server monitor under SSH terminals (Linux servers; runs a read-only command on the server every 3 seconds)
+        </label>
         {shells.length > 1 && (
           <label className="span-2">
             Shell for new local terminals

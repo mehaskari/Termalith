@@ -56,6 +56,10 @@ updates** (in About, or at startup if you turn it on in Settings) asks
 GitHub's public releases list for the newest version and only shows a link;
 it downloads and installs nothing.
 
+The **server monitor** is off by default. When you turn it on in Settings,
+the active SSH tab runs one fixed, read-only command on that server every
+3 seconds. It reads `/proc` and runs `df`, and the values stay in the app.
+
 ## The app itself
 
 - The user interface cannot run arbitrary commands: every operation is a

@@ -121,6 +121,8 @@ pub fn run() {
             sessions::proxy_password_status,
             sessions::proxy_password_set,
             sessions::update_check,
+            terminal::server_stats,
+            terminal::server_stats_stop,
             sessions::sessions_list,
             sessions::session_create,
             sessions::session_update,

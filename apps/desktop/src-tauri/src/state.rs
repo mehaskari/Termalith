@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use app_core::{
     AuthPromptBroker, CertificateCheck, Connector, DesktopHub, DroppedFiles, PromptBroker,
-    SessionStore, TerminalHub, TerminalLogs, Transfers, Tunnels,
+    ServerMonitor, SessionStore, TerminalHub, TerminalLogs, Transfers, Tunnels,
 };
 use credential_store::{MemorySecretStore, NativeSecretStore, SecretStore};
 use protocol_ssh::FileKnownHosts;
@@ -36,6 +36,7 @@ pub struct AppState {
     pub agent_available: bool,
     pub desktops: Arc<DesktopHub>,
     pub logs: Arc<TerminalLogs>,
+    pub monitor: Arc<ServerMonitor>,
 }
 
 /// The user's SSH agent: `SSH_AUTH_SOCK` on Unix (set for GUI apps by
@@ -148,6 +149,7 @@ impl AppState {
             agent_available,
             desktops,
             logs: Arc::new(TerminalLogs::new(logs_dir)),
+            monitor: Arc::new(ServerMonitor::default()),
         })
     }
 }

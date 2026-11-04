@@ -1161,6 +1161,16 @@ button.icon.starred {
   border-color: var(--accent);
 }
 
+.server-monitor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 3px 10px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
 .broadcast-banner {
   padding: 4px 10px;
   background: var(--danger);

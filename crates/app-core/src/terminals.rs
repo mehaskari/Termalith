@@ -15,7 +15,7 @@ use terminal_pty::{
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
-use crate::AppError;
+use crate::{AppError, RemoteFiles};
 
 /// SSH output stops being read while this many bytes are unacknowledged
 /// (same window as local terminals).
@@ -533,6 +533,11 @@ impl TerminalHub {
         let client = Arc::new(conn.session.sftp().await?);
         *slot = Some(Arc::clone(&client));
         Ok(client)
+    }
+
+    /// File access on the connection behind terminal `id`.
+    pub async fn files(&self, id: u64) -> Result<RemoteFiles, AppError> {
+        Ok(self.sftp(id).await?.into())
     }
 
     pub fn ack(&self, id: u64, bytes: usize) -> Result<(), AppError> {

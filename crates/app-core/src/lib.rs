@@ -16,6 +16,7 @@ mod logs;
 mod mobaxterm;
 mod monitor;
 mod rdp_certs;
+mod remote_files;
 mod sessions;
 mod settings;
 mod snippets;
@@ -44,6 +45,7 @@ pub use logs::{AnsiStripper, LogInfo, LogTap, TerminalLogs, tapped};
 pub use mobaxterm::{import_mobaxterm, is_mobaxterm, parse_mobaxterm};
 pub use monitor::{ServerMonitor, ServerStats};
 pub use rdp_certs::{CertificateCheck, RDP_CERT_ALGORITHM};
+pub use remote_files::RemoteFiles;
 pub use sessions::{
     AuthMethod, SessionId, SessionInput, SessionProtocol, SessionRecord, SessionStore,
 };

@@ -39,8 +39,8 @@ impl From<RemoteEntry> for EntryDto {
 
 #[tauri::command]
 pub async fn sftp_home(state: State<'_, AppState>, terminal_id: u64) -> Result<String, IpcError> {
-    let sftp = state.hub.sftp(terminal_id).await?;
-    Ok(sftp.canonicalize(".").await?)
+    let files = state.hub.files(terminal_id).await?;
+    Ok(files.home().await?)
 }
 
 #[tauri::command]
@@ -49,8 +49,8 @@ pub async fn sftp_list(
     terminal_id: u64,
     path: String,
 ) -> Result<Vec<EntryDto>, IpcError> {
-    let sftp = state.hub.sftp(terminal_id).await?;
-    Ok(sftp
+    let files = state.hub.files(terminal_id).await?;
+    Ok(files
         .list(&path)
         .await?
         .into_iter()
@@ -76,9 +76,9 @@ pub async fn sftp_download(
     connection: Option<String>,
     on_event: Channel<TransferEvent>,
 ) -> Result<TransferStarted, IpcError> {
-    let sftp = state.hub.sftp(terminal_id).await?;
+    let files = state.hub.files(terminal_id).await?;
     let id = state.transfers.start_download(
-        sftp,
+        files,
         app_core::Download {
             remote_dir: &dir,
             name: &name,
@@ -105,12 +105,12 @@ pub async fn sftp_upload(
     connection: Option<String>,
     on_event: Channel<TransferEvent>,
 ) -> Result<u64, IpcError> {
-    let sftp = state.hub.sftp(terminal_id).await?;
+    let files = state.hub.files(terminal_id).await?;
     let local = state.dropped.take(token)?;
     let connection = connection.unwrap_or_default();
     Ok(state
         .transfers
-        .start_upload(sftp, local, &dir, &connection, move |e| {
+        .start_upload(files, local, &dir, &connection, move |e| {
             let _ = on_event.send(e);
         })?)
 }
@@ -140,8 +140,8 @@ pub async fn sftp_read_text(
     name: String,
 ) -> Result<RemoteText, IpcError> {
     let path = remote_join(&dir, safe_file_name(&name)?);
-    let sftp = state.hub.sftp(terminal_id).await?;
-    let (bytes, stat) = sftp.read_file(&path, MAX_EDIT_BYTES).await?;
+    let files = state.hub.files(terminal_id).await?;
+    let (bytes, stat) = files.read_file(&path, MAX_EDIT_BYTES).await?;
     Ok(RemoteText {
         content: decode_text(bytes)?,
         path,
@@ -170,13 +170,13 @@ pub async fn sftp_save_text(
         .into());
     }
     let path = remote_join(&dir, safe_file_name(&name)?);
-    let sftp = state.hub.sftp(terminal_id).await?;
+    let files = state.hub.files(terminal_id).await?;
     let expected = protocol_ssh::RemoteStat {
         size: version.size,
         modified: version.modified,
         permissions: None,
     };
-    let stat = sftp
+    let stat = files
         .replace_file(&path, content.as_bytes(), &expected)
         .await?;
     Ok(EditVersion {
@@ -194,7 +194,12 @@ pub async fn sftp_mkdir(
     name: String,
 ) -> Result<(), IpcError> {
     let path = remote_join(&dir, safe_file_name(&name)?);
-    Ok(state.hub.sftp(terminal_id).await?.create_dir(&path).await?)
+    Ok(state
+        .hub
+        .files(terminal_id)
+        .await?
+        .create_dir(&path)
+        .await?)
 }
 
 /// Renames `from` to `to` inside `dir` (no moves between folders, never
@@ -211,7 +216,7 @@ pub async fn sftp_rename(
     let new = remote_join(&dir, safe_file_name(&to)?);
     Ok(state
         .hub
-        .sftp(terminal_id)
+        .files(terminal_id)
         .await?
         .rename(&old, &new)
         .await?)
@@ -226,7 +231,7 @@ pub async fn sftp_delete(
     name: String,
 ) -> Result<(), IpcError> {
     let path = remote_join(&dir, safe_file_name(&name)?);
-    Ok(state.hub.sftp(terminal_id).await?.delete(&path).await?)
+    Ok(state.hub.files(terminal_id).await?.delete(&path).await?)
 }
 
 /// Finished transfers, most recent first.

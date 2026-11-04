@@ -116,7 +116,7 @@ interface Tab {
   reconnect?: () => void;
   /** Extra panes beside the main terminal. */
   splits: SplitPane[];
-  direction: "row" | "column";
+  direction: "row" | "column" | "grid";
   /** Remote desktop tabs: the external client session (null while opening). */
   desktop?: DesktopInfo | null;
   desktopError?: string | null;
@@ -138,6 +138,9 @@ interface Tab {
 }
 
 const RECONNECT_DELAY_MS = 5000;
+
+/** Panes in a tab split as a grid, the first terminal included. */
+const GRID_PANES = 4;
 
 interface SplitPane {
   key: number;
@@ -293,9 +296,12 @@ export function App() {
 
   const splitTab = useCallback((tab: Tab, direction: Tab["direction"]) => {
     if (tab.terminalId === undefined) return;
-    const pane = { key: nextKey.current++, open: splitTerminal(tab.terminalId) };
+    const source = tab.terminalId;
+    // A grid fills up to four panes; a row or column adds one.
+    const added = direction === "grid" ? Math.max(0, GRID_PANES - 1 - tab.splits.length) : 1;
+    const panes = Array.from({ length: added }, () => ({ key: nextKey.current++, open: splitTerminal(source) }));
     setTabs((t) =>
-      t.map((x) => (x.key === tab.key ? { ...x, direction, splits: [...x.splits, pane] } : x)),
+      t.map((x) => (x.key === tab.key ? { ...x, direction, splits: [...x.splits, ...panes] } : x)),
     );
   }, []);
 
@@ -1089,6 +1095,15 @@ export function App() {
                       onClick={() => splitTab(t, "column")}
                     >
                       ⊟
+                    </button>
+                    <button
+                      type="button"
+                      title="Four panes"
+                      aria-label="Four panes"
+                      disabled={t.terminalId === undefined || t.ended || t.kind === "serial" || t.kind === "telnet"}
+                      onClick={() => splitTab(t, "grid")}
+                    >
+                      ⊞
                     </button>
                     {broadcast?.source === t.key ? (
                       <button type="button" className="danger" onClick={() => setBroadcast(null)}>

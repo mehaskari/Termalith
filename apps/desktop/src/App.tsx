@@ -487,6 +487,10 @@ export function App() {
         void runDesktop(key, s);
         return;
       }
+      if (s.filesOnly) {
+        openFilesTab(s);
+        return;
+      }
       connect({ sessionId: s.id }, s.name, {
         canSave: info?.secretsAvailable ?? false,
         keyAuth: s.auth.kind === "keyFile",
@@ -494,7 +498,7 @@ export function App() {
         startup: s.startupCommand,
       });
     },
-    [addTab, connect, info, patchTab, runDesktop, settings.embeddedRdp],
+    [addTab, connect, info, openFilesTab, patchTab, runDesktop, settings.embeddedRdp],
   );
 
   // Remote desktop status: poll while a client is running.

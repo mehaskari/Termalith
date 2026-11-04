@@ -277,6 +277,8 @@ struct ExportedSession {
     x11_forward: bool,
     #[serde(default)]
     startup_command: Option<String>,
+    #[serde(default)]
+    files_only: bool,
 }
 
 /// Serializes every session as versioned JSON. Never includes secrets.
@@ -307,6 +309,7 @@ pub fn export_sessions(store: &SessionStore) -> Result<String, AppError> {
                 forward_agent: s.input.forward_agent,
                 x11_forward: s.input.x11_forward,
                 startup_command: s.input.startup_command.clone(),
+                files_only: s.input.files_only,
             })
             .collect(),
     };
@@ -398,6 +401,7 @@ fn to_input(s: &ExportedSession) -> SessionInput {
         forward_agent: s.forward_agent,
         x11_forward: s.x11_forward,
         startup_command: s.startup_command.clone(),
+        files_only: s.files_only,
     }
 }
 
@@ -469,6 +473,7 @@ mod tests {
             forward_agent: false,
             x11_forward: false,
             startup_command: None,
+            files_only: false,
         }
     }
 
@@ -482,6 +487,9 @@ mod tests {
         let mut tagged = bastion.input.clone();
         tagged.tags = vec!["edge".into()];
         tagged.startup_command = Some("cd /srv".into());
+        let mut files = input("files");
+        files.files_only = true;
+        src.create(&files).unwrap();
         src.update(&bastion.id, &tagged).unwrap();
         let mut app = input("app");
         app.jump_via = Some(bastion.id.clone());
@@ -494,8 +502,12 @@ mod tests {
 
         let dst = SessionStore::open_in_memory().unwrap();
         let report = import_sessions(&dst, &json).unwrap();
-        assert_eq!(report.created.len(), 2);
+        assert_eq!(report.created.len(), 3);
         let all = dst.list().unwrap();
+        assert!(
+            all.iter()
+                .any(|s| s.input.name == "files" && s.input.files_only)
+        );
         let b = all.iter().find(|s| s.input.name == "bastion").unwrap();
         let a = all.iter().find(|s| s.input.name == "app").unwrap();
         assert!(b.favorite);
@@ -507,7 +519,7 @@ mod tests {
         // Importing again skips everything.
         let again = import_sessions(&dst, &json).unwrap();
         assert!(again.created.is_empty());
-        assert_eq!(again.skipped.len(), 2);
+        assert_eq!(again.skipped.len(), 3);
     }
 
     #[test]

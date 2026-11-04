@@ -238,7 +238,7 @@ export function Sidebar(p: Props) {
 
   const sessionMenu = (s: SessionRecord): MenuItem[] => [
     { label: "Connect", run: () => p.onConnect(s) },
-    ...((s.protocol ?? "ssh") === "ssh" ? [{ label: "Browse files (SFTP)", run: () => p.onOpenFiles(s) }] : []),
+    ...((s.protocol ?? "ssh") === "ssh" && !s.filesOnly ? [{ label: "Browse files (SFTP)", run: () => p.onOpenFiles(s) }] : []),
     "sep",
     { label: "Edit…", run: () => p.onEdit(s) },
     { label: "Duplicate", run: () => p.onDuplicate(s) },
@@ -334,7 +334,7 @@ export function Sidebar(p: Props) {
   };
 
   const sessionRow = (s: SessionRecord, inFavorites = false) => {
-    const protocol = s.protocol ?? "ssh";
+    const protocol = s.filesOnly ? "sftp" : (s.protocol ?? "ssh");
     const jump = s.jumpVia ? p.sessions.find((j) => j.id === s.jumpVia)?.name ?? "?" : null;
     const extras = [authLabel(s) && authLabel(s) !== protocol.toUpperCase() ? authLabel(s) : "", jump ? `via ${jump}` : "", s.forwardAgent ? "agent fwd" : "", s.x11Forward ? "X11" : ""].filter(Boolean);
     return (
@@ -743,7 +743,7 @@ export function Sidebar(p: Props) {
       )}
       {drag && (
         <div className="drag-ghost" style={{ left: drag.x + 12, top: drag.y + 8 }} aria-hidden="true">
-          {drag.item.kind === "folder" ? <Icon name="folder" size={13} /> : <ProtocolBadge protocol={drag.item.session.protocol ?? "ssh"} />}
+          {drag.item.kind === "folder" ? <Icon name="folder" size={13} /> : <ProtocolBadge protocol={drag.item.session.filesOnly ? "sftp" : (drag.item.session.protocol ?? "ssh")} />}
           {drag.label}
           <span className="drag-hint">
             {drag.target === null ? "" : drag.target ? `→ ${folderPath(drag.target).at(-1)}` : "→ top level"}

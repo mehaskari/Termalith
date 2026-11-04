@@ -209,6 +209,7 @@ export interface SessionFormState {
   forwardAgent: boolean;
   x11Forward: boolean;
   startupCommand: string;
+  filesOnly: boolean;
 }
 
 /** Switches protocol, moving the port along if it was the old default. */
@@ -233,6 +234,7 @@ export function emptyForm(): SessionFormState {
     forwardAgent: false,
     x11Forward: false,
     startupCommand: "",
+    filesOnly: false,
   };
 }
 
@@ -252,6 +254,7 @@ export function formFromSession(s: SessionInput): SessionFormState {
     forwardAgent: s.forwardAgent ?? false,
     x11Forward: s.x11Forward ?? false,
     startupCommand: s.startupCommand ?? "",
+    filesOnly: s.filesOnly ?? false,
   };
 }
 
@@ -293,6 +296,7 @@ export function parseForm(
     return { ok: false, field: "host", message: "Not a valid host name or address" };
   // Everything but SSH: optional user name, no keys, no SSH-only options.
   const desktop = f.protocol !== "ssh";
+  const shell = !desktop && !f.filesOnly;
   if (!username && !desktop) return { ok: false, field: "username", message: "Username is required" };
   if (/\s/.test(username)) return { ok: false, field: "username", message: "No spaces allowed" };
   if (/^[-/]/.test(username)) return { ok: false, field: "username", message: "Must not start with - or /" };
@@ -335,9 +339,10 @@ export function parseForm(
       protocol: f.protocol,
       domain: domain || null,
       tags,
-      forwardAgent: !desktop && f.forwardAgent,
-      x11Forward: !desktop && f.x11Forward,
-      startupCommand: (!desktop && f.startupCommand.trim()) || null,
+      forwardAgent: shell && f.forwardAgent,
+      x11Forward: shell && f.x11Forward,
+      startupCommand: (shell && f.startupCommand.trim()) || null,
+      filesOnly: !desktop && f.filesOnly,
     },
   };
 }

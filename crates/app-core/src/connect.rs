@@ -88,6 +88,7 @@ impl Connector {
                     forward_agent: false,
                     x11_forward: false,
                     startup_command: None,
+                    files_only: false,
                 };
                 input.validate()?;
                 let typed = match secret {

@@ -45,6 +45,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
   const invalid = (field: string) => (error?.field === field ? true : undefined);
   const [clients, setClients] = useState<DesktopClients | null>(null);
   const ssh = form.protocol === "ssh";
+  const shell = ssh && !form.filesOnly;
   const desktop = form.protocol === "rdp" || form.protocol === "vnc";
   useEffect(() => {
     if (desktop && !clients) desktopClients().then(setClients, () => {});
@@ -207,6 +208,12 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
           </label>
         )}
         {mode !== "quick" && ssh && (
+          <label className="checkbox span-2">
+            <input type="checkbox" checked={form.filesOnly} onChange={(e) => set({ filesOnly: e.target.checked })} />
+            Files only (SFTP, no terminal)
+          </label>
+        )}
+        {mode !== "quick" && shell && (
           <label className="span-2">
             Run after login
             <input
@@ -219,7 +226,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             />
           </label>
         )}
-        {mode !== "quick" && ssh && (
+        {mode !== "quick" && shell && (
           <label className="checkbox span-2">
             <input
               type="checkbox"
@@ -229,19 +236,19 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             Forward my SSH agent to this host
           </label>
         )}
-        {mode !== "quick" && ssh && (
+        {mode !== "quick" && shell && (
           <label className="checkbox span-2">
             <input type="checkbox" checked={form.x11Forward} onChange={(e) => set({ x11Forward: e.target.checked })} />
             Forward X11 (show the server&apos;s graphical programs here)
           </label>
         )}
-        {mode !== "quick" && ssh && form.x11Forward && (
+        {mode !== "quick" && shell && form.x11Forward && (
           <p className="hint span-2">
             Needs a local X server: XQuartz on macOS, VcXsrv or Xming on Windows. Programs on the server can
             then open windows on your screen.
           </p>
         )}
-        {mode !== "quick" && ssh && form.forwardAgent && (
+        {mode !== "quick" && shell && form.forwardAgent && (
           <p className="hint span-2">
             Only for hosts you trust: while connected, anyone with root access on the server can use your
             agent&apos;s keys (they cannot copy them). Not applied to the jump host.

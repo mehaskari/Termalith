@@ -1,28 +1,31 @@
 //! Against a real FTP server (`scripts/ftp-test-server.py` in CI). Skipped
-//! unless TERMALITH_TEST_FTP is set to `host:port`.
+//! unless TERMALITH_TEST_FTP is set to `host:port`, with the login in
+//! TERMALITH_TEST_FTP_PASSWORD (generated per run).
 
 use protocol_ftp::{EntryKind, FtpClient, FtpConfig, FtpError};
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
 
-fn config(password: &str) -> Option<FtpConfig> {
+/// `suffix` spoils the password for the rejected-login check.
+fn config(suffix: &str) -> Option<FtpConfig> {
     let addr = std::env::var("TERMALITH_TEST_FTP").ok()?;
+    let password = std::env::var("TERMALITH_TEST_FTP_PASSWORD").ok()?;
     let (host, port) = addr.rsplit_once(':')?;
     Some(FtpConfig {
         host: host.to_owned(),
         port: port.parse().ok()?,
         username: "termalith".into(),
-        password: Zeroizing::new(password.to_owned()),
+        password: Zeroizing::new(format!("{password}{suffix}")),
     })
 }
 
 #[tokio::test]
 async fn files_on_a_real_server() {
-    let Some(good) = config("ftp-test") else {
+    let Some(good) = config("") else {
         eprintln!("TERMALITH_TEST_FTP not set; skipped");
         return;
     };
-    let wrong = FtpClient::connect(config("wrong").unwrap()).await;
+    let wrong = FtpClient::connect(config("-wrong").unwrap()).await;
     assert!(matches!(wrong, Err(FtpError::AuthFailed)));
 
     let ftp = FtpClient::connect(good).await.unwrap();

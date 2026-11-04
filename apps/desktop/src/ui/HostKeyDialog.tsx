@@ -1,4 +1,4 @@
-import { type HostKeyAnswer, type HostKeyPrompt, RDP_CERT_ALGORITHM } from "../terminal/api";
+import { FTPS_CERT_ALGORITHM, type HostKeyAnswer, type HostKeyPrompt, RDP_CERT_ALGORITHM } from "../terminal/api";
 import { Dialog } from "./Dialog";
 
 interface Props {
@@ -12,8 +12,10 @@ interface Props {
  * certificates), shown with the one trusted before.
  */
 export function HostKeyDialog({ prompt, onAnswer }: Props) {
-  const rdp = prompt.algorithm === RDP_CERT_ALGORITHM;
-  const defaultPort = rdp ? 3389 : 22;
+  const ftps = prompt.algorithm === FTPS_CERT_ALGORITHM;
+  // TLS certificates, as opposed to SSH host keys.
+  const rdp = ftps || prompt.algorithm === RDP_CERT_ALGORITHM;
+  const defaultPort = ftps ? 21 : rdp ? 3389 : 22;
   const where = prompt.port === defaultPort ? prompt.host : `${prompt.host}:${prompt.port}`;
   const changed = rdp && prompt.previousFingerprint !== undefined;
   const title = changed ? "Server certificate changed" : rdp ? "Unknown server certificate" : "Unknown host key";
@@ -65,7 +67,12 @@ export function HostKeyDialog({ prompt, onAnswer }: Props) {
         )}
       </dl>
       <p className="hint">
-        {rdp ? (
+        {ftps ? (
+          <>
+            Compare the fingerprint with the server's certificate before trusting it, for example with{" "}
+            <code>openssl x509 -noout -fingerprint -sha256 -in server.crt</code> on the server.
+          </>
+        ) : rdp ? (
           <>
             Compare the fingerprint with the server's certificate before trusting it. On the Windows
             server, PowerShell prints it (without colons) with{" "}

@@ -14,6 +14,7 @@ use crate::{AppError, HostKeyPrompt, PromptBroker};
 
 /// Shown as the key type in the dialog.
 pub const RDP_CERT_ALGORITHM: &str = "RDP TLS certificate (SHA-256)";
+pub const FTPS_CERT_ALGORITHM: &str = "FTPS TLS certificate (SHA-256)";
 
 impl SessionStore {
     /// The trusted certificate for `host:port`, if any.
@@ -62,6 +63,18 @@ impl CertificateCheck {
     /// now. A different certificate than the trusted one is shown with the
     /// old fingerprint (servers renew self-signed certificates).
     pub async fn verify(&self, host: &str, port: u16, fp: CertFingerprint) -> Result<(), AppError> {
+        self.verify_as(RDP_CERT_ALGORITHM, host, port, fp).await
+    }
+
+    /// [`Self::verify`] with the dialog's key type. Trust is per host and
+    /// port, so FTPS shares the store with RDP.
+    pub async fn verify_as(
+        &self,
+        algorithm: &str,
+        host: &str,
+        port: u16,
+        fp: CertFingerprint,
+    ) -> Result<(), AppError> {
         let host = host.trim();
         let known = self.store.rdp_certificate(host, port)?;
         if known == Some(fp) {
@@ -73,7 +86,7 @@ impl CertificateCheck {
                 request_id: 0,
                 host: host.to_owned(),
                 port,
-                algorithm: RDP_CERT_ALGORITHM.to_owned(),
+                algorithm: algorithm.to_owned(),
                 fingerprint: fp.display(),
                 previous_fingerprint: known.map(|k| k.display()),
             })

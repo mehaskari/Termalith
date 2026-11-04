@@ -28,7 +28,9 @@ pub(crate) fn ftp_error(e: FtpError) -> SshError {
         FtpError::Io(e) => SshError::Io(e),
         // Retried by transfers, like a dropped SSH connection.
         e @ (FtpError::Timeout | FtpError::Protocol(_)) => SshError::Protocol(e.to_string()),
-        e @ (FtpError::Refused(_) | FtpError::InvalidPath) => SshError::Remote(e.to_string()),
+        e @ (FtpError::Refused(_) | FtpError::InvalidPath | FtpError::Tls(_)) => {
+            SshError::Remote(e.to_string())
+        }
     }
 }
 

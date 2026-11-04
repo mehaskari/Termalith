@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-- **FTP sessions:** browse, transfer, edit, rename and delete files on FTP
-  servers in the same file browser. FTP is not encrypted, and the session
-  dialog says so.
+- **FTP and FTPS sessions:** browse, transfer, edit, rename and delete files
+  in the same file browser. FTPS checks the server's certificate like RDP;
+  plain FTP is not encrypted, and the session dialog says so.
 - **Server monitor:** an optional bar under SSH terminals shows CPU, load,
   memory, disk and network for Linux servers.
 - **Files-only sessions:** an SSH session can open straight as a file

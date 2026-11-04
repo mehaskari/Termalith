@@ -44,7 +44,7 @@ pub use keys::{KeyInstall, install_public_key};
 pub use logs::{AnsiStripper, LogInfo, LogTap, TerminalLogs, tapped};
 pub use mobaxterm::{import_mobaxterm, is_mobaxterm, parse_mobaxterm};
 pub use monitor::{ServerMonitor, ServerStats};
-pub use rdp_certs::{CertificateCheck, RDP_CERT_ALGORITHM};
+pub use rdp_certs::{CertificateCheck, FTPS_CERT_ALGORITHM, RDP_CERT_ALGORITHM};
 pub use remote_files::RemoteFiles;
 pub use sessions::{
     AuthMethod, SessionId, SessionInput, SessionProtocol, SessionRecord, SessionStore,

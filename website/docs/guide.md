@@ -179,10 +179,13 @@ works on Linux servers; on others the bar says so.
 - **Files** on an SSH tab opens the SFTP panel; **⇅** on a session opens a
   file-browser tab without a shell (**Open terminal** adds a shell on the
   same connection).
-- An **FTP** session (Type in the session dialog) opens the same file
-  browser. FTP is not encrypted, so prefer SFTP where the server offers it;
-  leave the username empty for anonymous login. FTP connects directly: no
-  jump host, and it refuses to connect while a proxy is set in Settings.
+- An **FTPS** or **FTP** session (Type in the session dialog) opens the same
+  file browser. FTPS uses explicit TLS: you check the server's certificate
+  once, as for RDP, and the connection fails if the certificate changes
+  unnoticed or the server offers no TLS. Plain FTP is not encrypted, so
+  prefer SFTP or FTPS. Leave the username empty for anonymous login. Both
+  connect directly: no jump host, and they refuse to connect while a proxy
+  is set in Settings.
 - For a server you only use for files, turn on **Files only (SFTP, no
   terminal)** in the session's settings: connecting then opens the file
   browser directly.

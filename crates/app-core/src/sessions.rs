@@ -67,9 +67,15 @@ pub enum SessionProtocol {
     Telnet,
     /// File browser over FTP, without a terminal.
     Ftp,
+    /// The same over explicit TLS, with the certificate pinned.
+    Ftps,
 }
 
 impl SessionProtocol {
+    pub fn is_ftp(self) -> bool {
+        matches!(self, SessionProtocol::Ftp | SessionProtocol::Ftps)
+    }
+
     fn column(self) -> &'static str {
         match self {
             SessionProtocol::Ssh => "ssh",
@@ -77,6 +83,7 @@ impl SessionProtocol {
             SessionProtocol::Vnc => "vnc",
             SessionProtocol::Telnet => "telnet",
             SessionProtocol::Ftp => "ftp",
+            SessionProtocol::Ftps => "ftps",
         }
     }
 
@@ -87,6 +94,7 @@ impl SessionProtocol {
             "vnc" => SessionProtocol::Vnc,
             "telnet" => SessionProtocol::Telnet,
             "ftp" => SessionProtocol::Ftp,
+            "ftps" => SessionProtocol::Ftps,
             _ => return None,
         })
     }
@@ -240,7 +248,7 @@ impl SessionInput {
         if self.x11_forward && self.protocol != SessionProtocol::Ssh {
             return Err(AppError::invalid("X11 forwarding", "only for SSH sessions"));
         }
-        if self.protocol == SessionProtocol::Ftp && self.jump_via.is_some() {
+        if self.protocol.is_ftp() && self.jump_via.is_some() {
             return Err(AppError::invalid(
                 "jump host",
                 "FTP sessions connect directly",
@@ -432,6 +440,36 @@ const MIGRATIONS: &[&str] = &[
         domain, tags, forward_agent, x11_forward, startup_command, files_only FROM sessions;
     DROP TABLE sessions;
     ALTER TABLE sessions_v16 RENAME TO sessions;
+    CREATE INDEX sessions_name ON sessions (name COLLATE NOCASE);",
+    // v17: FTPS sessions. Rebuilt for the protocol CHECK constraint, as in v11.
+    "CREATE TABLE sessions_v17 (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        host TEXT NOT NULL,
+        port INTEGER NOT NULL CHECK (port BETWEEN 1 AND 65535),
+        username TEXT NOT NULL,
+        auth_kind TEXT NOT NULL CHECK (auth_kind IN ('password', 'key_file', 'agent')),
+        key_path TEXT,
+        credential_ref TEXT,
+        folder TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        jump_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+        favorite INTEGER NOT NULL DEFAULT 0,
+        protocol TEXT NOT NULL DEFAULT 'ssh'
+            CHECK (protocol IN ('ssh', 'rdp', 'vnc', 'telnet', 'ftp', 'ftps')),
+        domain TEXT,
+        tags TEXT NOT NULL DEFAULT '[]',
+        forward_agent INTEGER NOT NULL DEFAULT 0,
+        x11_forward INTEGER NOT NULL DEFAULT 0,
+        startup_command TEXT,
+        files_only INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT INTO sessions_v17 SELECT id, name, host, port, username, auth_kind, key_path,
+        credential_ref, folder, created_at, updated_at, jump_session_id, favorite, protocol,
+        domain, tags, forward_agent, x11_forward, startup_command, files_only FROM sessions;
+    DROP TABLE sessions;
+    ALTER TABLE sessions_v17 RENAME TO sessions;
     CREATE INDEX sessions_name ON sessions (name COLLATE NOCASE);",
 ];
 

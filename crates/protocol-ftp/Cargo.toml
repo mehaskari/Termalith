@@ -10,6 +10,7 @@ rust-version.workspace = true
 [dependencies]
 # no-log: suppaftp's debug log would otherwise include commands.
 suppaftp = { version = "12.2.1", default-features = false, features = ["tokio-rustls-aws-lc-rs", "no-log"] }
+sha2 = "0.10"
 thiserror.workspace = true
 tokio = { version = "1.54", features = ["fs", "io-util", "macros", "net", "rt", "sync", "time"] }
 tokio-util = { version = "0.7.20", default-features = false }

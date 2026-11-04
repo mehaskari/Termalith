@@ -172,6 +172,9 @@ twice).
 - **Files** on an SSH tab opens the SFTP panel; **⇅** on a session opens a
   file-browser tab without a shell (**Open terminal** adds a shell on the
   same connection).
+- For a server you only use for files, turn on **Files only (SFTP, no
+  terminal)** in the session's settings: connecting then opens the file
+  browser directly.
 - **Download** saves to your Downloads folder; **upload** by dropping files
   or folders onto the window (the Files panel is outlined while you drag).
   A folder is uploaded with everything in it as one transfer; symbolic

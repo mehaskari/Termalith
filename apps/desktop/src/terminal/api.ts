@@ -130,6 +130,8 @@ export interface SessionInput {
   x11Forward?: boolean;
   /** Typed into the shell once after login (SSH only). */
   startupCommand?: string | null;
+  /** Opens as a file browser (SFTP) without a terminal. */
+  filesOnly?: boolean;
 }
 
 export interface SessionRecord extends SessionInput {

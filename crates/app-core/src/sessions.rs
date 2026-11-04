@@ -120,6 +120,9 @@ pub struct SessionInput {
     /// Typed into the shell once after login (SSH only).
     #[serde(default)]
     pub startup_command: Option<String>,
+    /// Opens as a file browser over SFTP, without a terminal (SSH only).
+    #[serde(default)]
+    pub files_only: bool,
 }
 
 pub const MAX_TAGS: usize = 20;
@@ -232,6 +235,17 @@ impl SessionInput {
         }
         if self.x11_forward && self.protocol != SessionProtocol::Ssh {
             return Err(AppError::invalid("X11 forwarding", "only for SSH sessions"));
+        }
+        if self.files_only {
+            if self.protocol != SessionProtocol::Ssh {
+                return Err(AppError::invalid("files only", "only for SSH sessions"));
+            }
+            if self.forward_agent || self.x11_forward || self.startup_command.is_some() {
+                return Err(AppError::invalid(
+                    "files only",
+                    "has no shell, so no forwarding or startup command",
+                ));
+            }
         }
         match (&self.domain, self.protocol) {
             (None, _) => {}
@@ -377,6 +391,8 @@ const MIGRATIONS: &[&str] = &[
         trusted_at INTEGER NOT NULL,
         PRIMARY KEY (host, port)
     );",
+    // v15: sessions that open as a file browser, without a terminal.
+    "ALTER TABLE sessions ADD COLUMN files_only INTEGER NOT NULL DEFAULT 0;",
 ];
 
 pub struct SessionStore {
@@ -447,7 +463,7 @@ impl SessionStore {
     pub fn list(&self) -> Result<Vec<SessionRecord>, AppError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only
              FROM sessions ORDER BY folder IS NOT NULL, folder COLLATE NOCASE, name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], row_to_record)?;
@@ -458,7 +474,7 @@ impl SessionStore {
     pub fn get(&self, id: &SessionId) -> Result<SessionRecord, AppError> {
         let conn = self.conn();
         conn.query_row(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only
              FROM sessions WHERE id = ?1",
             [id.as_str()],
             row_to_record,
@@ -474,8 +490,8 @@ impl SessionStore {
         let (kind, key) = auth_columns(&input.auth);
         let t = now();
         self.conn().execute(
-            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
             params![
                 id.as_str(),
                 input.name.trim(),
@@ -492,7 +508,8 @@ impl SessionStore {
                 tags_json(&input.tags),
                 input.forward_agent,
                 input.x11_forward,
-                input.startup_command
+                input.startup_command,
+                input.files_only
             ],
         )?;
         self.get(&id)
@@ -555,7 +572,7 @@ impl SessionStore {
             "UPDATE sessions SET name = ?2, host = ?3, port = ?4, username = ?5, auth_kind = ?6,
              key_path = ?7, folder = ?8, credential_ref = ?9, updated_at = ?10, jump_session_id = ?11,
              protocol = ?12, domain = ?13, tags = ?14, forward_agent = ?15,
-             x11_forward = ?16, startup_command = ?17
+             x11_forward = ?16, startup_command = ?17, files_only = ?18
              WHERE id = ?1",
             params![
                 id.as_str(),
@@ -574,7 +591,8 @@ impl SessionStore {
                 tags_json(&input.tags),
                 input.forward_agent,
                 input.x11_forward,
-                input.startup_command
+                input.startup_command,
+                input.files_only
             ],
         )?;
         Ok((self.get(id)?, stale))
@@ -671,6 +689,7 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
             forward_agent: r.get::<_, i64>(15)? != 0,
             x11_forward: r.get::<_, i64>(16)? != 0,
             startup_command: r.get(17)?,
+            files_only: r.get::<_, i64>(18)? != 0,
         },
         updated_at: r.get(9)?,
     }))
@@ -695,6 +714,7 @@ mod tests {
             forward_agent: false,
             x11_forward: false,
             startup_command: None,
+            files_only: false,
         }
     }
 
@@ -884,6 +904,7 @@ mod tests {
             forward_agent: false,
             x11_forward: false,
             startup_command: None,
+            files_only: false,
         };
         let rec = store.create(&rdp).unwrap();
         assert_eq!(store.get(&rec.id).unwrap().input, rdp);
@@ -965,6 +986,21 @@ mod tests {
         assert!(c.validate().is_err(), "one line only");
         s.protocol = SessionProtocol::Vnc;
         assert!(s.validate().is_err());
+    }
+
+    #[test]
+    fn files_only_is_stored_and_excludes_shell_options() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let mut s = input();
+        s.files_only = true;
+        let rec = store.create(&s).unwrap();
+        assert!(store.get(&rec.id).unwrap().input.files_only);
+        let mut shell = s.clone();
+        shell.startup_command = Some("ls".into());
+        assert!(store.create(&shell).is_err());
+        let mut telnet = s.clone();
+        telnet.protocol = SessionProtocol::Telnet;
+        assert!(store.create(&telnet).is_err());
     }
 
     #[test]

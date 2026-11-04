@@ -198,6 +198,7 @@ mod tests {
                 forward_agent: false,
                 x11_forward: false,
                 startup_command: None,
+                files_only: false,
             })
             .unwrap()
             .id

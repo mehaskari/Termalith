@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Files-only sessions:** an SSH session can open straight as a file
+  browser over SFTP, without a terminal. They show an SFTP badge.
 - **Embedded RDP** uses the graphics pipeline (RDPEGFX) where the server
   offers it, and follows the tab's size: in place where the server
   supports resizing, otherwise by logging in again at the new size once

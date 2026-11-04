@@ -66,7 +66,7 @@ describe("parseForm", () => {
     const r = parseForm(base, { requireName: true });
     expect(r).toEqual({
       ok: true,
-      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null },
+      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false },
     });
   });
 
@@ -103,7 +103,7 @@ describe("parseForm", () => {
     const rec = s("web", "prod");
     const r = parseForm(formFromSession(rec), { requireName: true });
     expect(r.ok && r.value).toEqual({
-      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null,
+      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false,
     });
   });
 });
@@ -195,6 +195,15 @@ describe("startup command", () => {
     expect(r.ok && r.value.startupCommand).toBe("cd /srv");
     expect(parseForm({ ...f, startupCommand: "" }, { requireName: true })).toMatchObject({ ok: true, value: { startupCommand: null } });
     expect(parseForm({ ...f, startupCommand: "a\nb" }, { requireName: true })).toMatchObject({ ok: false, field: "startupCommand" });
+  });
+
+  it("drops shell options from a files-only session", () => {
+    const f = { ...emptyForm(), name: "n", host: "h", username: "u", filesOnly: true, startupCommand: "ls", forwardAgent: true, x11Forward: true };
+    expect(parseForm(f, { requireName: true })).toMatchObject({
+      ok: true,
+      value: { filesOnly: true, startupCommand: null, forwardAgent: false, x11Forward: false },
+    });
+    expect(parseForm({ ...f, protocol: "telnet", port: "23" }, { requireName: true })).toMatchObject({ ok: true, value: { filesOnly: false } });
   });
 });
 

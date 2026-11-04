@@ -14,13 +14,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use protocol_ssh::{CancellationToken, SftpClient, SshError, TransferOptions};
+use protocol_ssh::{CancellationToken, SshError, TransferOptions};
 use serde::Serialize;
 use tokio::sync::Semaphore;
 
-use crate::AppError;
 use crate::files::{safe_file_name, unique_destination, walk_local_folder};
 use crate::history::{TransferDirection, TransferMeta};
+use crate::{AppError, RemoteFiles};
 
 /// Minimum bytes between progress events, to keep IPC traffic low.
 const PROGRESS_STEP: u64 = 256 * 1024;
@@ -174,10 +174,11 @@ impl Transfers {
     /// validated name. Returns the transfer id at once.
     pub fn start_download(
         self: &Arc<Self>,
-        sftp: Arc<SftpClient>,
+        files: impl Into<RemoteFiles>,
         req: Download<'_>,
         sink: impl FnMut(TransferEvent) + Send + 'static,
     ) -> Result<u64, AppError> {
+        let files = files.into();
         let Download {
             remote_dir,
             name,
@@ -195,14 +196,15 @@ impl Transfers {
             size: total,
         };
         let op: Op = Arc::new(move |cancel, mut progress| {
-            let (sftp, remote) = (Arc::clone(&sftp), remote.clone());
+            let (files, remote) = (files.clone(), remote.clone());
             // Chosen per attempt: an earlier attempt never took the name.
             let dest = unique_destination(&dest_dir, &name);
             Box::pin(async move {
-                sftp.download(&remote, &dest, TransferOptions::default(), &cancel, |n| {
-                    progress(n)
-                })
-                .await?;
+                files
+                    .download(&remote, &dest, TransferOptions::default(), &cancel, |n| {
+                        progress(n)
+                    })
+                    .await?;
                 Ok(dest.to_string_lossy().into_owned())
             })
         });
@@ -220,19 +222,20 @@ impl Transfers {
     /// overwrite an existing remote file.
     pub fn start_upload(
         self: &Arc<Self>,
-        sftp: Arc<SftpClient>,
+        files: impl Into<RemoteFiles>,
         local: PathBuf,
         remote_dir: &str,
         connection: &str,
         sink: impl FnMut(TransferEvent) + Send + 'static,
     ) -> Result<u64, AppError> {
+        let files = files.into();
         let name = local
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .ok_or_else(|| AppError::invalid("file", "has no name"))?;
         let remote = remote_join(remote_dir, safe_file_name(&name)?);
         if local.is_dir() {
-            return self.start_folder_upload(sftp, local, name, remote, connection, sink);
+            return self.start_folder_upload(files, local, name, remote, connection, sink);
         }
         let total = std::fs::metadata(&local).ok().map(|m| m.len());
         let meta = TransferMeta {
@@ -243,12 +246,13 @@ impl Transfers {
             size: total,
         };
         let op: Op = Arc::new(move |cancel, mut progress| {
-            let (sftp, local, remote) = (Arc::clone(&sftp), local.clone(), remote.clone());
+            let (files, local, remote) = (files.clone(), local.clone(), remote.clone());
             Box::pin(async move {
-                sftp.upload(&local, &remote, TransferOptions::default(), &cancel, |n| {
-                    progress(n)
-                })
-                .await?;
+                files
+                    .upload(&local, &remote, TransferOptions::default(), &cancel, |n| {
+                        progress(n)
+                    })
+                    .await?;
                 Ok(remote)
             })
         });
@@ -268,7 +272,7 @@ impl Transfers {
     /// Symbolic links are not followed.
     fn start_folder_upload(
         self: &Arc<Self>,
-        sftp: Arc<SftpClient>,
+        files: RemoteFiles,
         local: PathBuf,
         name: String,
         remote: String,
@@ -287,8 +291,8 @@ impl Transfers {
         // Set once the remote folder is ours, so retries may reuse it.
         let created = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let op: Op = Arc::new(move |cancel, mut progress| {
-            let (sftp, tree, remote, created) = (
-                Arc::clone(&sftp),
+            let (files, tree, remote, created) = (
+                files.clone(),
                 Arc::clone(&tree),
                 remote.clone(),
                 Arc::clone(&created),
@@ -296,9 +300,9 @@ impl Transfers {
             Box::pin(async move {
                 let ours = created.load(Ordering::SeqCst);
                 let mkdir = |path: String| {
-                    let sftp = Arc::clone(&sftp);
+                    let files = files.clone();
                     async move {
-                        match sftp.create_dir(&path).await {
+                        match files.create_dir(&path).await {
                             Err(SshError::DestinationExists(_)) if ours => Ok(()),
                             r => r,
                         }
@@ -322,7 +326,7 @@ impl Transfers {
                     ..TransferOptions::default()
                 };
                 for file in &tree.files {
-                    let n = sftp
+                    let n = files
                         .upload(&file.path, &path_of(&file.rel), opts, &cancel, |n| {
                             progress(done + n)
                         })

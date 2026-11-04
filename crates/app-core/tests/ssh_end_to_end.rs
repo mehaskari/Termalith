@@ -469,6 +469,36 @@ fn event_sink() -> (
     )
 }
 
+/// The protocol-neutral file layer over a real SFTP connection.
+#[tokio::test(flavor = "multi_thread")]
+async fn remote_files_list_and_change_a_real_server() {
+    let Some(r) = rig() else { return };
+    let session = trusted_connection(&r).await;
+    let (sink, _c) = collector();
+    let id = r
+        .hub
+        .open_ssh(session, TerminalSize::new(80, 24).unwrap(), sink)
+        .await
+        .unwrap();
+    std::fs::create_dir_all(r.sshd.path("layer")).unwrap();
+    let dir = r.sshd.remote("layer");
+    let files = r.hub.files(id).await.unwrap();
+    assert!(!files.home().await.unwrap().is_empty());
+    let (a, b) = (format!("{dir}/a"), format!("{dir}/b"));
+    files.create_dir(&a).await.unwrap();
+    files.rename(&a, &b).await.unwrap();
+    let names: Vec<_> = files
+        .list(&dir)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|e| e.name)
+        .collect();
+    assert_eq!(names, ["b"]);
+    files.delete(&b).await.unwrap();
+    assert!(files.list(&dir).await.unwrap().is_empty());
+}
+
 /// The monitor's fixed command against a real server: values on Linux,
 /// `None` on systems without `/proc`.
 #[tokio::test(flavor = "multi_thread")]

@@ -2,7 +2,7 @@
 //! unless TERMALITH_TEST_FTP is set to `host:port`, with the login in
 //! TERMALITH_TEST_FTP_PASSWORD (generated per run).
 
-use protocol_ftp::{EntryKind, FtpClient, FtpConfig, FtpError};
+use protocol_ftp::{EntryKind, FtpClient, FtpConfig, FtpError, read_certificate};
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
 
@@ -16,6 +16,7 @@ fn config(suffix: &str) -> Option<FtpConfig> {
         port: port.parse().ok()?,
         username: "termalith".into(),
         password: Zeroizing::new(format!("{password}{suffix}")),
+        tls_pin: None,
     })
 }
 
@@ -129,4 +130,64 @@ async fn files_on_a_real_server() {
         ftp.delete("/x\r\nDELE y").await,
         Err(FtpError::InvalidPath)
     ));
+}
+
+/// TERMALITH_TEST_FTPS is an FTPS server that requires TLS, and
+/// TERMALITH_TEST_FTPS_SHA256 its certificate's fingerprint in hex.
+#[tokio::test]
+async fn ftps_accepts_only_the_pinned_certificate() {
+    let (Ok(addr), Ok(expected), Some(base)) = (
+        std::env::var("TERMALITH_TEST_FTPS"),
+        std::env::var("TERMALITH_TEST_FTPS_SHA256"),
+        config(""),
+    ) else {
+        eprintln!("TERMALITH_TEST_FTPS not set; skipped");
+        return;
+    };
+    let (host, port) = addr.rsplit_once(':').unwrap();
+    let port: u16 = port.parse().unwrap();
+    let pin = read_certificate(host, port).await.unwrap();
+    let hex: String = pin.iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(hex, expected.to_lowercase());
+
+    let secure = |tls_pin| FtpConfig {
+        host: host.to_owned(),
+        port,
+        username: base.username.clone(),
+        password: base.password.clone(),
+        tls_pin,
+    };
+    // Wrong certificate: refused before the password is sent, no fallback.
+    let wrong = FtpClient::connect(secure(Some([0; 32]))).await;
+    assert!(matches!(wrong, Err(FtpError::Tls(_))), "{:?}", wrong.err());
+    // The server requires TLS, so plain FTP does not get in either.
+    assert!(FtpClient::connect(secure(None)).await.is_err());
+
+    let ftp = FtpClient::connect(secure(Some(pin))).await.unwrap();
+    let cancel = CancellationToken::new();
+    let local = tempfile::tempdir().unwrap();
+    let up = local.path().join("up.bin");
+    let data: Vec<u8> = (0..200_000u32).map(|i| (i % 251) as u8).collect();
+    std::fs::write(&up, &data).unwrap();
+    // Listing, upload and download use encrypted data connections.
+    ftp.upload(&up, "/tls.bin", false, &cancel, |_| {})
+        .await
+        .unwrap();
+    assert_eq!(ftp.list("/").await.unwrap().len(), 1);
+    let down = local.path().join("down.bin");
+    ftp.download("/tls.bin", &down, false, &cancel, |_| {})
+        .await
+        .unwrap();
+    assert_eq!(std::fs::read(&down).unwrap(), data);
+    ftp.delete("/tls.bin").await.unwrap();
+}
+
+/// A server without TLS must fail, not silently continue unencrypted.
+#[tokio::test]
+async fn a_plain_server_is_not_accepted_as_ftps() {
+    let Some(plain) = config("") else {
+        eprintln!("TERMALITH_TEST_FTP not set; skipped");
+        return;
+    };
+    assert!(read_certificate(&plain.host, plain.port).await.is_err());
 }

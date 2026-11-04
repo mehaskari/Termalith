@@ -108,7 +108,7 @@ export function closeTerminal(id: TerminalId): Promise<void> {
 
 export type AuthMethod = { kind: "password" } | { kind: "keyFile"; path: string } | { kind: "agent" };
 
-export type SessionProtocol = "ssh" | "rdp" | "vnc" | "telnet" | "ftp";
+export type SessionProtocol = "ssh" | "rdp" | "vnc" | "telnet" | "ftp" | "ftps";
 
 export interface SessionInput {
   name: string;
@@ -242,6 +242,7 @@ export interface HostKeyPrompt {
 
 /** Algorithm label the backend uses for RDP certificates. */
 export const RDP_CERT_ALGORITHM = "RDP TLS certificate (SHA-256)";
+export const FTPS_CERT_ALGORITHM = "FTPS TLS certificate (SHA-256)";
 
 export type HostKeyAnswer = "reject" | "acceptOnce" | "acceptAndSave";
 

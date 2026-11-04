@@ -89,7 +89,7 @@ import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
 import { resolveTheme } from "./ui/theme";
 import { isMacPlatform, matchShortcut } from "./ui/shortcuts";
 import { Sidebar } from "./ui/Sidebar";
-import { isDesktop, targetLabel } from "./ui/sessionList";
+import { isDesktop, isFtp, targetLabel } from "./ui/sessionList";
 
 interface Tab {
   key: number;
@@ -430,7 +430,7 @@ export function App() {
   /** A file browser tab on a saved SSH session (no shell). */
   const openFilesTab = useCallback(
     (s: SessionRecord) => {
-      const ftp = s.protocol === "ftp";
+      const ftp = isFtp(s);
       const key = addTab(`${s.name} (files)`, "files", openLocalTerminal);
       patchTab(key, { sessionId: s.id, noShell: ftp });
       withLogin(
@@ -493,7 +493,7 @@ export function App() {
         void runDesktop(key, s);
         return;
       }
-      if (s.filesOnly || s.protocol === "ftp") {
+      if (s.filesOnly || isFtp(s)) {
         openFilesTab(s);
         return;
       }

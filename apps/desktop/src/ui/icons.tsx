@@ -96,6 +96,7 @@ const PROTOCOL_LABEL: Record<string, string> = {
   vnc: "VNC",
   telnet: "TEL",
   ftp: "FTP",
+  ftps: "FTPS",
   serial: "COM",
   local: "SH",
   files: "SFTP",

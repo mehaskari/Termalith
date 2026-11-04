@@ -10,10 +10,21 @@
 use std::net::ToSocketAddrs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex as StdMutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use sha2::{Digest, Sha256};
 use suppaftp::list::{File, ListParser};
-use suppaftp::tokio::AsyncRustlsFtpStream;
+use suppaftp::tokio::{AsyncRustlsConnector, AsyncRustlsFtpStream};
+use suppaftp::tokio_rustls::TlsConnector;
+use suppaftp::tokio_rustls::rustls::client::danger::{
+    HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier,
+};
+use suppaftp::tokio_rustls::rustls::crypto::{
+    CryptoProvider, verify_tls12_signature, verify_tls13_signature,
+};
+use suppaftp::tokio_rustls::rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+use suppaftp::tokio_rustls::rustls::{self, ClientConfig, DigitallySignedStruct, SignatureScheme};
 use suppaftp::types::FileType;
 use suppaftp::{FtpError as RawError, Mode, Status};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -48,6 +59,8 @@ pub enum FtpError {
     Modified(String),
     #[error("invalid path")]
     InvalidPath,
+    #[error("secure connection failed: {0}")]
+    Tls(String),
     #[error("the server refused: {0}")]
     Refused(String),
     #[error("connection problem: {0}")]
@@ -64,6 +77,7 @@ impl From<RawError> for FtpError {
             RawError::UnexpectedResponse(r) => {
                 Self::Refused(String::from_utf8_lossy(&r.body).trim().to_owned())
             }
+            RawError::SecureError(m) => Self::Tls(m),
             other => Self::Protocol(other.to_string()),
         }
     }
@@ -75,6 +89,9 @@ pub struct FtpConfig {
     /// Empty for anonymous login.
     pub username: String,
     pub password: Zeroizing<String>,
+    /// FTPS (explicit TLS) accepting only the certificate with this SHA-256;
+    /// `None` is plain FTP. There is no fallback from one to the other.
+    pub tls_pin: Option<[u8; 32]>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -187,8 +204,108 @@ fn parse_mlsd(lines: &[String]) -> Vec<Entry> {
         .collect()
 }
 
-async fn login(config: &FtpConfig) -> Result<Stream, FtpError> {
-    let addr = (config.host.as_str(), config.port)
+/// Accepts one exact certificate, or none while reading it. Handshake
+/// signatures are still checked, so the server must hold the private key.
+/// Applies to the data connections too, which use the same configuration.
+#[derive(Debug)]
+struct PinnedCertificate {
+    provider: Arc<CryptoProvider>,
+    pin: Option<[u8; 32]>,
+    seen: StdMutex<Option<[u8; 32]>>,
+}
+
+impl ServerCertVerifier for PinnedCertificate {
+    fn verify_server_cert(
+        &self,
+        end_entity: &CertificateDer<'_>,
+        _intermediates: &[CertificateDer<'_>],
+        _server_name: &ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: UnixTime,
+    ) -> Result<ServerCertVerified, rustls::Error> {
+        let hash: [u8; 32] = Sha256::digest(end_entity.as_ref()).into();
+        *self.seen.lock().unwrap_or_else(|e| e.into_inner()) = Some(hash);
+        if self.pin == Some(hash) {
+            Ok(ServerCertVerified::assertion())
+        } else {
+            Err(rustls::Error::General(
+                "certificate is not the trusted one".into(),
+            ))
+        }
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        verify_tls12_signature(
+            message,
+            cert,
+            dss,
+            &self.provider.signature_verification_algorithms,
+        )
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        verify_tls13_signature(
+            message,
+            cert,
+            dss,
+            &self.provider.signature_verification_algorithms,
+        )
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        self.provider
+            .signature_verification_algorithms
+            .supported_schemes()
+    }
+}
+
+fn tls_connector(verifier: Arc<PinnedCertificate>) -> Result<AsyncRustlsConnector, FtpError> {
+    let config = ClientConfig::builder_with_provider(Arc::clone(&verifier.provider))
+        .with_safe_default_protocol_versions()
+        .map_err(|e| FtpError::Tls(e.to_string()))?
+        .dangerous()
+        .with_custom_certificate_verifier(verifier)
+        .with_no_client_auth();
+    Ok(TlsConnector::from(Arc::new(config)).into())
+}
+
+fn verifier(pin: Option<[u8; 32]>) -> Arc<PinnedCertificate> {
+    Arc::new(PinnedCertificate {
+        provider: Arc::new(rustls::crypto::aws_lc_rs::default_provider()),
+        pin,
+        seen: StdMutex::new(None),
+    })
+}
+
+/// SHA-256 of the certificate an FTPS server presents, without logging in.
+/// Fails on a server that does not offer TLS.
+pub async fn read_certificate(host: &str, port: u16) -> Result<[u8; 32], FtpError> {
+    let reader = verifier(None);
+    let ftp = plain_connection(host, port).await?;
+    // Rejected by the verifier on purpose: the certificate is all we want.
+    let result = ftp
+        .into_secure(tls_connector(Arc::clone(&reader))?, host)
+        .await;
+    let seen = *reader.seen.lock().unwrap_or_else(|e| e.into_inner());
+    match (seen, result) {
+        (Some(hash), _) => Ok(hash),
+        (None, Err(e)) => Err(e.into()),
+        (None, Ok(_)) => Err(FtpError::Tls("no certificate".into())),
+    }
+}
+
+async fn plain_connection(host: &str, port: u16) -> Result<Stream, FtpError> {
+    let addr = (host, port)
         .to_socket_addrs()
         .map_err(|e| FtpError::Connect(e.to_string()))?
         .next()
@@ -200,6 +317,14 @@ async fn login(config: &FtpConfig) -> Result<Stream, FtpError> {
     // server names (FTP bounce, private addresses behind NAT).
     ftp.set_passive_nat_workaround(true);
     ftp.set_mode(Mode::Passive);
+    Ok(ftp)
+}
+
+async fn login(config: &FtpConfig) -> Result<Stream, FtpError> {
+    let mut ftp = plain_connection(&config.host, config.port).await?;
+    if let Some(pin) = config.tls_pin {
+        ftp = timed(ftp.into_secure(tls_connector(verifier(Some(pin)))?, &config.host)).await?;
+    }
     let result = if config.username.is_empty() {
         timed(ftp.login(ANONYMOUS.0, ANONYMOUS.1)).await
     } else {

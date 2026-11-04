@@ -58,7 +58,10 @@ pub async fn desktop_open(
     let protocol = match rec.input.protocol {
         SessionProtocol::Rdp => Protocol::Rdp,
         SessionProtocol::Vnc => Protocol::Vnc,
-        SessionProtocol::Ssh | SessionProtocol::Telnet | SessionProtocol::Ftp => {
+        SessionProtocol::Ssh
+        | SessionProtocol::Telnet
+        | SessionProtocol::Ftp
+        | SessionProtocol::Ftps => {
             return Err(AppError::Invalid {
                 field: "session",
                 reason: "not a remote desktop session".into(),

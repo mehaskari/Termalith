@@ -4484,6 +4484,7 @@ dependencies = [
 name = "protocol-ftp"
 version = "0.5.0"
 dependencies = [
+ "sha2 0.10.9",
  "suppaftp",
  "tempfile",
  "thiserror 2.0.21",

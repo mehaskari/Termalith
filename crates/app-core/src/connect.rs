@@ -9,17 +9,18 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use credential_store::{CredentialRef, SecretStore};
-use protocol_ftp::{FtpClient, FtpConfig, FtpError};
+use protocol_ftp::{FtpClient, FtpConfig, FtpError, read_certificate};
 use protocol_ssh::{
     Auth, ConnectOptions, KbdInteractive, KnownHostsStore, SshError, SshSession, Target,
 };
+use remote_desktop::CertFingerprint;
 use zeroize::Zeroizing;
 
 use crate::remote_files::ftp_error;
 use crate::sessions::{
     AuthMethod, MAX_JUMP_DEPTH, SessionId, SessionInput, SessionProtocol, SessionStore,
 };
-use crate::{AppError, PromptBroker};
+use crate::{AppError, CertificateCheck, FTPS_CERT_ALGORITHM, PromptBroker};
 
 /// A secret typed by the user for this connection.
 pub enum PasswordInput {
@@ -117,7 +118,7 @@ impl Connector {
         secret: PasswordInput,
     ) -> Result<(FtpClient, String), AppError> {
         let rec = self.sessions.get(id)?;
-        if rec.input.protocol != SessionProtocol::Ftp {
+        if !rec.input.protocol.is_ftp() {
             return Err(AppError::invalid("session", "not an FTP session"));
         }
         // The proxy setting promises that connections go through it.
@@ -143,11 +144,27 @@ impl Connector {
         if password.is_none() && !rec.input.username.is_empty() {
             return Err(AppError::PasswordRequired);
         }
+        // Checked before anything secret is sent.
+        let tls_pin = if rec.input.protocol == SessionProtocol::Ftps {
+            let (host, port) = (rec.input.host.as_str(), rec.input.port);
+            let fp = read_certificate(host, port).await.map_err(ftp_error)?;
+            let check = CertificateCheck {
+                store: Arc::clone(&self.sessions),
+                broker: Arc::clone(&self.broker),
+            };
+            check
+                .verify_as(FTPS_CERT_ALGORITHM, host, port, CertFingerprint(fp))
+                .await?;
+            Some(fp)
+        } else {
+            None
+        };
         let client = FtpClient::connect(FtpConfig {
             host: rec.input.host.clone(),
             port: rec.input.port,
             username: rec.input.username.clone(),
             password: password.unwrap_or_default(),
+            tls_pin,
         })
         .await;
         let client = match client {

@@ -99,6 +99,7 @@ seed({ name: "core switch", host: "10.0.0.254", port: 23, username: "", auth: { 
 seed({ name: "edge-fw", host: "10.0.0.1", port: 22, username: "admin", auth: { kind: "password" }, folder: "Network / Firewalls" });
 seed({ name: "replica-2", host: "10.0.0.12", port: 22, username: "postgres", auth: { kind: "agent" }, folder: "Production / DB" });
 seed({ name: "backups", host: "10.0.1.30", port: 22, username: "admin", auth: { kind: "password" }, folder: null, filesOnly: true });
+seed({ name: "file drop", host: "files.example.com", port: 21, username: "admin", auth: { kind: "password" }, folder: null, protocol: "ftps" });
 seed({ name: "public mirror", host: "ftp.example.com", port: 21, username: "", auth: { kind: "password" }, folder: null, protocol: "ftp" });
 seed({ name: "lab vnc", host: "192.168.1.40", port: 5900, username: "", auth: { kind: "password" }, folder: null, protocol: "vnc" });
 

@@ -197,6 +197,11 @@ describe("startup command", () => {
     expect(parseForm({ ...f, startupCommand: "a\nb" }, { requireName: true })).toMatchObject({ ok: false, field: "startupCommand" });
   });
 
+  it("connects FTP sessions directly", () => {
+    const f = { ...emptyForm(), name: "n", host: "h", username: "", protocol: "ftps" as const, port: "21", jumpVia: "ses-1" };
+    expect(parseForm(f, { requireName: true })).toMatchObject({ ok: true, value: { protocol: "ftps", jumpVia: null } });
+  });
+
   it("drops shell options from a files-only session", () => {
     const f = { ...emptyForm(), name: "n", host: "h", username: "u", filesOnly: true, startupCommand: "ls", forwardAgent: true, x11Forward: true };
     expect(parseForm(f, { requireName: true })).toMatchObject({

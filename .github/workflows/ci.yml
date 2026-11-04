@@ -174,12 +174,20 @@ jobs:
         shell: bash
         run: |
           python3 -m venv "$RUNNER_TEMP/ftp"
-          "$RUNNER_TEMP/ftp/bin/pip" install -q pyftpdlib==2.2.0
+          "$RUNNER_TEMP/ftp/bin/pip" install -q pyftpdlib==2.2.0 pyopenssl
           root="$(mktemp -d)"
           export TERMALITH_TEST_FTP_PASSWORD="$(openssl rand -hex 16)"
           "$RUNNER_TEMP/ftp/bin/python" scripts/ftp-test-server.py "$root" 2121 &
-          for _ in $(seq 30); do nc -z 127.0.0.1 2121 && break; sleep 1; done
-          TERMALITH_TEST_FTP=127.0.0.1:2121 cargo test -p protocol-ftp --test real_server -- --nocapture
+          cert="$RUNNER_TEMP/ftps.pem"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=localhost -keyout "$cert" -out "$cert.crt"
+          cat "$cert.crt" >> "$cert"
+          root2="$(mktemp -d)"
+          "$RUNNER_TEMP/ftp/bin/python" scripts/ftp-test-server.py "$root2" 2990 "$cert" &
+          for p in 2121 2990; do for _ in $(seq 30); do nc -z 127.0.0.1 $p && break; sleep 1; done; done
+          export TERMALITH_TEST_FTP=127.0.0.1:2121 TERMALITH_TEST_FTPS=127.0.0.1:2990
+          export TERMALITH_TEST_FTPS_SHA256="$(openssl x509 -in "$cert.crt" -outform DER | openssl dgst -sha256 -r | cut -d' ' -f1)"
+          cargo test -p protocol-ftp --test real_server -- --nocapture
+          cargo test -p app-core --test ftp_login -- --nocapture
 
       - name: Remote desktop against real servers (Linux)
         if: runner.os == 'Linux'

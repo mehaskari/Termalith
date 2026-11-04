@@ -65,7 +65,7 @@ pub fn parse_mobaxterm(text: &str) -> (Vec<ImportCandidate>, Vec<String>) {
             SessionProtocol::Rdp => 3389,
             SessionProtocol::Vnc => 5900,
             SessionProtocol::Telnet => 23,
-            SessionProtocol::Ftp => 21,
+            SessionProtocol::Ftp | SessionProtocol::Ftps => 21,
         };
         let port = fields
             .get(2)

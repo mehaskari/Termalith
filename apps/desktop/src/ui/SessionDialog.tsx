@@ -8,7 +8,7 @@ import {
   isIpcError,
 } from "../terminal/api";
 import { Dialog } from "./Dialog";
-import { type SessionFormState, allFolderPaths, emptyForm, formFromSession, parseForm, withProtocol } from "./sessionList";
+import { type SessionFormState, allFolderPaths, emptyForm, formFromSession, isFtp, parseForm, withProtocol } from "./sessionList";
 
 const INSTALL_HINT: Record<"rdp" | "vnc", string> = {
   rdp: "No RDP client found. Install Windows App (macOS), or FreeRDP (xfreerdp) on Linux; Windows has Remote Desktop Connection built in.",
@@ -95,6 +95,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
               <option value="rdp">RDP remote desktop</option>
               <option value="vnc">VNC remote desktop</option>
               <option value="telnet">Telnet (unencrypted)</option>
+              <option value="ftps">FTPS files (encrypted)</option>
               <option value="ftp">FTP files (unencrypted)</option>
             </select>
           </label>
@@ -117,6 +118,13 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
           <p className="pane-warning span-2">
             FTP is not encrypted: your password and files can be read on the network. Prefer SFTP where the
             server offers it. Leave the username empty to log in anonymously.
+          </p>
+        )}
+        {form.protocol === "ftps" && (
+          <p className="hint span-2">
+            Uses explicit TLS on the FTP port. You are shown the server&apos;s certificate the first time;
+            the connection fails if the server does not offer TLS. Leave the username empty to log in
+            anonymously.
           </p>
         )}
         {mode !== "quick" && (
@@ -199,7 +207,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             />
           </label>
         )}
-        {mode !== "quick" && form.protocol !== "ftp" && (
+        {mode !== "quick" && !isFtp(form) && (
           <label className="span-2">
             {desktop ? "Tunnel through (SSH session)" : "Connect via (jump host)"}
             <select value={form.jumpVia} onChange={(e) => set({ jumpVia: e.target.value })}>

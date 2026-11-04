@@ -5,6 +5,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { DEFAULT_SETTINGS, type ExitPayload, type Settings, saveTerminalOutput, isIpcError, openWebLink } from "./api";
+import { parseOsc7 } from "./osc7";
 import { type ResolvedTheme, fontStack, terminalTheme } from "../ui/theme";
 import {
   type Opener,
@@ -38,6 +39,8 @@ interface Props {
   label?: string;
   /** A short message for the user (e.g. where output was saved). */
   onNotice?: (message: string) => void;
+  /** The shell reported its folder (OSC 7). */
+  onFolder?: (host: string, path: string) => void;
 }
 
 export function TerminalView({
@@ -52,6 +55,7 @@ export function TerminalView({
   command,
   label = "terminal",
   onNotice,
+  onFolder,
 }: Props) {
   const searchRef = useRef<SearchAddon | null>(null);
   const findInput = useRef<HTMLInputElement>(null);
@@ -64,8 +68,8 @@ export function TerminalView({
   // `open` must not re-run the effect; keep the first one.
   const openRef = useRef(open);
   const initial = useRef({ settings, theme });
-  const callbacks = useRef({ onReady, onFailed, onExited, onInput, onNotice, label });
-  callbacks.current = { onReady, onFailed, onExited, onInput, onNotice, label };
+  const callbacks = useRef({ onReady, onFailed, onExited, onInput, onNotice, onFolder, label });
+  callbacks.current = { onReady, onFailed, onExited, onInput, onNotice, onFolder, label };
 
   useEffect(() => {
     const host = hostRef.current;
@@ -94,6 +98,11 @@ export function TerminalView({
       }),
     );
     searchRef.current = search;
+    term.parser.registerOscHandler(7, (data) => {
+      const folder = parseOsc7(data);
+      if (folder) callbacks.current.onFolder?.(folder.host, folder.path);
+      return true;
+    });
     term.open(host);
     try {
       const webgl = new WebglAddon();

@@ -77,6 +77,7 @@ import { ImportDialog } from "./ui/ImportDialog";
 import { type PasswordAnswer, PasswordDialog } from "./ui/PasswordDialog";
 import { SessionDialog } from "./ui/SessionDialog";
 import { TunnelsPanel } from "./ui/TunnelsPanel";
+import { FOLDER_REPORT_SETUP } from "./terminal/osc7";
 import { ServerMonitor } from "./ui/ServerMonitor";
 import { SnippetsPanel } from "./ui/SnippetsPanel";
 import { NetworkTools } from "./ui/NetworkTools";
@@ -97,6 +98,10 @@ interface Tab {
   kind: "local" | "ssh" | "serial" | "tools" | "desktop" | "editor" | "telnet" | "files" | "diff" | "rdp";
   /** A files tab on a protocol without terminals (FTP). */
   noShell?: boolean;
+  /** The Files panel follows the folder of this tab's shell. */
+  followFolder?: boolean;
+  /** The folder and host the shell last reported (OSC 7). */
+  shellFolder?: { host: string; path: string };
   open: Opener;
   terminalId?: TerminalId;
   /** Connection over (failed, or the remote shell exited). */
@@ -1195,6 +1200,16 @@ export function App() {
                       label={t.title}
                       onNotice={setNotice}
                       onInput={(d) => mirrorInput(t.key, d)}
+                      onFolder={(host, path) =>
+                        setTabs((all) =>
+                          all.map((x) =>
+                            // Another host: a nested ssh, whose paths mean nothing here.
+                            x.key === t.key && (!x.shellFolder || x.shellFolder.host === host)
+                              ? { ...x, shellFolder: { host, path } }
+                              : x,
+                          ),
+                        )
+                      }
                     />
                   </div>
                   {t.splits.map((s) => (
@@ -1228,6 +1243,15 @@ export function App() {
                     onEdit={(dir, name) => t.terminalId !== undefined && openEditor(t.terminalId, dir, name)}
                     onCompare={(a, b) => t.terminalId !== undefined && openDiff(t.terminalId, a, b)}
                     connection={t.title}
+                    follow={{
+                      on: !!t.followFolder,
+                      folder: t.shellFolder?.path,
+                      onToggle: () => patchTab(t.key, { followFolder: !t.followFolder }),
+                      onSetup: () => {
+                        if (t.terminalId !== undefined)
+                          void writeTerminal(t.terminalId, `${FOLDER_REPORT_SETUP}\r`).catch(() => {});
+                      },
+                    }}
                   />
                 )}
               </div>

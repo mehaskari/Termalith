@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Files follow the terminal:** the Files panel can follow the shell's
+  current folder.
 - **FTP and FTPS sessions:** browse, transfer, edit, rename and delete files
   in the same file browser. FTPS checks the server's certificate like RDP;
   plain FTP is not encrypted, and the session dialog says so.

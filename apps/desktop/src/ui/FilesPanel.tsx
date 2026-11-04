@@ -111,6 +111,15 @@ interface Props {
   onCompare?: (a: { dir: string; name: string }, b: { dir: string; name: string }) => void;
   /** Connection label recorded in the transfer history. */
   connection?: string;
+  /** Present on a panel beside a terminal: following that terminal's folder. */
+  follow?: {
+    on: boolean;
+    /** The terminal's folder, once its shell has reported one. */
+    folder?: string;
+    onToggle: () => void;
+    /** Types the one-line setup into the terminal. */
+    onSetup: () => void;
+  };
 }
 
 let transferKey = 1;
@@ -128,6 +137,7 @@ export function FilesPanel({
   onEdit,
   onCompare,
   connection,
+  follow,
 }: Props) {
   const [showHistory, setShowHistory] = useState(false);
   const [compareBase, setCompareBase] = useState<{ dir: string; name: string } | null>(null);
@@ -207,6 +217,11 @@ export function FilesPanel({
   useEffect(() => {
     sftpHome(terminalId).then(load, (e) => setError(message(e)));
   }, [terminalId, load]);
+
+  const followed = follow?.on ? follow.folder : undefined;
+  useEffect(() => {
+    if (followed) void load(followed);
+  }, [followed, load]);
 
   const update = (key: number, patch: Partial<Transfer>) =>
     setTransfers((ts) => ts.map((t) => (t.key === key ? { ...t, ...patch } : t)));
@@ -299,6 +314,12 @@ export function FilesPanel({
         >
           <input value={pathInput} onChange={(e) => setPathInput(e.target.value)} aria-label="Remote path" spellCheck={false} />
         </form>
+        {follow && (
+          <button type="button" className="icon" title="Follow the terminal's folder" aria-label="Follow the terminal's folder"
+            aria-pressed={follow.on} onClick={follow.onToggle}>
+            ⇣
+          </button>
+        )}
         <button type="button" className="icon" title="Transfer history" aria-label="Transfer history" aria-pressed={showHistory}
           onClick={() => setShowHistory((v) => !v)}>
           ⏱
@@ -320,6 +341,14 @@ export function FilesPanel({
         <p className="files-compare">
           Comparing <code>{compareBase.name}</code>: choose “Compare with …” on another file.
           <button type="button" className="link" onClick={() => setCompareBase(null)}>Cancel</button>
+        </p>
+      )}
+      {follow?.on && !follow.folder && (
+        <p className="files-compare">
+          This shell does not report its folder. Termalith can type one line into the terminal so that bash or
+          zsh does, until the shell exits. Nothing on the server is changed.
+          <button type="button" className="link" onClick={follow.onSetup}>Type it</button>
+          <button type="button" className="link" onClick={follow.onToggle}>Cancel</button>
         </p>
       )}
       {showHistory && <TransferHistory />}

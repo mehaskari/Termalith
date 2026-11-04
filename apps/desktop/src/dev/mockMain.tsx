@@ -630,6 +630,7 @@ mockIPC(
         forgotten.add(`${a.host}:${a.port}`);
         return { removed: 1, remainingInUserFile: 0 };
       case "terminal_write":
+        if (String(a.data).includes("__termalith_cwd")) send(a.id as number, "\x1b]7;file://web1/home/deploy/logs\x1b\\");
         send(a.id as number, String(a.data).replace(/\r/g, "\r\n$ "));
         return null;
       case "terminal_resize":

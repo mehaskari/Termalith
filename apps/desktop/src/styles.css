@@ -1179,6 +1179,17 @@ button.icon.starred {
   border-color: var(--accent);
 }
 
+.macro-keys {
+  margin: 0;
+  max-height: 140px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 12px;
+}
 .server-monitor {
   display: flex;
   flex-wrap: wrap;

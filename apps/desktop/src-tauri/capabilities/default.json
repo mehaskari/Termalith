@@ -93,6 +93,9 @@
     "allow-snippets-list",
     "allow-snippet-create",
     "allow-snippet-update",
-    "allow-snippet-delete"
+    "allow-snippet-delete",
+    "allow-macros-list",
+    "allow-macro-create",
+    "allow-macro-delete"
   ]
 }

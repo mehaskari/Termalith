@@ -274,6 +274,24 @@ pub fn snippet_update(
 }
 
 #[tauri::command]
+pub fn macros_list(state: State<'_, AppState>) -> Result<Vec<app_core::Macro>, IpcError> {
+    Ok(state.connector.sessions.macros()?)
+}
+
+#[tauri::command]
+pub fn macro_create(
+    state: State<'_, AppState>,
+    input: app_core::MacroInput,
+) -> Result<app_core::Macro, IpcError> {
+    Ok(state.connector.sessions.create_macro(&input)?)
+}
+
+#[tauri::command]
+pub fn macro_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    Ok(state.connector.sessions.delete_macro(&id)?)
+}
+
+#[tauri::command]
 pub fn snippet_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
     Ok(state.connector.sessions.delete_snippet(&id)?)
 }

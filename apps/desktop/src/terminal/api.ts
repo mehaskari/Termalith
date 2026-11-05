@@ -460,6 +460,24 @@ export const createSnippet = (input: SnippetInput) => invoke<Snippet>("snippet_c
 export const updateSnippet = (id: string, input: SnippetInput) => invoke<Snippet>("snippet_update", { id, input });
 export const deleteSnippet = (id: string) => invoke<void>("snippet_delete", { id });
 
+export interface MacroStep {
+  delayMs: number;
+  data: string;
+}
+
+export interface MacroInput {
+  name: string;
+  steps: MacroStep[];
+}
+
+export interface Macro extends MacroInput {
+  id: string;
+}
+
+export const listMacros = () => invoke<Macro[]>("macros_list");
+export const createMacro = (input: MacroInput) => invoke<Macro>("macro_create", { input });
+export const deleteMacro = (id: string) => invoke<void>("macro_delete", { id });
+
 // ---------------------------------------------------------------- network tools
 
 export interface TcpCheck {

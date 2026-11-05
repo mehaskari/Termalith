@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-macros-list"
+description = "Enables the macros_list command without any pre-configured scope."
+commands.allow = ["macros_list"]
+
+[[permission]]
+identifier = "deny-macros-list"
+description = "Denies the macros_list command without any pre-configured scope."
+commands.deny = ["macros_list"]

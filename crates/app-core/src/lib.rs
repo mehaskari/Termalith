@@ -13,6 +13,7 @@ mod history;
 mod host_keys;
 mod keys;
 mod logs;
+mod macros;
 mod mobaxterm;
 mod monitor;
 mod rdp_certs;
@@ -42,6 +43,7 @@ pub use history::{
 pub use host_keys::{HostKeyPrompt, PromptBroker};
 pub use keys::{KeyInstall, install_public_key};
 pub use logs::{AnsiStripper, LogInfo, LogTap, TerminalLogs, tapped};
+pub use macros::{MAX_MACRO_BYTES, Macro, MacroInput, MacroStep};
 pub use mobaxterm::{import_mobaxterm, is_mobaxterm, parse_mobaxterm};
 pub use monitor::{ServerMonitor, ServerStats};
 pub use rdp_certs::{CertificateCheck, FTPS_CERT_ALGORITHM, RDP_CERT_ALGORITHM};

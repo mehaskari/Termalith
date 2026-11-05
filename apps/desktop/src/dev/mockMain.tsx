@@ -32,6 +32,7 @@ const remoteFiles: Record<string, Array<{ name: string; kind: string; size: numb
   "/home/deploy/releases": [],
 };
 let nextTransfer = 1;
+const mockMacros: { id: string; name: string; steps: { delayMs: number; data: string }[] }[] = [];
 const mockSnippets: Array<{ id: string; name: string; command: string; folder: string | null }> = [
   { id: "snp-1", name: "Interface status", command: "show interfaces {{iface}} status", folder: "Cisco" },
   { id: "snp-2", name: "Disk usage", command: "df -h\ndu -sh {{path}}", folder: null },
@@ -404,6 +405,16 @@ mockIPC(
         if (s) s.hasSavedSecret = false;
         return null;
       }
+      case "macros_list":
+        return mockMacros;
+      case "macro_create": {
+        const m = { id: `mac-${mockMacros.length + 1}`, ...(a.input as object) } as (typeof mockMacros)[number];
+        mockMacros.push(m);
+        return m;
+      }
+      case "macro_delete":
+        mockMacros.splice(mockMacros.findIndex((m) => m.id === a.id), 1);
+        return null;
       case "snippets_list":
         return mockSnippets;
       case "snippet_create": {

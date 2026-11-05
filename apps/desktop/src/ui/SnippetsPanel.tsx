@@ -1,11 +1,15 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { playMacro } from "../terminal/macro";
 import {
+  type Macro,
   type Snippet,
   type SnippetInput,
   type TerminalId,
   createSnippet,
+  deleteMacro,
   deleteSnippet,
   isIpcError,
+  listMacros,
   listSnippets,
   updateSnippet,
   writeTerminal,
@@ -15,12 +19,17 @@ import { fillSnippet, snippetVariables, terminalInput } from "./snippetText";
 interface Props {
   terminalId: TerminalId;
   onClose: () => void;
+  /** Changes when a macro was saved. */
+  macrosVersion?: number;
 }
 
 type Mode = { kind: "list" } | { kind: "use"; snippet: Snippet } | { kind: "edit"; snippet: Snippet | null };
 
-export function SnippetsPanel({ terminalId, onClose }: Props) {
+export function SnippetsPanel({ terminalId, onClose, macrosVersion }: Props) {
   const [snippets, setSnippets] = useState<Snippet[]>([]);
+  const [macros, setMacros] = useState<Macro[]>([]);
+  const [playing, setPlaying] = useState<string | null>(null);
+  const stop = useRef<AbortController | null>(null);
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const [error, setError] = useState<string | null>(null);
 
@@ -28,6 +37,26 @@ export function SnippetsPanel({ terminalId, onClose }: Props) {
     listSnippets().then(setSnippets, (e) => setError(isIpcError(e) ? e.message : String(e)));
   }, []);
   useEffect(refresh, [refresh]);
+
+  const refreshMacros = useCallback(() => {
+    listMacros().then(setMacros, (e) => setError(isIpcError(e) ? e.message : String(e)));
+  }, []);
+  useEffect(refreshMacros, [refreshMacros, macrosVersion]);
+  useEffect(() => () => stop.current?.abort(), []);
+
+  async function play(m: Macro) {
+    const controller = new AbortController();
+    stop.current = controller;
+    setPlaying(m.id);
+    setError(null);
+    try {
+      await playMacro(m.steps, (data) => writeTerminal(terminalId, data), controller.signal);
+    } catch (e) {
+      setError(isIpcError(e) ? e.message : String(e));
+    } finally {
+      setPlaying(null);
+    }
+  }
 
   return (
     <section className="files-panel" aria-label="Snippets">
@@ -66,6 +95,28 @@ export function SnippetsPanel({ terminalId, onClose }: Props) {
                 </button>
                 <button type="button" className="icon danger" aria-label={`Delete ${s.name}`} title="Delete"
                   onClick={() => void deleteSnippet(s.id).then(refresh, (e) => setError(String(e?.message ?? e)))}>
+                  ×
+                </button>
+              </div>
+            </li>
+          ))}
+          {macros.length > 0 && <li><h4 className="snippet-folder">Macros</h4></li>}
+          {macros.map((m) => (
+            <li key={m.id}>
+              <div className="file-row">
+                <span className="snippet-name">{m.name}</span>
+                {playing === m.id ? (
+                  <button type="button" className="icon" aria-label={`Stop ${m.name}`} title="Stop" onClick={() => stop.current?.abort()}>
+                    ■
+                  </button>
+                ) : (
+                  <button type="button" className="icon" aria-label={`Play ${m.name}`} title="Play in this terminal" disabled={playing !== null}
+                    onClick={() => void play(m)}>
+                    ▶
+                  </button>
+                )}
+                <button type="button" className="icon danger" aria-label={`Delete ${m.name}`} title="Delete"
+                  onClick={() => void deleteMacro(m.id).then(refreshMacros, (e) => setError(String(e?.message ?? e)))}>
                   ×
                 </button>
               </div>

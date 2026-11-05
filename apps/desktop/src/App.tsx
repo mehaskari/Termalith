@@ -10,6 +10,8 @@ import {
   saveSettings,
   setFavorite,
   writeTerminal,
+  type MacroStep,
+  createMacro,
   type DroppedFile,
   type IpcError,
   type TerminalId,
@@ -78,6 +80,8 @@ import { type PasswordAnswer, PasswordDialog } from "./ui/PasswordDialog";
 import { SessionDialog } from "./ui/SessionDialog";
 import { TunnelsPanel } from "./ui/TunnelsPanel";
 import { FOLDER_REPORT_SETUP } from "./terminal/osc7";
+import { MacroRecorder } from "./terminal/macro";
+import { MacroSaveDialog } from "./ui/MacroSaveDialog";
 import { ServerMonitor } from "./ui/ServerMonitor";
 import { SnippetsPanel } from "./ui/SnippetsPanel";
 import { NetworkTools } from "./ui/NetworkTools";
@@ -747,7 +751,17 @@ export function App() {
     if (!src || src.ended) setBroadcast(null);
   }, [tabs, broadcast]);
 
+  const [recording, setRecording] = useState<{ key: number; recorder: MacroRecorder } | null>(null);
+  const [macroToSave, setMacroToSave] = useState<MacroStep[] | null>(null);
+  const [macrosVersion, setMacrosVersion] = useState(0);
+
+  // A closed tab ends its recording; nothing typed there is kept.
+  useEffect(() => {
+    if (recording && !tabs.some((t) => t.key === recording.key)) setRecording(null);
+  }, [recording, tabs]);
+
   const mirrorInput = (sourceKey: number, data: string) => {
+    if (recording?.key === sourceKey) recording.recorder.add(data);
     if (!broadcast || broadcast.source !== sourceKey) return;
     for (const { key, terminalId } of resolveTargets(broadcast, tabs).live) {
       let q = broadcastQueues.current.get(key);
@@ -1131,6 +1145,23 @@ export function App() {
                     </button>
                     <button
                       type="button"
+                      aria-pressed={recording?.key === t.key}
+                      className={recording?.key === t.key ? "recording" : undefined}
+                      title={recording?.key === t.key ? "Stop recording" : "Record what you type as a macro"}
+                      disabled={t.terminalId === undefined || t.ended || (recording !== null && recording.key !== t.key)}
+                      onClick={() => {
+                        if (recording?.key === t.key) {
+                          setMacroToSave(recording.recorder.steps);
+                          setRecording(null);
+                        } else {
+                          setRecording({ key: t.key, recorder: new MacroRecorder() });
+                        }
+                      }}
+                    >
+                      {recording?.key === t.key ? "■ Macro" : "Macro"}
+                    </button>
+                    <button
+                      type="button"
                       aria-pressed={!!t.snippetsOpen}
                       disabled={t.terminalId === undefined || t.ended}
                       onClick={() => patchTab(t.key, { snippetsOpen: !t.snippetsOpen, filesOpen: false, tunnelsOpen: false })}
@@ -1174,6 +1205,11 @@ export function App() {
               {broadcast?.targets.includes(t.key) && broadcast.source !== t.key && (
                 <div className="broadcast-banner receiving" role="status">
                   Receiving input broadcast from {tabs.find((y) => y.key === broadcast.source)?.title}
+                </div>
+              )}
+              {recording?.key === t.key && (
+                <div className="broadcast-banner" role="status">
+                  RECORDING: everything you type here is captured, including passwords.
                 </div>
               )}
               <div className="pane-body">
@@ -1243,7 +1279,11 @@ export function App() {
                   ))}
                 </div>
                 {t.snippetsOpen && t.terminalId !== undefined && (
-                  <SnippetsPanel terminalId={t.terminalId} onClose={() => patchTab(t.key, { snippetsOpen: false })} />
+                  <SnippetsPanel
+                    terminalId={t.terminalId}
+                    onClose={() => patchTab(t.key, { snippetsOpen: false })}
+                    macrosVersion={macrosVersion}
+                  />
                 )}
                 {t.tunnelsOpen && t.terminalId !== undefined && (
                   <TunnelsPanel terminalId={t.terminalId} onClose={() => patchTab(t.key, { tunnelsOpen: false })} />
@@ -1337,6 +1377,22 @@ export function App() {
           onAnswer={(a) => answerHostKey(currentPrompt, a)}
         />
       )}
+      {macroToSave && (
+        <MacroSaveDialog
+          steps={macroToSave}
+          onDiscard={() => setMacroToSave(null)}
+          onSave={(name) => {
+            createMacro({ name, steps: macroToSave }).then(
+              () => {
+                setMacroToSave(null);
+                setMacrosVersion((v) => v + 1);
+              },
+              (e) => setNotice(`Macro: ${isIpcError(e) ? e.message : String(e)}`),
+            );
+          }}
+        />
+      )}
+
       {broadcastPicker !== null && tabs.find((t) => t.key === broadcastPicker) && (
         <BroadcastDialog
           source={tabs.find((t) => t.key === broadcastPicker)!}

@@ -271,6 +271,11 @@ test), DNS lookup, an IPv4 subnet calculator and Wake-on-LAN.
 - **Color keywords** (Settings) shows error, warning and ok words in color.
   The output itself is unchanged, so copying and logs stay as they were, and
   full-screen programs are left alone.
+- **Macro** on the terminal toolbar records what you type, with its pauses.
+  Stop it, check the recorded keys and name it; **▶** under Macros in
+  Snippets plays it in the current terminal. Recording captures everything,
+  passwords included, and macros are stored unencrypted, so discard a
+  recording if you typed one.
 - **Split** a tab side by side, top and bottom, or into four panes (**⊞**); SSH splits share the
   connection.
 - **Broadcast…** types into several terminals at once; the source shows a

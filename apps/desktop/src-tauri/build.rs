@@ -92,6 +92,9 @@ fn main() {
             "snippet_create",
             "snippet_update",
             "snippet_delete",
+            "macros_list",
+            "macro_create",
+            "macro_delete",
         ]),
     ))
     .expect("failed to run tauri-build");

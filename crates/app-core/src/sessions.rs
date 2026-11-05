@@ -471,6 +471,12 @@ const MIGRATIONS: &[&str] = &[
     DROP TABLE sessions;
     ALTER TABLE sessions_v17 RENAME TO sessions;
     CREATE INDEX sessions_name ON sessions (name COLLATE NOCASE);",
+    // v18: recorded macros.
+    "CREATE TABLE macros (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        steps TEXT NOT NULL
+    );",
 ];
 
 pub struct SessionStore {

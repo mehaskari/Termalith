@@ -5,6 +5,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { DEFAULT_SETTINGS, type ExitPayload, type Settings, saveTerminalOutput, isIpcError, openWebLink } from "./api";
+import { OutputHighlighter } from "./highlight";
 import { parseOsc7 } from "./osc7";
 import { type ResolvedTheme, fontStack, terminalTheme } from "../ui/theme";
 import {
@@ -64,6 +65,7 @@ export function TerminalView({
   const [caseSensitive, setCaseSensitive] = useState(false);
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
+  const highlighterRef = useRef<OutputHighlighter | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   // `open` must not re-run the effect; keep the first one.
   const openRef = useRef(open);
@@ -112,6 +114,9 @@ export function TerminalView({
       // Falls back to xterm's DOM renderer.
     }
     fit.fit();
+    const highlighter = new OutputHighlighter(term);
+    highlighter.setEnabled(s.highlightOutput);
+    highlighterRef.current = highlighter;
     termRef.current = term;
     fitRef.current = fit;
 
@@ -136,7 +141,11 @@ export function TerminalView({
           .current(
             term.cols,
             term.rows,
-            (data) => term.write(data, () => acks.add(data.length)),
+            (data) =>
+              term.write(data, () => {
+                acks.add(data.length);
+                highlighter.schedule();
+              }),
             (payload) => {
               exited = true;
               term.write(`\r\n\x1b[2m[${describeExit(payload)}]\x1b[0m\r\n`);
@@ -200,6 +209,7 @@ export function TerminalView({
       onData.dispose();
       onResize.dispose();
       if (id !== null) void closeTerminal(id).catch(() => {});
+      highlighter.dispose();
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
@@ -265,6 +275,7 @@ export function TerminalView({
     term.options.cursorStyle = settings.cursorStyle;
     term.options.cursorBlink = settings.cursorBlink;
     term.options.scrollback = settings.scrollback;
+    highlighterRef.current?.setEnabled(settings.highlightOutput);
     fitRef.current?.fit();
   }, [settings, theme]);
 

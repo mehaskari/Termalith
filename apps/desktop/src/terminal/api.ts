@@ -370,6 +370,7 @@ export interface Settings {
   /** Show RDP sessions in a tab (experimental) instead of the external client. */
   embeddedRdp: boolean;
   serverMonitor: boolean;
+  highlightOutput: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -389,6 +390,7 @@ export const DEFAULT_SETTINGS: Settings = {
   checkUpdates: false,
   embeddedRdp: false,
   serverMonitor: false,
+  highlightOutput: false,
 };
 
 export const getSettings = () => invoke<Settings>("settings_get");

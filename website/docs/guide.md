@@ -268,7 +268,7 @@ test), DNS lookup, an IPv4 subnet calculator and Wake-on-LAN.
 
 ## Working in terminals
 
-- **Split** a tab side by side or top and bottom; SSH splits share the
+- **Split** a tab side by side, top and bottom, or into four panes (**⊞**); SSH splits share the
   connection.
 - **Broadcast…** types into several terminals at once; the source shows a
   red banner and targets are marked.

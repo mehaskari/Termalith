@@ -101,6 +101,8 @@ pub struct Settings {
     /// Show the server monitor bar under SSH terminals (runs a read-only
     /// command on the server every few seconds).
     pub server_monitor: bool,
+    /// Color keywords such as error and warning in terminal output.
+    pub highlight_output: bool,
 }
 
 impl Default for Settings {
@@ -122,6 +124,7 @@ impl Default for Settings {
             check_updates: false,
             embedded_rdp: false,
             server_monitor: false,
+            highlight_output: false,
         }
     }
 }

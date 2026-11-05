@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Keyword colors:** an optional setting colors words such as error and
+  warning in terminal output.
 - **Four panes:** a tab can be split into a 2×2 grid.
 - **Files follow the terminal:** the Files panel can follow the shell's
   current folder.

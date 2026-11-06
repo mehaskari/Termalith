@@ -30,6 +30,12 @@ ignore = [
     # sspi's smart-card support, under IronRDP. Only in the experimental
     # `embedded` feature (ADR-030), which release builds do not enable.
     { id = "RUSTSEC-2023-0089", reason = "experimental embedded RDP only; via sspi smart cards" },
+    # Unmaintained (not a vulnerability): pin-utils was archived upstream. It
+    # is a macro-only crate reached through async-dnssd, which sspi uses on
+    # macOS/iOS only. No patched release exists and the newest sspi (0.23.1)
+    # still needs async-dnssd. Drop this once IronRDP moves to an sspi
+    # without async-dnssd/pin-utils.
+    { id = "RUSTSEC-2026-0441", reason = "macro-only, macOS via sspi/async-dnssd; no upgrade path" },
 ]
 
 [licenses]

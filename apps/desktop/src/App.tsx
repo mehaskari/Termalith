@@ -387,7 +387,7 @@ export function App() {
    * the backend needs one and retrying; saving happens only after success.
    */
   const withLogin = useCallback(
-    async <T,>(
+    async <T extends { saveError?: string | null },>(
       label: string,
       opts: { canSave: boolean; keyAuth: boolean; savedSecret: boolean },
       attempt: (password: string | undefined, save: boolean) => Promise<T>,
@@ -399,6 +399,7 @@ export function App() {
         try {
           const r = await attempt(secret, save);
           if (save) refresh();
+          if (r.saveError) setNotice(`Connected, but the password was not saved: ${r.saveError}`);
           return r;
         } catch (e) {
           if (!isIpcError(e)) throw e;

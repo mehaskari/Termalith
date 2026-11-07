@@ -64,6 +64,8 @@ pub struct Connected {
     pub session: Arc<SshSession>,
     /// Tab title, e.g. the session name or `user@host`.
     pub label: String,
+    /// Why a password that should be saved was not. The login still worked.
+    pub save_error: Option<String>,
 }
 
 impl Connector {
@@ -105,6 +107,7 @@ impl Connector {
                 Ok(Connected {
                     session: Arc::new(session),
                     label: input.name,
+                    save_error: None,
                 })
             }
         }
@@ -116,7 +119,7 @@ impl Connector {
         &self,
         id: &SessionId,
         secret: PasswordInput,
-    ) -> Result<(FtpClient, String), AppError> {
+    ) -> Result<(FtpClient, String, Option<String>), AppError> {
         let rec = self.sessions.get(id)?;
         if !rec.input.protocol.is_ftp() {
             return Err(AppError::invalid("session", "not an FTP session"));
@@ -135,10 +138,7 @@ impl Connector {
         let used_saved = typed.is_none() && rec.credential.is_some();
         let password = match typed.clone() {
             Some(s) => Some(s),
-            None => match &rec.credential {
-                Some(c) => self.load_secret(c.clone()).await?,
-                None => None,
-            },
+            None => self.saved_secret(rec.credential.clone()).await,
         };
         // An empty user name logs in anonymously.
         if password.is_none() && !rec.input.username.is_empty() {
@@ -172,17 +172,41 @@ impl Connector {
             Err(FtpError::AuthFailed) if used_saved => return Err(AppError::PasswordRequired),
             Err(e) => return Err(ftp_error(e).into()),
         };
-        if save && let Some(secret) = typed {
-            let cred = match &rec.credential {
-                Some(c) => c.clone(),
+        let save_error = self.remember(id, rec.credential.clone(), typed, save).await;
+        Ok((client, rec.input.name, save_error))
+    }
+
+    /// The saved secret. If the OS store cannot give it (it may refuse a
+    /// rebuilt app), the user is asked instead of the login failing.
+    async fn saved_secret(&self, cred: Option<CredentialRef>) -> Option<Zeroizing<String>> {
+        self.load_secret(cred?).await.ok().flatten()
+    }
+
+    /// Saves a typed secret after a successful login. A failure here must
+    /// not cost the user that login, so it is reported, not returned as an
+    /// error.
+    async fn remember(
+        &self,
+        id: &SessionId,
+        existing: Option<CredentialRef>,
+        typed: Option<Zeroizing<String>>,
+        save: bool,
+    ) -> Option<String> {
+        let secret = typed.filter(|_| save)?;
+        let result: Result<(), AppError> = async {
+            let new = existing.is_none();
+            let cred = match existing {
+                Some(c) => c,
                 None => CredentialRef::generate()?,
             };
             self.store_secret(cred.clone(), secret).await?;
-            if rec.credential.is_none() {
+            if new {
                 self.sessions.set_credential(id, Some(&cred))?;
             }
+            Ok(())
         }
-        Ok((client, rec.input.name))
+        .await;
+        result.err().map(|e| e.to_string())
     }
 
     async fn connect_saved(
@@ -201,10 +225,7 @@ impl Connector {
         let used_saved = typed.is_none() && rec.credential.is_some();
         let secret = match typed.clone() {
             Some(s) => Some(s),
-            None => match &rec.credential {
-                Some(c) => self.load_secret(c.clone()).await?,
-                None => None,
-            },
+            None => self.saved_secret(rec.credential.clone()).await,
         };
         if matches!(rec.input.auth, AuthMethod::Password) && secret.is_none() {
             return Err(AppError::PasswordRequired);
@@ -221,19 +242,11 @@ impl Connector {
             Err(e) => return Err(e),
         };
 
-        if save && let Some(secret) = typed {
-            let cred = match &rec.credential {
-                Some(c) => c.clone(),
-                None => CredentialRef::generate()?,
-            };
-            self.store_secret(cred.clone(), secret).await?;
-            if rec.credential.is_none() {
-                self.sessions.set_credential(id, Some(&cred))?;
-            }
-        }
+        let save_error = self.remember(id, rec.credential.clone(), typed, save).await;
         Ok(Connected {
             session: Arc::new(session),
             label: rec.input.name.clone(),
+            save_error,
         })
     }
 

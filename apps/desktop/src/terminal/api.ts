@@ -212,6 +212,13 @@ export interface QuickTarget {
 
 export type SshTarget = { sessionId: string } | { quick: QuickTarget };
 
+export interface SshOpened {
+  id: TerminalId;
+  label: string;
+  /** Why a password that should be saved was not. The login still worked. */
+  saveError?: string | null;
+}
+
 export interface SshOpenRequest {
   sessionId?: string;
   quick?: QuickTarget;
@@ -226,7 +233,7 @@ export async function openSsh(
   rows: number,
   onOutput: (data: Uint8Array) => void,
   onExit: (payload: ExitPayload) => void,
-): Promise<{ id: TerminalId; label: string }> {
+): Promise<SshOpened> {
   return invoke("ssh_open", { request, cols, rows, ...channels(onOutput, onExit) });
 }
 
@@ -741,11 +748,11 @@ export const telnetTerminal =
     invoke<TerminalId>("telnet_open", { sessionId, cols, rows, ...channels(onOutput, onExit) });
 
 /** Connects a saved session without a shell, for a file browser tab. */
-export function openFtpFiles(request: SshOpenRequest): Promise<{ id: TerminalId; label: string }> {
+export function openFtpFiles(request: SshOpenRequest): Promise<SshOpened> {
   return invoke("ftp_files_open", { request });
 }
 
-export function openSshFiles(request: SshOpenRequest): Promise<{ id: TerminalId; label: string }> {
+export function openSshFiles(request: SshOpenRequest): Promise<SshOpened> {
   return invoke("ssh_files_open", { request });
 }
 

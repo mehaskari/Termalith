@@ -1053,11 +1053,18 @@ export function App() {
                 <RdpViewer
                   sessionId={t.sessionId}
                   name={t.title}
-                  askPassword={() =>
-                    askPassword({ target: t.title, kind: "password", canSave: false, retry: null }).then(
-                      (a) => a?.password ?? null,
-                    )
+                  askPassword={(retry) =>
+                    askPassword({
+                      target: t.title,
+                      kind: "password",
+                      canSave: info?.secretsAvailable ?? false,
+                      retry: retry ?? (sessions.find((x) => x.id === t.sessionId)?.hasSavedSecret ? "savedRejected" : null),
+                    })
                   }
+                  onPasswordSaved={(error) => {
+                    refresh();
+                    if (error) setNotice(`Connected, but the password was not saved: ${error}`);
+                  }}
                   onClose={() => closeTab(t.key)}
                 />
               ) : t.kind === "desktop" ? (

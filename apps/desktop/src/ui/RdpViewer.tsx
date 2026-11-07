@@ -14,8 +14,10 @@ import { scancode } from "./scancodes";
 interface Props {
   sessionId: string;
   name: string;
-  /** Asks for the RDP password; null = cancelled. Never stored. */
-  askPassword: () => Promise<string | null>;
+  /** Asks for the RDP password; null = cancelled. */
+  askPassword: (retry: "wrong" | null) => Promise<{ password: string; save: boolean } | null>;
+  /** A password was stored in the OS keychain, or could not be. */
+  onPasswordSaved: (error: string | null) => void;
   onClose: () => void;
 }
 
@@ -32,7 +34,7 @@ const WHEEL_NOTCH = 120;
  * scales to the tab; keyboard (scan codes, so the remote layout applies)
  * and mouse go back to the server, batched per animation frame.
  */
-export function RdpViewer({ sessionId, name, askPassword, onClose }: Props) {
+export function RdpViewer({ sessionId, name, askPassword, onPasswordSaved, onClose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const idRef = useRef<number | null>(null);
   const queue = useRef<EmbeddedInput[]>([]);
@@ -44,8 +46,6 @@ export function RdpViewer({ sessionId, name, askPassword, onClose }: Props) {
   const unacked = useRef(0);
   /** Last text exchanged, so the same text is not offered back and forth. */
   const lastClipboard = useRef<string | null>(null);
-  /** One password prompt per attempt, even if the effect runs twice (StrictMode). */
-  const prompt = useRef<{ attempt: number; answer: Promise<string | null> } | null>(null);
 
   /** Asks the server for the stage's size, if that differs from the desktop's. */
   const followStage = useCallback(() => {
@@ -68,22 +68,20 @@ export function RdpViewer({ sessionId, name, askPassword, onClose }: Props) {
     unacked.current = 0;
     setStatus({ kind: "connecting" });
     (async () => {
-      if (prompt.current?.attempt !== attempt) prompt.current = { attempt, answer: askPassword() };
-      const password = await prompt.current.answer;
-      if (cancelled) return;
-      if (password === null) {
-        setStatus({ kind: "closed", message: "Cancelled." });
-        return;
-      }
       const canvas = canvasRef.current;
       const box = canvas?.parentElement?.getBoundingClientRect();
       // Ask for the visible size (rounded to even pixels); the server may adjust it.
       const width = Math.max(640, Math.round((box?.width ?? 1024) / 2) * 2);
       const height = Math.max(480, Math.round((box?.height ?? 768) / 2) * 2);
+      // The saved password is tried first; the user is asked only if needed.
+      let password: string | null = null;
+      let save = false;
+      for (;;) {
       try {
-        const id = await openEmbedded(
+        const { id, saveError } = await openEmbedded(
           sessionId,
           password,
+          save,
           width,
           height,
           (f) => {
@@ -119,9 +117,25 @@ export function RdpViewer({ sessionId, name, askPassword, onClose }: Props) {
           idRef.current = id;
           for (; unacked.current > 0; unacked.current -= 1) void embeddedAck(id).catch(() => {});
           followStage();
+          if (save) onPasswordSaved(saveError ?? null);
         }
+        return;
       } catch (e) {
-        if (!cancelled) setStatus({ kind: "closed", message: isIpcError(e) ? e.message : String(e) });
+        if (cancelled) return;
+        if (isIpcError(e) && (e.code === "password_required" || e.code === "auth_failed")) {
+          const answer = await askPassword(e.code === "auth_failed" ? "wrong" : null);
+          if (cancelled) return;
+          if (answer) {
+            password = answer.password;
+            save = answer.save;
+            continue;
+          }
+          setStatus({ kind: "closed", message: "Cancelled." });
+          return;
+        }
+        setStatus({ kind: "closed", message: isIpcError(e) ? e.message : String(e) });
+        return;
+      }
       }
     })();
     return () => {

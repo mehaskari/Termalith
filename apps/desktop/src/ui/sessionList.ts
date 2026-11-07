@@ -181,7 +181,7 @@ export function allSessions(node: FolderNode): SessionRecord[] {
 }
 
 export function authLabel(s: Pick<SessionRecord, "auth" | "hasSavedSecret" | "protocol">): string {
-  if (s.protocol === "rdp") return "RDP";
+  if (s.protocol === "rdp") return s.hasSavedSecret ? "saved" : "RDP";
   if (s.protocol === "vnc") return "VNC";
   if (s.protocol === "telnet") return "Telnet";
   if (isFtp(s)) return s.hasSavedSecret ? "saved" : (s.protocol ?? "").toUpperCase();

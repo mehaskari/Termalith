@@ -178,14 +178,14 @@ impl Connector {
 
     /// The saved secret. If the OS store cannot give it (it may refuse a
     /// rebuilt app), the user is asked instead of the login failing.
-    async fn saved_secret(&self, cred: Option<CredentialRef>) -> Option<Zeroizing<String>> {
+    pub async fn saved_secret(&self, cred: Option<CredentialRef>) -> Option<Zeroizing<String>> {
         self.load_secret(cred?).await.ok().flatten()
     }
 
     /// Saves a typed secret after a successful login. A failure here must
     /// not cost the user that login, so it is reported, not returned as an
     /// error.
-    async fn remember(
+    pub async fn remember(
         &self,
         id: &SessionId,
         existing: Option<CredentialRef>,

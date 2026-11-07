@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **RDP passwords:** RDP sessions shown inside Termalith can save the
+  password in the system keychain.
 - **Saved passwords:** if the system keychain refuses to save a password, the
   connection stays open and the app says so; if it refuses to read one, the
   app asks for the password instead of failing.

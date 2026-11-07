@@ -81,6 +81,12 @@ fn embedded_rdp_against_windows() {
     }
     eprintln!("windows viewer: {frames} frames, sizes {sizes:?}");
     assert!(frames > 0, "no frames");
+    let mut wrong = params();
+    wrong.password = Zeroizing::new(format!("{password}-wrong"));
+    assert!(matches!(
+        capture(&wrong, Duration::from_secs(5)),
+        Err(remote_desktop::DesktopError::AuthFailed)
+    ));
     // Resizing: Display Control where the server offers it, otherwise a
     // new login at the new size.
     assert!(

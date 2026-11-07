@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type EmbeddedInput,
   closeEmbedded,
@@ -39,14 +39,33 @@ export function RdpViewer({ sessionId, name, askPassword, onClose }: Props) {
   const flushPending = useRef(false);
   const [status, setStatus] = useState<Status>({ kind: "connecting" });
   const [attempt, setAttempt] = useState(0);
+  const [resizeError, setResizeError] = useState<string | null>(null);
+  /** Frames drawn before the session id is known; acknowledged once it is. */
+  const unacked = useRef(0);
   /** Last text exchanged, so the same text is not offered back and forth. */
   const lastClipboard = useRef<string | null>(null);
   /** One password prompt per attempt, even if the effect runs twice (StrictMode). */
   const prompt = useRef<{ attempt: number; answer: Promise<string | null> } | null>(null);
 
+  /** Asks the server for the stage's size, if that differs from the desktop's. */
+  const followStage = useCallback(() => {
+    const box = canvasRef.current?.parentElement?.getBoundingClientRect();
+    const c = canvasRef.current;
+    const id = idRef.current;
+    if (!box || !c || id === null) return;
+    const w = Math.round(box.width / 2) * 2;
+    const h = Math.round(box.height / 2) * 2;
+    if (w < 200 || h < 200 || (w === c.width && h === c.height)) return;
+    embeddedResize(id, w, h).then(
+      () => setResizeError(null),
+      (e) => setResizeError(isIpcError(e) ? e.message : String(e)),
+    );
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     let opened: number | null = null;
+    unacked.current = 0;
     setStatus({ kind: "connecting" });
     (async () => {
       if (prompt.current?.attempt !== attempt) prompt.current = { attempt, answer: askPassword() };
@@ -70,7 +89,9 @@ export function RdpViewer({ sessionId, name, askPassword, onClose }: Props) {
           (f) => {
             const ctx = canvasRef.current?.getContext("2d");
             if (ctx) ctx.putImageData(new ImageData(f.rgba as Uint8ClampedArray<ArrayBuffer>, f.w, f.h), f.x, f.y);
+            // The session stops sending until frames are acknowledged.
             if (idRef.current !== null) void embeddedAck(idRef.current).catch(() => {});
+            else unacked.current += 1;
           },
           (e) => {
             if (e.kind === "connected") {
@@ -92,8 +113,13 @@ export function RdpViewer({ sessionId, name, askPassword, onClose }: Props) {
           },
         );
         opened = id;
-        if (cancelled) void closeEmbedded(id).catch(() => {});
-        else idRef.current = id;
+        if (cancelled) {
+          void closeEmbedded(id).catch(() => {});
+        } else {
+          idRef.current = id;
+          for (; unacked.current > 0; unacked.current -= 1) void embeddedAck(id).catch(() => {});
+          followStage();
+        }
       } catch (e) {
         if (!cancelled) setStatus({ kind: "closed", message: isIpcError(e) ? e.message : String(e) });
       }
@@ -115,23 +141,16 @@ export function RdpViewer({ sessionId, name, askPassword, onClose }: Props) {
     const stage = canvasRef.current?.parentElement;
     if (!stage) return;
     let timer: number | undefined;
-    const observer = new ResizeObserver(([entry]) => {
-      if (!entry) return;
+    const observer = new ResizeObserver(() => {
       window.clearTimeout(timer);
-      timer = window.setTimeout(() => {
-        const w = Math.round(entry.contentRect.width / 2) * 2;
-        const h = Math.round(entry.contentRect.height / 2) * 2;
-        const c = canvasRef.current;
-        if (idRef.current !== null && c && w >= 200 && h >= 200 && (w !== c.width || h !== c.height))
-          void embeddedResize(idRef.current, w, h).catch(() => {});
-      }, 600);
+      timer = window.setTimeout(followStage, 600);
     });
     observer.observe(stage);
     return () => {
       observer.disconnect();
       window.clearTimeout(timer);
     };
-  }, [status.kind]);
+  }, [status.kind, followStage]);
 
   /** Offers this computer's clipboard text to the remote (on focus). */
   const offerClipboard = () => {
@@ -195,6 +214,7 @@ export function RdpViewer({ sessionId, name, askPassword, onClose }: Props) {
             <span className="hint">
               {" "}
               · {status.width}×{status.height} · experimental
+              {resizeError && ` · could not resize: ${resizeError}`}
             </span>
           )}
         </span>

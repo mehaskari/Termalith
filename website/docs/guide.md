@@ -230,7 +230,7 @@ Passwords are never passed on a command line; the client asks for them
 **Inside Termalith (experimental):** with *Settings → Show RDP sessions
 inside Termalith*, an RDP session opens in a tab instead of the external
 client, on every system. The server certificate is checked the same way as
-below, the password is asked each time and not saved, and keyboard input
+below, the password can be saved in the system keychain, and keyboard input
 uses the remote computer's layout. **Ctrl+Alt+Del** is on the tab's
 toolbar. The remote desktop follows the tab's size: servers that support
 resizing a running session do it in place; with others (including

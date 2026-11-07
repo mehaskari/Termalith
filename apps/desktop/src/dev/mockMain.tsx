@@ -271,6 +271,11 @@ mockIPC(
         return d;
       }
       case "embedded_open": {
+        const login = a.login as { sessionId: string; password: string | null; savePassword: boolean };
+        const session = sessions.get(login.sessionId);
+        if (!login.password && !session?.hasSavedSecret) throw { code: "password_required", message: "a password is required" };
+        if (login.password && login.password !== "secret") throw { code: "auth_failed", message: "rejected" };
+        if (login.savePassword && session) session.hasSavedSecret = true;
         // A gradient desktop drawn in strips, like an RDP server would.
         const ev = a.onEvent as ChannelLike;
         const fr = a.onFrame as ChannelLike;
@@ -296,7 +301,7 @@ mockIPC(
             sendFr(buf);
           }
         }, 300);
-        return 1;
+        return { id: 1 };
       }
       case "embedded_input":
       case "embedded_ack":

@@ -28,6 +28,8 @@ pub enum DesktopError {
     Launch { client: String, reason: String },
     #[error("could not check the server certificate: {0}")]
     Certificate(String),
+    #[error("the server rejected the user name or password")]
+    AuthFailed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

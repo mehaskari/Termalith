@@ -611,12 +611,14 @@ export function parseFrame(buf: ArrayBuffer): EmbeddedFrame | null {
 
 export function openEmbedded(
   sessionId: string,
-  password: string,
+  /** `null` tries the saved password. */
+  password: string | null,
+  savePassword: boolean,
   width: number,
   height: number,
   onFrame: (f: EmbeddedFrame) => void,
   onEvent: (e: EmbeddedEvent) => void,
-): Promise<number> {
+): Promise<{ id: number; saveError?: string | null }> {
   const frames = new Channel<ArrayBuffer>();
   frames.onmessage = (buf) => {
     const f = parseFrame(buf);
@@ -624,7 +626,7 @@ export function openEmbedded(
   };
   const events = new Channel<EmbeddedEvent>();
   events.onmessage = onEvent;
-  return invoke("embedded_open", { sessionId, password, width, height, onFrame: frames, onEvent: events });
+  return invoke("embedded_open", { login: { sessionId, password, savePassword }, width, height, onFrame: frames, onEvent: events });
 }
 
 export const embeddedInput = (id: number, events: EmbeddedInput[]) => invoke<void>("embedded_input", { id, events });

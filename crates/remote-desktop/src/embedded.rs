@@ -52,6 +52,15 @@ fn error_chain(e: &(dyn std::error::Error + 'static)) -> String {
     out
 }
 
+/// CredSSP names rejected credentials; other login failures stay as they are.
+fn login_error(chain: String) -> DesktopError {
+    if chain.contains("STATUS_LOGON_FAILURE") || chain.contains("STATUS_WRONG_PASSWORD") {
+        DesktopError::AuthFailed
+    } else {
+        failed("login", chain)
+    }
+}
+
 fn failed(what: &str, e: impl std::fmt::Display) -> DesktopError {
     DesktopError::Launch {
         client: "embedded RDP".into(),
@@ -248,7 +257,7 @@ fn connect(
         public_key,
         None,
     )
-    .map_err(|e| failed("login", error_chain(&e)))?;
+    .map_err(|e| login_error(error_chain(&e)))?;
     let result = match outcome {
         ConnectionOutcome::Connected(r) => r,
         ConnectionOutcome::Redirected(_) => {
@@ -1202,6 +1211,19 @@ fn reactivate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejected_credentials_are_told_apart() {
+        let rejected = "CredSSP server returned an error status; status is STATUS_LOGON_FAILURE";
+        assert!(matches!(
+            login_error(rejected.into()),
+            DesktopError::AuthFailed
+        ));
+        assert!(matches!(
+            login_error("connection reset".into()),
+            DesktopError::Launch { .. }
+        ));
+    }
 
     #[test]
     fn dirty_rectangles_merge() {

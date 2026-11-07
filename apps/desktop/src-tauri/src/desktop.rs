@@ -4,7 +4,7 @@
 
 use app_core::{AppError, DesktopHub, DesktopInfo, DesktopLaunch, SessionId, SessionProtocol};
 use remote_desktop::embedded::{ViewerEvent, ViewerInput};
-use remote_desktop::{DesktopTarget, Protocol};
+use remote_desktop::{DesktopError, DesktopTarget, Protocol};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use tauri::ipc::{Channel, InvokeResponseBody};
@@ -171,13 +171,17 @@ fn encode_frame(x: u16, y: u16, w: u16, h: u16, rgba: Vec<u8>) -> Vec<u8> {
 #[tauri::command]
 pub async fn embedded_open(
     state: State<'_, AppState>,
-    session_id: String,
-    password: Option<String>,
+    login: EmbeddedLogin,
     width: u16,
     height: u16,
     on_frame: Channel<InvokeResponseBody>,
     on_event: Channel<EmbeddedEventDto>,
-) -> Result<u64, IpcError> {
+) -> Result<EmbeddedOpened, IpcError> {
+    let EmbeddedLogin {
+        session_id,
+        password,
+        save_password,
+    } = login;
     let id = SessionId::parse(&session_id)?;
     let rec = state.connector.sessions.get(&id)?;
     if rec.input.protocol != SessionProtocol::Rdp {
@@ -187,11 +191,18 @@ pub async fn embedded_open(
         }
         .into());
     }
-    let password = password.map(Zeroizing::new);
-    if password.is_none() {
+    // A typed password wins; otherwise the saved one is tried.
+    let typed = password.map(Zeroizing::new);
+    let credential = rec.credential.clone();
+    let used_saved = typed.is_none() && credential.is_some();
+    let secret = match &typed {
+        Some(p) => Some(p.clone()),
+        None => state.connector.saved_secret(credential.clone()).await,
+    };
+    if secret.is_none() {
         return Err(AppError::PasswordRequired.into());
     }
-    let launch = launch_for(&state, id, rec, Protocol::Rdp, password).await?;
+    let launch = launch_for(&state, id.clone(), rec, Protocol::Rdp, secret).await?;
     let sink = move |ev: ViewerEvent| match ev {
         ViewerEvent::Frame { x, y, w, h, rgba } => on_frame
             .send(InvokeResponseBody::Raw(encode_frame(x, y, w, h, rgba)))
@@ -204,10 +215,41 @@ pub async fn embedded_open(
             on_event.send(EmbeddedEventDto::Closed { reason }).is_ok()
         }
     };
-    Ok(state
+    let viewer = match state
         .desktops
         .open_embedded(launch, width, height, sink)
-        .await?)
+        .await
+    {
+        Ok(viewer) => viewer,
+        // A saved password that no longer works: ask the user again.
+        Err(AppError::Desktop(DesktopError::AuthFailed)) if used_saved => {
+            return Err(AppError::PasswordRequired.into());
+        }
+        Err(e) => return Err(e.into()),
+    };
+    let save = save_password && state.secrets_available;
+    let save_error = state.connector.remember(&id, credential, typed, save).await;
+    Ok(EmbeddedOpened {
+        id: viewer,
+        save_error,
+    })
+}
+
+/// Which session to open and, if the user typed one, its password.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmbeddedLogin {
+    session_id: String,
+    password: Option<String>,
+    save_password: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmbeddedOpened {
+    id: u64,
+    /// Why a password that should be saved was not. The login still worked.
+    save_error: Option<String>,
 }
 
 #[tauri::command]

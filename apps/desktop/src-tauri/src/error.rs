@@ -125,6 +125,9 @@ impl From<AppError> for IpcError {
             AppError::Desktop(remote_desktop::DesktopError::NoClient(_)) => {
                 Self::new("desktop_no_client", e.to_string())
             }
+            AppError::Desktop(remote_desktop::DesktopError::AuthFailed) => {
+                Self::new("auth_failed", e.to_string())
+            }
             AppError::Desktop(_) => Self::new("desktop_error", e.to_string()),
             AppError::Network(_) => Self::new("connect_failed", e.to_string()),
         }

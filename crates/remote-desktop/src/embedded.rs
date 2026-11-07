@@ -963,6 +963,7 @@ fn session(
                             u32::from(w),
                             u32::from(h),
                         );
+                    debug(&format!("resize to {w}x{h} requested"));
                     // Sent once Display Control is ready (below); a newer
                     // request replaces an unsent one.
                     pending_resize = Some((w, h, Instant::now(), None));

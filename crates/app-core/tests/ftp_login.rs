@@ -131,12 +131,12 @@ async fn ftp_password_is_saved_only_after_a_successful_login() {
     );
     assert!(!r.connector.sessions.get(&id).unwrap().has_saved_secret);
 
-    let (client, label) = r
+    let (client, label, save_error) = r
         .connector
         .connect_ftp(&id, typed(&password, true))
         .await
         .unwrap();
-    assert_eq!(label, "files");
+    assert_eq!((label.as_str(), save_error), ("files", None));
     assert_eq!(client.home().await.unwrap(), "/");
     assert!(r.connector.sessions.get(&id).unwrap().has_saved_secret);
     // From the saved secret, without asking.
@@ -190,7 +190,7 @@ async fn ftps_certificate_is_asked_once_and_can_be_refused() {
             .broker
             .respond(prompt.request_id, HostKeyDecision::AcceptAndSave)
     );
-    let (client, _) = attempt.await.unwrap().unwrap();
+    let (client, ..) = attempt.await.unwrap().unwrap();
     assert!(client.list("/").await.is_ok());
     connector
         .connect_ftp(&id, PasswordInput::None)

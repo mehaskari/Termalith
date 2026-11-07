@@ -12,7 +12,7 @@ use app_core::{
     AppError, AuthMethod, ConnectRequest, Connector, FLOW_HIGH_WATERMARK, HostKeyPrompt,
     PasswordInput, PromptBroker, SessionInput, SessionProtocol, SessionStore, TerminalHub,
 };
-use credential_store::MemorySecretStore;
+use credential_store::{CredentialRef, MemorySecretStore, SecretError, SecretStore};
 use protocol_ssh::{FileKnownHosts, HostKeyDecision, KnownHostsStore};
 use terminal_pty::{TerminalEvent, TerminalSize};
 use test_sshd::{SshdConfig, TestSshd};
@@ -350,6 +350,83 @@ async fn ssh_output_is_flow_controlled() {
     }
     r.hub.close(id).await.unwrap();
     assert!(r.hub.is_empty());
+}
+
+/// An OS credential store that refuses everything.
+struct BrokenStore;
+
+impl SecretStore for BrokenStore {
+    fn put(&self, _: &CredentialRef, _: &[u8]) -> Result<(), SecretError> {
+        Err(SecretError::Platform("refused".into()))
+    }
+    fn get(&self, _: &CredentialRef) -> Result<Option<zeroize::Zeroizing<Vec<u8>>>, SecretError> {
+        Err(SecretError::Platform("refused".into()))
+    }
+    fn delete(&self, _: &CredentialRef) -> Result<(), SecretError> {
+        Ok(())
+    }
+}
+
+/// A login that worked is kept when saving fails, and a saved secret that
+/// cannot be read leads to a password prompt, not to a failed connection.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_broken_credential_store_does_not_cost_the_login() {
+    let Some(r) = rig() else { return };
+    let key = protocol_ssh::PublicKey::from_openssh(r.sshd.host_pub.trim()).unwrap();
+    r.known_hosts.add("127.0.0.1", r.sshd.port, &key).unwrap();
+    let enc = r.sshd.path("enc_key");
+    test_sshd::keygen(&enc, "ed25519", "open sesame").unwrap();
+    r.sshd.authorize(&r.sshd.path("enc_key.pub"));
+    let connector = Connector {
+        sessions: Arc::clone(&r.connector.sessions),
+        secrets: Arc::new(BrokenStore),
+        known_hosts: r.known_hosts.clone(),
+        broker: r.broker.clone(),
+        timeout: Duration::from_secs(20),
+        agent: None,
+        kbd: None,
+    };
+    let mut input = key_session(&r).input;
+    input.name = "broken store".into();
+    input.auth = AuthMethod::KeyFile { path: enc };
+    let rec = connector.sessions.create(&input).unwrap();
+
+    let connected = connector
+        .connect(ConnectRequest::Saved {
+            id: rec.id.clone(),
+            secret: PasswordInput::Provided {
+                secret: zeroize::Zeroizing::new("open sesame".to_owned()),
+                save: true,
+            },
+        })
+        .await
+        .expect("the login still counts");
+    assert!(connected.save_error.is_some());
+    assert!(!connector.sessions.get(&rec.id).unwrap().has_saved_secret);
+    connected.session.disconnect().await.unwrap();
+
+    let password = connector
+        .sessions
+        .create(&SessionInput {
+            name: "saved password".into(),
+            auth: AuthMethod::Password,
+            ..input
+        })
+        .unwrap();
+    let cred = CredentialRef::generate().unwrap();
+    connector
+        .sessions
+        .set_credential(&password.id, Some(&cred))
+        .unwrap();
+    assert!(matches!(
+        connector
+            .connect(ConnectRequest::Saved {
+                id: password.id,
+                secret: PasswordInput::None,
+            })
+            .await,
+        Err(AppError::PasswordRequired)
+    ));
 }
 
 #[tokio::test(flavor = "multi_thread")]

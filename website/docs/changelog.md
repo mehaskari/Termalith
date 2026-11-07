@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Saved passwords:** if the system keychain refuses to save a password, the
+  connection stays open and the app says so; if it refuses to read one, the
+  app asks for the password instead of failing.
 - **Macros:** record keystrokes with their pauses and play them back.
 - **Keyword colors:** an optional setting colors words such as error and
   warning in terminal output.

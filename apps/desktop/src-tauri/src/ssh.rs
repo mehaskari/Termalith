@@ -39,6 +39,8 @@ pub struct SshOpenRequest {
 pub struct SshOpened {
     id: u64,
     label: String,
+    /// Why a password that should be saved was not.
+    save_error: Option<String>,
 }
 
 fn connect_request(state: &AppState, request: SshOpenRequest) -> Result<ConnectRequest, IpcError> {
@@ -79,6 +81,7 @@ pub async fn ssh_files_open(
     Ok(SshOpened {
         id: state.hub.open_files(connected.session),
         label: connected.label,
+        save_error: connected.save_error,
     })
 }
 
@@ -91,10 +94,11 @@ pub async fn ftp_files_open(
     let ConnectRequest::Saved { id, secret } = connect_request(&state, request)? else {
         return Err(IpcError::internal("FTP sessions must be saved"));
     };
-    let (client, label) = state.connector.connect_ftp(&id, secret).await?;
+    let (client, label, save_error) = state.connector.connect_ftp(&id, secret).await?;
     Ok(SshOpened {
         id: state.hub.open_ftp(std::sync::Arc::new(client)),
         label,
+        save_error,
     })
 }
 
@@ -116,6 +120,7 @@ pub async fn ssh_open(
     Ok(SshOpened {
         id,
         label: connected.label,
+        save_error: connected.save_error,
     })
 }
 

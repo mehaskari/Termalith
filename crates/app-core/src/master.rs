@@ -241,6 +241,13 @@ mod tests {
         Zeroizing::new(s.to_owned())
     }
 
+    /// A random password per run, so no secret is written in the source.
+    fn random_password() -> String {
+        let mut b = [0u8; 12];
+        getrandom::fill(&mut b).unwrap();
+        b.iter().map(|x| format!("{x:02x}")).collect()
+    }
+
     fn rig() -> (MasterPassword, Arc<MemorySecretStore>, CredentialRef) {
         let store = Arc::new(SessionStore::open_in_memory().unwrap());
         let os = Arc::new(MemorySecretStore::default());
@@ -262,8 +269,9 @@ mod tests {
     #[tokio::test]
     async fn enable_lock_unlock_change_disable() {
         let (m, os, cred) = rig();
+        let (first, second, wrong) = (random_password(), random_password(), random_password());
         assert!(m.enable(pw("short")).await.is_err(), "too short");
-        m.enable(pw("first password")).await.unwrap();
+        m.enable(pw(&first)).await.unwrap();
         assert!(m.store.master_key().unwrap().is_some());
         assert_ne!(os.get(&cred).unwrap().unwrap().as_slice(), b"proxy secret");
 
@@ -277,23 +285,21 @@ mod tests {
         );
         assert!(m.vault.get(&cred).is_err());
         assert!(matches!(
-            m.unlock(pw("wrong password")).await,
+            m.unlock(pw(&wrong)).await,
             Err(AppError::Secret(
                 credential_store::SecretError::WrongPassword
             ))
         ));
-        m.unlock(pw("first password")).await.unwrap();
+        m.unlock(pw(&first)).await.unwrap();
         assert_eq!(
             m.vault.get(&cred).unwrap().unwrap().as_slice(),
             b"proxy secret"
         );
 
-        m.change(pw("first password"), pw("second password"))
-            .await
-            .unwrap();
+        m.change(pw(&first), pw(&second)).await.unwrap();
         m.lock();
-        assert!(m.unlock(pw("first password")).await.is_err());
-        m.unlock(pw("second password")).await.unwrap();
+        assert!(m.unlock(pw(&first)).await.is_err());
+        m.unlock(pw(&second)).await.unwrap();
 
         // A store reopened later starts locked and opens with the new password.
         let again = MasterPassword {
@@ -301,9 +307,9 @@ mod tests {
             vault: Arc::new(VaultStore::new(os.clone(), true)),
             cost: FAST,
         };
-        again.unlock(pw("second password")).await.unwrap();
+        again.unlock(pw(&second)).await.unwrap();
 
-        m.disable(pw("second password")).await.unwrap();
+        m.disable(pw(&second)).await.unwrap();
         assert!(!m.status().protected);
         assert!(m.store.master_key().unwrap().is_none());
         assert_eq!(os.get(&cred).unwrap().unwrap().as_slice(), b"proxy secret");
@@ -312,7 +318,7 @@ mod tests {
     #[tokio::test]
     async fn reset_forgets_secrets_and_the_password() {
         let (m, os, cred) = rig();
-        m.enable(pw("first password")).await.unwrap();
+        m.enable(pw(&first)).await.unwrap();
         m.lock();
         m.reset().unwrap();
         assert!(!m.status().protected);

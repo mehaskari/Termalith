@@ -167,6 +167,16 @@ new Ed25519 key (optionally with a passphrase), copies a public key, and
 server (the folder and file get safe permissions; a key is never added
 twice).
 
+### Master password
+
+**Settings → Master password** protects saved passwords with a password
+Termalith asks for at startup. Saved passwords stay in the system keychain,
+but encrypted with a key only your master password opens. Skip the
+question and servers ask for their password as if none were saved. **Lock
+now** forgets the key until you unlock again. A forgotten master password
+cannot be recovered: **Forgot the master password?** deletes the saved
+passwords so you can start over.
+
 ### Server monitor
 
 Turn on **Show a server monitor under SSH terminals** in Settings to see

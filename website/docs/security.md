@@ -64,6 +64,11 @@ Macros are stored unencrypted in the app's database. Recording captures
 everything typed, so the app warns while recording and shows the keys
 before saving.
 
+With a **master password** (optional), saved passwords are encrypted
+before they reach the keychain (XChaCha20-Poly1305 under a random key,
+which is itself encrypted with a key derived from the master password by
+Argon2id). The key exists in memory only while unlocked.
+
 ## The app itself
 
 - The user interface cannot run arbitrary commands: every operation is a

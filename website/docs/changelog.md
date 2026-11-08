@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Master password:** optionally protect saved passwords with a password
+  asked for at startup.
 - **Sharp RDP on Retina screens:** the embedded viewer asks for the desktop in
   device pixels with the matching display scale, so text is sharp and keeps
   its size.

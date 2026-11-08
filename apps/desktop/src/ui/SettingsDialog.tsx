@@ -7,6 +7,7 @@ import {
   setProxyPassword,
 } from "../terminal/api";
 import { Dialog } from "./Dialog";
+import { MasterPasswordSettings } from "./MasterPassword";
 import { TERMINAL_SCHEMES } from "./theme";
 
 interface Props {
@@ -15,9 +16,13 @@ interface Props {
   shells: ShellChoice[];
   onSave: (s: Settings) => Promise<void>;
   onCancel: () => void;
+  /** The OS credential store works, so passwords can be saved (and protected). */
+  secretsAvailable?: boolean;
+  /** Saved passwords were deleted (forgotten master password). */
+  onSecretsReset?: () => void;
 }
 
-export function SettingsDialog({ initial, shells, onSave, onCancel }: Props) {
+export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvailable = false, onSecretsReset }: Props) {
   const [s, setS] = useState<Settings>(initial);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<Settings>) => setS((x) => ({ ...x, ...patch }));
@@ -244,6 +249,8 @@ export function SettingsDialog({ initial, shells, onSave, onCancel }: Props) {
         </label>
         {error && <p className="form-error span-2" role="alert">{error}</p>}
       </form>
+      {/* Outside the form: it acts at once and has its own buttons. */}
+      <MasterPasswordSettings secretsAvailable={secretsAvailable} onReset={onSecretsReset} />
     </Dialog>
   );
 }

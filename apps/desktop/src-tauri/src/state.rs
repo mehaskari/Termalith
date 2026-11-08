@@ -4,10 +4,10 @@ use std::time::Duration;
 use std::path::PathBuf;
 
 use app_core::{
-    AuthPromptBroker, CertificateCheck, Connector, DesktopHub, DroppedFiles, PromptBroker,
-    ServerMonitor, SessionStore, TerminalHub, TerminalLogs, Transfers, Tunnels,
+    AuthPromptBroker, CertificateCheck, Connector, DesktopHub, DroppedFiles, MasterPassword,
+    PromptBroker, ServerMonitor, SessionStore, TerminalHub, TerminalLogs, Transfers, Tunnels,
 };
-use credential_store::{MemorySecretStore, NativeSecretStore, SecretStore};
+use credential_store::{KdfCost, MemorySecretStore, NativeSecretStore, SecretStore, VaultStore};
 use protocol_ssh::FileKnownHosts;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -37,6 +37,7 @@ pub struct AppState {
     pub desktops: Arc<DesktopHub>,
     pub logs: Arc<TerminalLogs>,
     pub monitor: Arc<ServerMonitor>,
+    pub master: Arc<MasterPassword>,
 }
 
 /// The user's SSH agent: `SSH_AUTH_SOCK` on Unix (set for GUI apps by
@@ -61,6 +62,7 @@ impl AppState {
         std::fs::create_dir_all(&data_dir)?;
 
         let sessions = Arc::new(SessionStore::open(&data_dir.join("termalith.db"))?);
+        let sessions_for_master = Arc::clone(&sessions);
 
         let mut known_hosts = FileKnownHosts::new(data_dir.join("known_hosts"));
         if let Ok(home) = app.path().home_dir() {
@@ -68,11 +70,17 @@ impl AppState {
             known_hosts = known_hosts.with_read_only(home.join(".ssh").join("known_hosts"));
         }
 
-        let (secrets, secrets_available): (Arc<dyn SecretStore>, bool) =
+        let (os_secrets, secrets_available): (Arc<dyn SecretStore>, bool) =
             match NativeSecretStore::new(CREDENTIAL_SERVICE) {
                 Ok(s) => (Arc::new(s), true),
                 Err(_) => (Arc::new(MemorySecretStore::default()), false),
             };
+        // With a master password the vault starts locked (ADR-032).
+        let vault = Arc::new(VaultStore::new(
+            os_secrets,
+            sessions.master_key()?.is_some(),
+        ));
+        let secrets: Arc<dyn SecretStore> = vault.clone();
 
         let emitter = app.clone();
         let broker = Arc::new(PromptBroker::new(
@@ -150,6 +158,11 @@ impl AppState {
             desktops,
             logs: Arc::new(TerminalLogs::new(logs_dir)),
             monitor: Arc::new(ServerMonitor::default()),
+            master: Arc::new(MasterPassword {
+                store: sessions_for_master,
+                vault,
+                cost: KdfCost::DEFAULT,
+            }),
         })
     }
 }

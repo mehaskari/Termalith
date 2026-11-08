@@ -200,6 +200,12 @@ impl VaultStore {
         }
     }
 
+    /// After the sealed secrets were deleted (a forgotten master password):
+    /// no protection any more.
+    pub fn reset(&self) {
+        self.set(State::Off);
+    }
+
     /// Turns protection on: every listed secret is read and sealed.
     pub fn protect(&self, key: DataKey, refs: &[CredentialRef]) -> Result<(), SecretError> {
         for r in refs {

@@ -635,8 +635,8 @@ export const embeddedInput = (id: number, events: EmbeddedInput[]) => invoke<voi
 export const embeddedAck = (id: number) => invoke<void>("embedded_ack", { id });
 /** Offers text copied here to the remote computer. */
 export const embeddedClipboard = (id: number, text: string) => invoke<void>("embedded_clipboard", { id, text });
-export const embeddedResize = (id: number, width: number, height: number) =>
-  invoke<void>("embedded_resize", { id, width, height });
+export const embeddedResize = (id: number, width: number, height: number, scale: number) =>
+  invoke<void>("embedded_resize", { id, width, height, scale });
 export const closeEmbedded = (id: number) => invoke<void>("embedded_close", { id });
 
 export function closeDesktop(id: number): Promise<void> {

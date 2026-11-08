@@ -543,8 +543,9 @@ pub enum ViewerInput {
 
 enum Control {
     Input(Vec<ViewerInput>),
-    /// Ask the server for a new desktop size (it may adjust or refuse it).
-    Resize(u16, u16),
+    /// Ask the server for a new desktop size and scale (it may adjust or
+    /// refuse it).
+    Resize(u16, u16, u32),
     /// Text copied on this computer, offered to the remote.
     Clipboard(String),
     /// The viewer drew one frame.
@@ -640,8 +641,8 @@ fn connect_session(
 /// How one connection's session ended.
 enum Ended {
     Done,
-    /// Log in again at this size.
-    Resize(u16, u16),
+    /// Log in again at this size and scale.
+    Resize(u16, u16, u32),
 }
 
 /// Handle to a running session. Dropping it closes the session.
@@ -654,10 +655,10 @@ impl Viewer {
         self.tx.send(Control::Input(events)).is_ok()
     }
 
-    /// Asks the server to change the desktop size; a `Connected` event with
-    /// the new size follows when it does.
-    pub fn resize(&self, width: u16, height: u16) -> bool {
-        self.tx.send(Control::Resize(width, height)).is_ok()
+    /// Asks the server to change the desktop size and display scale (in
+    /// percent); a `Connected` event with the new size follows when it does.
+    pub fn resize(&self, width: u16, height: u16, scale: u32) -> bool {
+        self.tx.send(Control::Resize(width, height, scale)).is_ok()
     }
 
     /// Offers locally copied text to the remote computer (it is sent when
@@ -867,9 +868,9 @@ fn run(
     loop {
         match session(result, framed, rx, clip, login.scale.clamp(100, 500), sink)? {
             Ended::Done => return Ok(()),
-            Ended::Resize(width, height) => {
-                debug(&format!("reconnecting at {width}x{height}"));
-                (login.width, login.height) = (width, height);
+            Ended::Resize(width, height, scale) => {
+                debug(&format!("reconnecting at {width}x{height}, {scale} %"));
+                (login.width, login.height, login.scale) = (width, height, scale);
                 (result, framed, clip) =
                     connect_session(&login.params()).map_err(|e| e.to_string())?;
             }
@@ -883,7 +884,7 @@ fn session(
     mut framed: Framed<Tls>,
     rx: &std::sync::mpsc::Receiver<Control>,
     clip: clipboard::Queue,
-    scale: u32,
+    mut scale: u32,
     sink: &mut impl FnMut(ViewerEvent) -> bool,
 ) -> Result<Ended, String> {
     let started = Instant::now();
@@ -918,7 +919,7 @@ fn session(
     // Requested size and when: sent once Display Control is ready (it opens
     // some time after login), or a reconnect at that size where it never does.
     // The last element is when it went out through Display Control.
-    let mut pending_resize: Option<(u32, u32, Instant, Option<Instant>)> = None;
+    let mut pending_resize: Option<(u32, u32, u32, Instant, Option<Instant>)> = None;
     let mut canvas: Option<Canvas> = None;
     // Display Control channel state, logged when it changes (diagnostics).
     let mut display_control = (false, false);
@@ -985,16 +986,17 @@ fn session(
                         }
                     }
                 }
-                Ok(Control::Resize(w, h)) => {
+                Ok(Control::Resize(w, h, s)) => {
                     let (w, h) =
                         ironrdp_displaycontrol::pdu::MonitorLayoutEntry::adjust_display_size(
                             u32::from(w),
                             u32::from(h),
                         );
-                    debug(&format!("resize to {w}x{h} requested"));
+                    let s = s.clamp(100, 500);
+                    debug(&format!("resize to {w}x{h}, {s} % requested"));
                     // Sent once Display Control is ready (below); a newer
                     // request replaces an unsent one.
-                    pending_resize = Some((w, h, Instant::now(), None));
+                    pending_resize = Some((w, h, s, Instant::now(), None));
                 }
                 Ok(Control::Clipboard(text)) => {
                     local_text = Some(text);
@@ -1057,7 +1059,7 @@ fn session(
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(Ended::Done),
             Err(e) => return Err(format!("connection lost: {e}")),
         }
-        if let Some((w, h, asked, sent)) = pending_resize {
+        if let Some((w, h, s, asked, sent)) = pending_resize {
             let size = canvas
                 .as_ref()
                 .map_or((image.width(), image.height()), |c| (c.width, c.height));
@@ -1065,13 +1067,15 @@ fn session(
                 u16::try_from(w).unwrap_or(u16::MAX),
                 u16::try_from(h).unwrap_or(u16::MAX),
             );
-            if wanted == size {
+            if wanted == size && s == scale {
                 pending_resize = None;
             } else if sent.is_none()
-                && let Some(frame) = stage.encode_resize(w, h, Some(scale), None)
+                && let Some(frame) = stage.encode_resize(w, h, Some(s), None)
             {
-                pending_resize = Some((w, h, asked, Some(Instant::now())));
-                debug(&format!("resize to {w}x{h} sent"));
+                pending_resize = Some((w, h, s, asked, Some(Instant::now())));
+                // The size is confirmed by the server; the scale is assumed.
+                scale = s;
+                debug(&format!("resize to {w}x{h}, {s} % sent"));
                 let frame = frame.map_err(|e| format!("resize: {e}"))?;
                 framed
                     .write_all(&frame)
@@ -1085,7 +1089,7 @@ fn session(
                 if let Ok(outputs) = stage.graceful_shutdown() {
                     let _ = write(&mut framed, outputs, &mut dirty);
                 }
-                return Ok(Ended::Resize(wanted.0, wanted.1));
+                return Ok(Ended::Resize(wanted.0, wanted.1, s));
             }
         }
         loop {

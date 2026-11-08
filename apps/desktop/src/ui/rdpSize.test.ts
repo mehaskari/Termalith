@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { desktopSize, resizedDesktop } from "./rdpSize";
+import { desktopSize } from "./rdpSize";
 
 describe("desktopSize", () => {
   it("uses device pixels and scale on a Retina screen", () => {
@@ -18,8 +18,12 @@ describe("desktopSize", () => {
   });
 });
 
-describe("resizedDesktop", () => {
-  it("keeps the scale chosen at login", () => {
-    expect(resizedDesktop(800, 600, 200)).toEqual({ width: 1600, height: 1200 });
+describe("resizing", () => {
+  it("lowers the scale instead of exceeding the pixel limit", () => {
+    const small = desktopSize(710, 537, 2);
+    const large = desktopSize(1420, 1003, small.scale / 100);
+    expect(small).toEqual({ width: 1420, height: 1074, scale: 200 });
+    expect(large.width * large.height).toBeLessThanOrEqual(2560 * 1600 + 5000);
+    expect(large.scale).toBeLessThan(200);
   });
 });

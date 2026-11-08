@@ -272,6 +272,15 @@ mod tests {
     use super::*;
     use crate::MemorySecretStore;
 
+    /// A random password per run, so no secret is written in the source.
+    fn password() -> String {
+        random::<12>()
+            .unwrap()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect()
+    }
+
     /// Cheap enough for tests; real use takes [`KdfCost::DEFAULT`].
     const FAST: KdfCost = KdfCost {
         memory: 64,
@@ -281,19 +290,20 @@ mod tests {
 
     #[test]
     fn the_right_password_unlocks_the_same_key() {
-        let (key, wrapped) = DataKey::create("correct horse", FAST).unwrap();
-        let again = DataKey::unlock("correct horse", &wrapped).unwrap();
+        let (first, second) = (password(), password());
+        let (key, wrapped) = DataKey::create(&first, FAST).unwrap();
+        let again = DataKey::unlock(&first, &wrapped).unwrap();
         assert_eq!(key.0.as_ref(), again.0.as_ref());
         assert!(matches!(
-            DataKey::unlock("wrong", &wrapped),
+            DataKey::unlock(&second, &wrapped),
             Err(SecretError::WrongPassword)
         ));
         // A new password keeps the key; the old one stops working.
-        let rewrapped = key.wrap("new", FAST).unwrap();
+        let rewrapped = key.wrap(&second, FAST).unwrap();
         assert_ne!(rewrapped.salt, wrapped.salt);
-        assert!(DataKey::unlock("correct horse", &rewrapped).is_err());
+        assert!(DataKey::unlock(&first, &rewrapped).is_err());
         assert_eq!(
-            DataKey::unlock("new", &rewrapped).unwrap().0.as_ref(),
+            DataKey::unlock(&second, &rewrapped).unwrap().0.as_ref(),
             key.0.as_ref()
         );
     }
@@ -308,7 +318,8 @@ mod tests {
         );
         vault.put(&a, b"saved before").unwrap();
 
-        let (key, wrapped) = DataKey::create("pw", FAST).unwrap();
+        let master = password();
+        let (key, wrapped) = DataKey::create(&master, FAST).unwrap();
         vault.protect(key, std::slice::from_ref(&a)).unwrap();
         vault.put(&b, b"saved after").unwrap();
         // The OS store only sees sealed bytes.
@@ -325,7 +336,7 @@ mod tests {
         assert!(matches!(vault.put(&b, b"x"), Err(SecretError::Locked)));
 
         // Swapping two sealed values between entries is detected.
-        vault.unlock(DataKey::unlock("pw", &wrapped).unwrap());
+        vault.unlock(DataKey::unlock(&master, &wrapped).unwrap());
         let sealed_b = inner.get(&b).unwrap().unwrap();
         inner.put(&a, &sealed_b).unwrap();
         assert!(vault.get(&a).is_err());
@@ -347,7 +358,7 @@ mod tests {
 
     #[test]
     fn the_default_cost_is_accepted() {
-        let (_, wrapped) = DataKey::create("pw", KdfCost::DEFAULT).unwrap();
+        let (_, wrapped) = DataKey::create(&password(), KdfCost::DEFAULT).unwrap();
         assert_eq!(wrapped.cost, KdfCost::DEFAULT);
     }
 }

@@ -174,6 +174,7 @@ pub async fn embedded_open(
     login: EmbeddedLogin,
     width: u16,
     height: u16,
+    scale: u32,
     on_frame: Channel<InvokeResponseBody>,
     on_event: Channel<EmbeddedEventDto>,
 ) -> Result<EmbeddedOpened, IpcError> {
@@ -217,7 +218,7 @@ pub async fn embedded_open(
     };
     let viewer = match state
         .desktops
-        .open_embedded(launch, width, height, sink)
+        .open_embedded(launch, (width, height, scale.clamp(100, 500)), sink)
         .await
     {
         Ok(viewer) => viewer,

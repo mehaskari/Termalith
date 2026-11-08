@@ -153,6 +153,18 @@ pub struct LoginParams<'a> {
     pub pin: CertFingerprint,
     pub width: u16,
     pub height: u16,
+    /// Display scale in percent (100-500): 200 on a Retina screen, where the
+    /// size is in device pixels, so Windows draws text at a readable size.
+    pub scale: u32,
+}
+
+/// Windows accepts only these device scale factors (MS-RDPBCGR 2.2.1.3.2).
+fn device_scale(scale: u32) -> u32 {
+    match scale {
+        0..125 => 100,
+        125..165 => 140,
+        _ => 180,
+    }
 }
 
 /// TCP, X.224 negotiation, TLS with the pinned certificate, login.
@@ -189,6 +201,9 @@ fn connect(
     let mut framed = Framed::new(tcp);
     let mut cfg = config(username, password, size);
     cfg.domain = p.domain.map(str::to_owned);
+    let scale = p.scale.clamp(100, 500);
+    cfg.desktop_scale_factor = scale;
+    cfg.device_scale_factor = Some(device_scale(scale));
     // Display Control lets the viewer resize the remote desktop; the
     // graphics pipeline carries the desktop on servers that support it
     // (without an H.264 decoder only its RemoteFX/planar/ClearCodec codecs
@@ -566,6 +581,7 @@ struct Login {
     pin: CertFingerprint,
     width: u16,
     height: u16,
+    scale: u32,
 }
 
 impl Login {
@@ -580,6 +596,7 @@ impl Login {
             pin: p.pin,
             width: p.width,
             height: p.height,
+            scale: p.scale,
         }
     }
 
@@ -594,6 +611,7 @@ impl Login {
             pin: self.pin,
             width: self.width,
             height: self.height,
+            scale: self.scale,
         }
     }
 }
@@ -847,7 +865,7 @@ fn run(
     sink: &mut impl FnMut(ViewerEvent) -> bool,
 ) -> Result<(), String> {
     loop {
-        match session(result, framed, rx, clip, sink)? {
+        match session(result, framed, rx, clip, login.scale.clamp(100, 500), sink)? {
             Ended::Done => return Ok(()),
             Ended::Resize(width, height) => {
                 debug(&format!("reconnecting at {width}x{height}"));
@@ -865,6 +883,7 @@ fn session(
     mut framed: Framed<Tls>,
     rx: &std::sync::mpsc::Receiver<Control>,
     clip: clipboard::Queue,
+    scale: u32,
     sink: &mut impl FnMut(ViewerEvent) -> bool,
 ) -> Result<Ended, String> {
     let started = Instant::now();
@@ -1049,7 +1068,7 @@ fn session(
             if wanted == size {
                 pending_resize = None;
             } else if sent.is_none()
-                && let Some(frame) = stage.encode_resize(w, h, None, None)
+                && let Some(frame) = stage.encode_resize(w, h, Some(scale), None)
             {
                 pending_resize = Some((w, h, asked, Some(Instant::now())));
                 debug(&format!("resize to {w}x{h} sent"));
@@ -1211,6 +1230,13 @@ fn reactivate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn device_scale_uses_the_values_windows_accepts() {
+        assert_eq!(device_scale(100), 100);
+        assert_eq!(device_scale(150), 140);
+        assert_eq!(device_scale(200), 180);
+    }
 
     #[test]
     fn rejected_credentials_are_told_apart() {

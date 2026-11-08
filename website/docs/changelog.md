@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Sharp RDP on Retina screens:** the embedded viewer asks for the desktop in
+  device pixels with the matching display scale, so text is sharp and keeps
+  its size.
 - **RDP passwords:** RDP sessions shown inside Termalith can save the
   password in the system keychain.
 - **Saved passwords:** if the system keychain refuses to save a password, the

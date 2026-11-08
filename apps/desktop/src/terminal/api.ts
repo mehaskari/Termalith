@@ -616,6 +616,8 @@ export function openEmbedded(
   savePassword: boolean,
   width: number,
   height: number,
+  /** Display scale in percent (200 on a Retina screen). */
+  scale: number,
   onFrame: (f: EmbeddedFrame) => void,
   onEvent: (e: EmbeddedEvent) => void,
 ): Promise<{ id: number; saveError?: string | null }> {
@@ -626,7 +628,7 @@ export function openEmbedded(
   };
   const events = new Channel<EmbeddedEvent>();
   events.onmessage = onEvent;
-  return invoke("embedded_open", { login: { sessionId, password, savePassword }, width, height, onFrame: frames, onEvent: events });
+  return invoke("embedded_open", { login: { sessionId, password, savePassword }, width, height, scale, onFrame: frames, onEvent: events });
 }
 
 export const embeddedInput = (id: number, events: EmbeddedInput[]) => invoke<void>("embedded_input", { id, events });

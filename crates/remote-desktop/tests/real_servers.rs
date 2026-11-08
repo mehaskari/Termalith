@@ -169,6 +169,7 @@ fn embedded_rdp_against_xrdp() {
         pin,
         width: 1024,
         height: 768,
+        scale: 100,
     };
 
     let wrong = capture(

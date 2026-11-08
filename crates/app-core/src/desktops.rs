@@ -202,8 +202,7 @@ impl DesktopHub {
     pub async fn open_embedded(
         &self,
         launch: DesktopLaunch,
-        width: u16,
-        height: u16,
+        (width, height, scale): (u16, u16, u32),
         sink: impl FnMut(ViewerEvent) -> bool + Send + 'static,
     ) -> Result<u64, AppError> {
         launch.target.validate()?;
@@ -249,6 +248,7 @@ impl DesktopHub {
                     pin,
                     width,
                     height,
+                    scale,
                 },
                 sink,
             )

@@ -318,7 +318,7 @@ mod tests {
     #[tokio::test]
     async fn reset_forgets_secrets_and_the_password() {
         let (m, os, cred) = rig();
-        m.enable(pw(&first)).await.unwrap();
+        m.enable(pw(&random_password())).await.unwrap();
         m.lock();
         m.reset().unwrap();
         assert!(!m.status().protected);

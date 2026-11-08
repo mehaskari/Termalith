@@ -9,7 +9,7 @@ import {
   isIpcError,
   openEmbedded,
 } from "../terminal/api";
-import { desktopSize, resizedDesktop } from "./rdpSize";
+import { desktopSize } from "./rdpSize";
 import { scancode } from "./scancodes";
 
 interface Props {
@@ -45,7 +45,7 @@ export function RdpViewer({ sessionId, name, askPassword, onPasswordSaved, onClo
   const [resizeError, setResizeError] = useState<string | null>(null);
   /** Frames drawn before the session id is known; acknowledged once it is. */
   const unacked = useRef(0);
-  /** Display scale chosen at login, in percent. */
+  /** The screen's scale at login, in percent: the most a resize asks for. */
   const scaleRef = useRef(100);
   /** Last text exchanged, so the same text is not offered back and forth. */
   const lastClipboard = useRef<string | null>(null);
@@ -56,9 +56,10 @@ export function RdpViewer({ sessionId, name, askPassword, onPasswordSaved, onClo
     const c = canvasRef.current;
     const id = idRef.current;
     if (!box || !c || id === null) return;
-    const { width: w, height: h } = resizedDesktop(box.width, box.height, scaleRef.current);
+    // Large stages get a lower scale, as at login, to stay within the pixel limit.
+    const { width: w, height: h, scale } = desktopSize(box.width, box.height, scaleRef.current / 100);
     if (w < 200 || h < 200 || (w === c.width && h === c.height)) return;
-    embeddedResize(id, w, h).then(
+    embeddedResize(id, w, h, scale).then(
       () => setResizeError(null),
       (e) => setResizeError(isIpcError(e) ? e.message : String(e)),
     );
@@ -75,7 +76,7 @@ export function RdpViewer({ sessionId, name, askPassword, onPasswordSaved, onClo
       // The visible size in device pixels, so a Retina screen gets a sharp
       // desktop; the server may adjust it.
       const size = desktopSize(Math.max(640, box?.width ?? 1024), Math.max(480, box?.height ?? 768), window.devicePixelRatio);
-      scaleRef.current = size.scale;
+      scaleRef.current = Math.round(Math.min(window.devicePixelRatio || 1, 5) * 100);
       const { width, height } = size;
       // The saved password is tried first; the user is asked only if needed.
       let password: string | null = null;

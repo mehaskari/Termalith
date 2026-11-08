@@ -72,7 +72,7 @@ fn embedded_rdp_against_windows() {
                 if frames == 3 && !asked_resize {
                     asked_resize = true;
                     viewer.clipboard("from termalith".into());
-                    viewer.resize(1024, 768);
+                    viewer.resize(1024, 768, 100);
                 }
             }
             Ok(ViewerEvent::Clipboard(text)) => eprintln!("remote clipboard: {} chars", text.len()),

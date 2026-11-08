@@ -282,12 +282,18 @@ impl DesktopHub {
         Ok(())
     }
 
-    pub fn embedded_resize(&self, id: u64, width: u16, height: u16) -> Result<(), AppError> {
+    pub fn embedded_resize(
+        &self,
+        id: u64,
+        width: u16,
+        height: u16,
+        scale: u32,
+    ) -> Result<(), AppError> {
         let map = self.embedded_lock();
         map.get(&id)
             .ok_or(AppError::NotFound)?
             .viewer
-            .resize(width, height);
+            .resize(width, height, scale);
         Ok(())
     }
 

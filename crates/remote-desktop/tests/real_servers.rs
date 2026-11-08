@@ -237,7 +237,7 @@ fn embedded_rdp_against_xrdp() {
 
     // Resize: xrdp 0.9 has no Display Control, so the viewer logs in again
     // at the new size.
-    viewer.resize(800, 600);
+    viewer.resize(800, 600, 100);
     let deadline = Instant::now() + Duration::from_secs(15);
     let mut resized = None;
     while Instant::now() < deadline && resized.is_none() {

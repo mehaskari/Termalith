@@ -27,9 +27,3 @@ export function desktopSize(width: number, height: number, devicePixelRatio: num
     scale: Math.round(ratio * 100),
   };
 }
-
-/** The same scale for a new stage size (Windows changes the scale only at login). */
-export function resizedDesktop(width: number, height: number, scale: number): { width: number; height: number } {
-  const ratio = scale / 100;
-  return { width: Math.min(8192, even(width * ratio)), height: Math.min(8192, even(height * ratio)) };
-}

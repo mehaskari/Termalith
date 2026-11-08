@@ -293,8 +293,11 @@ pub fn embedded_resize(
     id: u64,
     width: u16,
     height: u16,
+    scale: u32,
 ) -> Result<(), IpcError> {
-    Ok(state.desktops.embedded_resize(id, width, height)?)
+    Ok(state
+        .desktops
+        .embedded_resize(id, width, height, scale.clamp(100, 500))?)
 }
 
 #[tauri::command]

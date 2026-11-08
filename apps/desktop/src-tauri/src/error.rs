@@ -114,6 +114,12 @@ impl From<AppError> for IpcError {
             AppError::PasswordRequired => Self::new("password_required", e.to_string()),
             AppError::Ssh(s) => s.into(),
             AppError::Pty(p) => p.into(),
+            AppError::Secret(credential_store::SecretError::WrongPassword) => {
+                Self::new("wrong_master_password", e.to_string())
+            }
+            AppError::Secret(credential_store::SecretError::Locked) => {
+                Self::new("secrets_locked", e.to_string())
+            }
             AppError::Secret(s) => Self::new("secret_store", s.to_string()),
             AppError::Db(_) => Self::new("storage", e.to_string()),
             AppError::SerialPort(serial_console::SerialError::PermissionDenied { .. }) => {

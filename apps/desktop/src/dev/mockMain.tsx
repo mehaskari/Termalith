@@ -32,6 +32,9 @@ const remoteFiles: Record<string, Array<{ name: string; kind: string; size: numb
   "/home/deploy/releases": [],
 };
 let nextTransfer = 1;
+// `?locked` starts with saved passwords locked (master password "master-pass").
+let mockMaster = new URLSearchParams(location.search).has("locked") ? { protected: true, locked: true } : { protected: false, locked: false };
+let mockMasterPassword = "master-pass";
 let mockRepaint: ((w: number, h: number) => void) | undefined;
 const mockMacros: { id: string; name: string; steps: { delayMs: number; data: string }[] }[] = [];
 const mockSnippets: Array<{ id: string; name: string; command: string; folder: string | null }> = [
@@ -419,6 +422,31 @@ mockIPC(
         if (s) s.hasSavedSecret = false;
         return null;
       }
+      case "master_status":
+        return mockMaster;
+      case "master_enable":
+        mockMaster = { protected: true, locked: false };
+        mockMasterPassword = a.password as string;
+        return null;
+      case "master_unlock":
+        if (a.password !== mockMasterPassword) throw { code: "wrong_master_password", message: "wrong master password" };
+        mockMaster = { protected: true, locked: false };
+        return null;
+      case "master_lock":
+        if (mockMaster.protected) mockMaster = { protected: true, locked: true };
+        return null;
+      case "master_change":
+        if (a.old !== mockMasterPassword) throw { code: "wrong_master_password", message: "wrong master password" };
+        mockMasterPassword = a.new as string;
+        return null;
+      case "master_disable":
+        if (a.password !== mockMasterPassword) throw { code: "wrong_master_password", message: "wrong master password" };
+        mockMaster = { protected: false, locked: false };
+        return null;
+      case "master_reset":
+        mockMaster = { protected: false, locked: false };
+        for (const s of sessions.values()) s.hasSavedSecret = false;
+        return null;
       case "macros_list":
         return mockMacros;
       case "macro_create": {

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-master-unlock"
+description = "Enables the master_unlock command without any pre-configured scope."
+commands.allow = ["master_unlock"]
+
+[[permission]]
+identifier = "deny-master-unlock"
+description = "Denies the master_unlock command without any pre-configured scope."
+commands.deny = ["master_unlock"]

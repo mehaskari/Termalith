@@ -4,6 +4,7 @@
 use app_core::{ImportCandidate, ImportReport, SessionId, SessionInput, SessionRecord};
 use serde::Serialize;
 use tauri::State;
+use zeroize::Zeroizing;
 
 use crate::error::IpcError;
 use crate::state::AppState;
@@ -294,4 +295,50 @@ pub fn macro_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcErr
 #[tauri::command]
 pub fn snippet_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
     Ok(state.connector.sessions.delete_snippet(&id)?)
+}
+
+// ---------------------------------------------------------------- master password
+
+#[tauri::command]
+pub fn master_status(state: State<'_, AppState>) -> app_core::MasterStatus {
+    state.master.status()
+}
+
+#[tauri::command]
+pub async fn master_enable(state: State<'_, AppState>, password: String) -> Result<(), IpcError> {
+    Ok(state.master.enable(Zeroizing::new(password)).await?)
+}
+
+#[tauri::command]
+pub async fn master_unlock(state: State<'_, AppState>, password: String) -> Result<(), IpcError> {
+    Ok(state.master.unlock(Zeroizing::new(password)).await?)
+}
+
+#[tauri::command]
+pub fn master_lock(state: State<'_, AppState>) {
+    state.master.lock();
+}
+
+#[tauri::command]
+pub async fn master_change(
+    state: State<'_, AppState>,
+    old: String,
+    new: String,
+) -> Result<(), IpcError> {
+    Ok(state
+        .master
+        .change(Zeroizing::new(old), Zeroizing::new(new))
+        .await?)
+}
+
+#[tauri::command]
+pub async fn master_disable(state: State<'_, AppState>, password: String) -> Result<(), IpcError> {
+    Ok(state.master.disable(Zeroizing::new(password)).await?)
+}
+
+/// Forgotten master password: deletes every saved password and the master
+/// password itself.
+#[tauri::command]
+pub fn master_reset(state: State<'_, AppState>) -> Result<(), IpcError> {
+    Ok(state.master.reset()?)
 }

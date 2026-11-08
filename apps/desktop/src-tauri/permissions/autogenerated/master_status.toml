@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-master-status"
+description = "Enables the master_status command without any pre-configured scope."
+commands.allow = ["master_status"]
+
+[[permission]]
+identifier = "deny-master-status"
+description = "Denies the master_status command without any pre-configured scope."
+commands.deny = ["master_status"]

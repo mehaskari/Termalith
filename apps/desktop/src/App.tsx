@@ -12,6 +12,7 @@ import {
   writeTerminal,
   type MacroStep,
   createMacro,
+  masterStatus,
   type DroppedFile,
   type IpcError,
   type TerminalId,
@@ -89,6 +90,7 @@ import { BroadcastDialog } from "./ui/BroadcastDialog";
 import { type BroadcastState, eligibleTargets, resolveTargets } from "./ui/broadcast";
 import { SerialQueue, chunkInput } from "./terminal/flow";
 import { SettingsDialog } from "./ui/SettingsDialog";
+import { UnlockDialog } from "./ui/MasterPassword";
 import { SerialDialog } from "./ui/SerialDialog";
 import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
 import { resolveTheme } from "./ui/theme";
@@ -755,6 +757,11 @@ export function App() {
   const [recording, setRecording] = useState<{ key: number; recorder: MacroRecorder } | null>(null);
   const [macroToSave, setMacroToSave] = useState<MacroStep[] | null>(null);
   const [macrosVersion, setMacrosVersion] = useState(0);
+  // Saved passwords protected by a master password start locked (ADR-032).
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  useEffect(() => {
+    masterStatus().then((s) => setUnlockOpen(s.locked), () => {});
+  }, []);
 
   // A closed tab ends its recording; nothing typed there is kept.
   useEffect(() => {
@@ -1385,6 +1392,8 @@ export function App() {
           onAnswer={(a) => answerHostKey(currentPrompt, a)}
         />
       )}
+      {unlockOpen && <UnlockDialog onClose={() => setUnlockOpen(false)} onReset={refresh} />}
+
       {macroToSave && (
         <MacroSaveDialog
           steps={macroToSave}
@@ -1426,6 +1435,8 @@ export function App() {
         <SettingsDialog
           initial={settings}
           shells={shells}
+          secretsAvailable={info?.secretsAvailable ?? false}
+          onSecretsReset={refresh}
           onCancel={() => setSettingsOpen(false)}
           onSave={async (next) => {
             await saveSettings(next);

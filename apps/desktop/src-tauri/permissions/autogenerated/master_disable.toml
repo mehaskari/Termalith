@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-master-disable"
+description = "Enables the master_disable command without any pre-configured scope."
+commands.allow = ["master_disable"]
+
+[[permission]]
+identifier = "deny-master-disable"
+description = "Denies the master_disable command without any pre-configured scope."
+commands.deny = ["master_disable"]

@@ -179,6 +179,22 @@ export interface UpdateInfo {
 /** Asks GitHub for the newest published release; never downloads anything. */
 export const checkForUpdates = () => invoke<UpdateInfo>("update_check");
 
+export interface MasterStatus {
+  /** A master password is set. */
+  protected: boolean;
+  /** Saved passwords cannot be read until it is entered. */
+  locked: boolean;
+}
+
+export const masterStatus = () => invoke<MasterStatus>("master_status");
+export const masterEnable = (password: string) => invoke<void>("master_enable", { password });
+export const masterUnlock = (password: string) => invoke<void>("master_unlock", { password });
+export const masterLock = () => invoke<void>("master_lock");
+export const masterChange = (old: string, next: string) => invoke<void>("master_change", { old, new: next });
+export const masterDisable = (password: string) => invoke<void>("master_disable", { password });
+/** Forgotten master password: deletes every saved password. */
+export const masterReset = () => invoke<void>("master_reset");
+
 export interface ServerStats {
   cpuPercent: number | null;
   load1: number;

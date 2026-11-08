@@ -1917,7 +1917,10 @@ button.recording {
   overflow: hidden;
 }
 .rdp-canvas {
-  /* Fills the tab while the desktop's own size catches up. */
+  /* Fills the tab whatever the desktop's own size (often twice the tab's on
+     a Retina screen). Positioned, so its pixel size never widens the tab. */
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;

@@ -39,6 +39,7 @@ fn embedded_rdp_against_windows() {
         pin,
         width: 1280,
         height: 720,
+        scale: 100,
     };
 
     let stats = match capture(&params(), Duration::from_secs(15)) {
@@ -81,6 +82,12 @@ fn embedded_rdp_against_windows() {
     }
     eprintln!("windows viewer: {frames} frames, sizes {sizes:?}");
     assert!(frames > 0, "no frames");
+    // A Retina-sized desktop with 200 % scale is accepted and drawn.
+    let mut retina = params();
+    (retina.width, retina.height, retina.scale) = (2560, 1440, 200);
+    let hi = capture(&retina, Duration::from_secs(10)).unwrap();
+    eprintln!("windows at 200 %: {hi:?}");
+    assert!(hi.graphics_updates > 0 && hi.width == 2560);
     let mut wrong = params();
     wrong.password = Zeroizing::new(format!("{password}-wrong"));
     assert!(matches!(

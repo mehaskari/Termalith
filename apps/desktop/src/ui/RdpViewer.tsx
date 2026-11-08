@@ -91,7 +91,15 @@ export function RdpViewer({ sessionId, name, askPassword, onPasswordSaved, onClo
           height,
           size.scale,
           (f) => {
-            const ctx = canvasRef.current?.getContext("2d");
+            const c = canvasRef.current;
+            // The frame carries the desktop's size: a resize is followed with
+            // the pixels, whatever happened to the separate size event.
+            if (c && (c.width !== f.desktopWidth || c.height !== f.desktopHeight)) {
+              c.width = f.desktopWidth;
+              c.height = f.desktopHeight;
+              setStatus({ kind: "connected", width: f.desktopWidth, height: f.desktopHeight });
+            }
+            const ctx = c?.getContext("2d");
             if (ctx) ctx.putImageData(new ImageData(f.rgba as Uint8ClampedArray<ArrayBuffer>, f.w, f.h), f.x, f.y);
             // The session stops sending until frames are acknowledged.
             if (idRef.current !== null) void embeddedAck(idRef.current).catch(() => {});

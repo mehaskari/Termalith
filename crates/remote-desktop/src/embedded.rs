@@ -499,12 +499,15 @@ mod clipboard {
 pub enum ViewerEvent {
     /// Size of the remote desktop; frames refer to it.
     Connected { width: u16, height: u16 },
-    /// Changed pixels, RGBA, `w * h * 4` bytes, row by row.
+    /// Changed pixels, RGBA, `w * h * 4` bytes, row by row. `desktop` is
+    /// the whole desktop's size, so a viewer can follow a resize with the
+    /// pixels themselves.
     Frame {
         x: u16,
         y: u16,
         w: u16,
         h: u16,
+        desktop: (u16, u16),
         rgba: Vec<u8>,
     },
     /// The remote computer copied this text.
@@ -811,6 +814,7 @@ fn crop(data: &[u8], width: u16, height: u16, r: (u16, u16, u16, u16)) -> Viewer
         y: top as u16,
         w: w as u16,
         h: h as u16,
+        desktop: (width, height),
         rgba,
     }
 }
@@ -1268,10 +1272,19 @@ mod tests {
     fn crop_copies_rows_and_makes_pixels_opaque() {
         let image = DecodedImage::new(PixelFormat::RgbA32, 4, 3);
         let crop = |r| crop(image.data(), image.width(), image.height(), r);
-        let ViewerEvent::Frame { x, y, w, h, rgba } = crop((1, 1, 2, 2)) else {
+        let ViewerEvent::Frame {
+            x,
+            y,
+            w,
+            h,
+            desktop,
+            rgba,
+        } = crop((1, 1, 2, 2))
+        else {
             unreachable!()
         };
         assert_eq!((x, y, w, h), (1, 1, 2, 2));
+        assert_eq!(desktop, (4, 3));
         assert_eq!(rgba.len(), 16);
         assert!(rgba.as_chunks::<4>().0.iter().all(|p| p[3] == 255));
         // Out-of-range coordinates are clamped to the image.

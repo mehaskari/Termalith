@@ -597,16 +597,28 @@ export interface EmbeddedFrame {
   y: number;
   w: number;
   h: number;
+  /** Size of the whole desktop this frame belongs to. */
+  desktopWidth: number;
+  desktopHeight: number;
   rgba: Uint8ClampedArray;
 }
 
-/** Parses the frame wire format: x, y, w, h (u16 LE), then RGBA. */
+const FRAME_HEADER = 12;
+
+/** Parses the frame wire format: x, y, w, h, desktop width, height (u16 LE), then RGBA. */
 export function parseFrame(buf: ArrayBuffer): EmbeddedFrame | null {
-  if (buf.byteLength < 8) return null;
+  if (buf.byteLength < FRAME_HEADER) return null;
   const v = new DataView(buf);
-  const [x, y, w, h] = [0, 2, 4, 6].map((o) => v.getUint16(o, true)) as [number, number, number, number];
-  if (buf.byteLength !== 8 + w * h * 4 || w === 0 || h === 0) return null;
-  return { x, y, w, h, rgba: new Uint8ClampedArray(buf, 8) };
+  const [x, y, w, h, desktopWidth, desktopHeight] = [0, 2, 4, 6, 8, 10].map((o) => v.getUint16(o, true)) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  if (buf.byteLength !== FRAME_HEADER + w * h * 4 || w === 0 || h === 0) return null;
+  return { x, y, w, h, desktopWidth, desktopHeight, rgba: new Uint8ClampedArray(buf, FRAME_HEADER) };
 }
 
 export function openEmbedded(

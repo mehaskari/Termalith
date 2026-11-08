@@ -32,6 +32,7 @@ const remoteFiles: Record<string, Array<{ name: string; kind: string; size: numb
   "/home/deploy/releases": [],
 };
 let nextTransfer = 1;
+let mockRepaint: ((w: number, h: number) => void) | undefined;
 const mockMacros: { id: string; name: string; steps: { delayMs: number; data: string }[] }[] = [];
 const mockSnippets: Array<{ id: string; name: string; command: string; folder: string | null }> = [
   { id: "snp-1", name: "Interface status", command: "show interfaces {{iface}} status", folder: "Cisco" },
@@ -284,14 +285,15 @@ mockIPC(
         let frIndex = 0;
         const sendEv = (m: unknown) => window.__TAURI_INTERNALS__.runCallback(ev.id, { index: evIndex++, message: m });
         const sendFr = (m: unknown) => window.__TAURI_INTERNALS__.runCallback(fr.id, { index: frIndex++, message: m });
-        setTimeout(() => {
-          sendEv({ kind: "connected", width: w, height: h });
+        // A resize sends only frames of the new size, like a server whose size
+        // event never reaches the viewer.
+        const paint = (w: number, h: number) => {
           for (let y = 0; y < h; y += 64) {
             const rows = Math.min(64, h - y);
-            const buf = new ArrayBuffer(8 + w * rows * 4);
+            const buf = new ArrayBuffer(12 + w * rows * 4);
             const v = new DataView(buf);
-            [0, y, w, rows].forEach((n, i) => v.setUint16(i * 2, n, true));
-            const px = new Uint8ClampedArray(buf, 8);
+            [0, y, w, rows, w, h].forEach((n, i) => v.setUint16(i * 2, n, true));
+            const px = new Uint8ClampedArray(buf, 12);
             for (let i = 0; i < w * rows; i++) {
               px[i * 4] = 20 + ((i % w) * 60) / w;
               px[i * 4 + 1] = 60 + ((y + i / w) * 80) / h;
@@ -300,12 +302,19 @@ mockIPC(
             }
             sendFr(buf);
           }
+        };
+        mockRepaint = paint;
+        setTimeout(() => {
+          sendEv({ kind: "connected", width: w, height: h });
+          paint(w, h);
         }, 300);
         return { id: 1 };
       }
       case "embedded_input":
       case "embedded_ack":
       case "embedded_resize":
+        setTimeout(() => mockRepaint?.(Number(a.width), Number(a.height)), 100);
+        return null;
       case "embedded_clipboard":
       case "embedded_close":
         return null;

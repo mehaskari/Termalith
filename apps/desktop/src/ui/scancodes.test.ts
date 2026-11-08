@@ -22,14 +22,14 @@ describe("scancode", () => {
 
 describe("parseFrame", () => {
   it("reads the header and pixels", () => {
-    const buf = new ArrayBuffer(8 + 2 * 1 * 4);
+    const buf = new ArrayBuffer(12 + 2 * 1 * 4);
     const v = new DataView(buf);
-    [3, 4, 2, 1].forEach((n, i) => v.setUint16(i * 2, n, true));
+    [3, 4, 2, 1, 1920, 1080].forEach((n, i) => v.setUint16(i * 2, n, true));
     const f = parseFrame(buf);
-    expect(f && [f.x, f.y, f.w, f.h, f.rgba.length]).toEqual([3, 4, 2, 1, 8]);
+    expect(f && [f.x, f.y, f.w, f.h, f.desktopWidth, f.desktopHeight, f.rgba.length]).toEqual([3, 4, 2, 1, 1920, 1080, 8]);
   });
   it("rejects a length that does not match the size", () => {
-    const buf = new ArrayBuffer(8 + 3);
+    const buf = new ArrayBuffer(12 + 3);
     new DataView(buf).setUint16(4, 1, true);
     expect(parseFrame(buf)).toBeNull();
   });

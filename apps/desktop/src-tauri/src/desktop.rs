@@ -157,9 +157,10 @@ impl From<EmbeddedInputDto> for ViewerInput {
 }
 
 /// Frame wire format: x, y, w, h as little-endian u16, then RGBA rows.
-fn encode_frame(x: u16, y: u16, w: u16, h: u16, rgba: Vec<u8>) -> Vec<u8> {
-    let mut out = Vec::with_capacity(8 + rgba.len());
-    for v in [x, y, w, h] {
+fn encode_frame(rect: [u16; 4], desktop: (u16, u16), rgba: Vec<u8>) -> Vec<u8> {
+    let mut out = Vec::with_capacity(12 + rgba.len());
+    let [x, y, w, h] = rect;
+    for v in [x, y, w, h, desktop.0, desktop.1] {
         out.extend_from_slice(&v.to_le_bytes());
     }
     out.extend_from_slice(&rgba);
@@ -205,8 +206,19 @@ pub async fn embedded_open(
     }
     let launch = launch_for(&state, id.clone(), rec, Protocol::Rdp, secret).await?;
     let sink = move |ev: ViewerEvent| match ev {
-        ViewerEvent::Frame { x, y, w, h, rgba } => on_frame
-            .send(InvokeResponseBody::Raw(encode_frame(x, y, w, h, rgba)))
+        ViewerEvent::Frame {
+            x,
+            y,
+            w,
+            h,
+            desktop,
+            rgba,
+        } => on_frame
+            .send(InvokeResponseBody::Raw(encode_frame(
+                [x, y, w, h],
+                desktop,
+                rgba,
+            )))
             .is_ok(),
         ViewerEvent::Connected { width, height } => on_event
             .send(EmbeddedEventDto::Connected { width, height })
@@ -316,9 +328,10 @@ mod tests {
 
     #[test]
     fn frame_header_is_little_endian() {
-        let f = encode_frame(1, 2, 3, 0x0104, vec![9; 4]);
+        let f = encode_frame([1, 2, 3, 0x0104], (1920, 1080), vec![9; 4]);
         assert_eq!(&f[..8], &[1, 0, 2, 0, 3, 0, 4, 1]);
-        assert_eq!(&f[8..], &[9; 4]);
+        assert_eq!(&f[8..12], &[0x80, 7, 0x38, 4]);
+        assert_eq!(&f[12..], &[9; 4]);
     }
 
     #[test]

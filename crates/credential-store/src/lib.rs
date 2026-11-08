@@ -8,6 +8,10 @@ use std::sync::{Mutex, OnceLock};
 
 use zeroize::Zeroizing;
 
+mod vault;
+
+pub use vault::{DataKey, KdfCost, VaultStore, WrappedKey};
+
 const REF_PREFIX: &str = "cred-";
 
 /// Opaque handle to a stored secret. Safe to persist and log.
@@ -62,6 +66,10 @@ pub enum SecretError {
     Platform(String),
     #[error("invalid credential reference")]
     InvalidRef,
+    #[error("saved passwords are locked; enter the master password")]
+    Locked,
+    #[error("wrong master password")]
+    WrongPassword,
 }
 
 pub trait SecretStore: Send + Sync {

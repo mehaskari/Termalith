@@ -191,6 +191,17 @@ impl Framebuffer {
     }
 }
 
+/// When sending fails, the engine has stopped; the reason waits among the
+/// events (a decoding error stops the network side too).
+async fn engine_error(client: &VncClient, e: VncError) -> String {
+    while let Ok(Some(ev)) = client.poll_event().await {
+        if let VncEvent::Error(reason) = ev {
+            return format!("VNC: {reason}");
+        }
+    }
+    format!("input: {e}")
+}
+
 async fn run(
     client: VncClient,
     rx: Receiver<Control>,
@@ -204,7 +215,12 @@ async fn run(
     let mut last_refresh = tokio::time::Instant::now();
     let input = |ev: X11Event| {
         let c = client.clone();
-        async move { c.input(ev).await.map_err(|e| format!("input: {e}")) }
+        async move {
+            match c.input(ev).await {
+                Ok(()) => Ok(()),
+                Err(e) => Err(engine_error(&c, e).await),
+            }
+        }
     };
     loop {
         loop {

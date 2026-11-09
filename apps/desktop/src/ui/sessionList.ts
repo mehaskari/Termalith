@@ -216,6 +216,10 @@ export interface SessionFormState {
   startupCommand: string;
   filesOnly: boolean;
   mosh: boolean;
+  /** Appearance: "" follows the settings. */
+  lookScheme: string;
+  lookFontSize: string;
+  lookFont: string;
 }
 
 /** Switches protocol, moving the port along if it was the old default. */
@@ -242,6 +246,9 @@ export function emptyForm(): SessionFormState {
     startupCommand: "",
     filesOnly: false,
     mosh: false,
+    lookScheme: "",
+    lookFontSize: "",
+    lookFont: "",
   };
 }
 
@@ -263,6 +270,9 @@ export function formFromSession(s: SessionInput): SessionFormState {
     startupCommand: s.startupCommand ?? "",
     filesOnly: s.filesOnly ?? false,
     mosh: s.mosh ?? false,
+    lookScheme: s.appearance?.terminalScheme ?? "",
+    lookFontSize: s.appearance?.fontSize ? String(s.appearance.fontSize) : "",
+    lookFont: s.appearance?.fontFamily ?? "",
   };
 }
 
@@ -307,6 +317,17 @@ export function parseForm(
   const shell = !desktop && !f.filesOnly;
   // Mosh: a terminal session that connects directly, without forwarding.
   const mosh = shell && f.mosh;
+  // A look only for sessions with a terminal.
+  const terminal = shell || f.protocol === "telnet";
+  const lookSize = f.lookFontSize.trim() ? Number(f.lookFontSize) : null;
+  if (terminal && lookSize !== null && !(Number.isInteger(lookSize) && lookSize >= 8 && lookSize <= 32))
+    return { ok: false, field: "lookFontSize", message: "Font size must be 8-32" };
+  const look = {
+    fontFamily: f.lookFont.trim() || null,
+    fontSize: lookSize,
+    terminalScheme: f.lookScheme || null,
+  };
+  const appearance = terminal && (look.fontFamily || look.fontSize || look.terminalScheme) ? look : null;
   if (!username && !desktop) return { ok: false, field: "username", message: "Username is required" };
   if (/\s/.test(username)) return { ok: false, field: "username", message: "No spaces allowed" };
   if (/^[-/]/.test(username)) return { ok: false, field: "username", message: "Must not start with - or /" };
@@ -354,6 +375,7 @@ export function parseForm(
       startupCommand: (shell && f.startupCommand.trim()) || null,
       filesOnly: !desktop && f.filesOnly,
       mosh,
+      appearance,
     },
   };
 }

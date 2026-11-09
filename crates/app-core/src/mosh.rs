@@ -97,6 +97,7 @@ mod tests {
             startup_command: None,
             files_only: false,
             mosh: true,
+            appearance: None,
         }
     }
 

@@ -8,6 +8,7 @@ import {
   isIpcError,
 } from "../terminal/api";
 import { Dialog } from "./Dialog";
+import { TERMINAL_SCHEMES } from "./theme";
 import { type SessionFormState, allFolderPaths, emptyForm, formFromSession, isFtp, parseForm, withProtocol } from "./sessionList";
 
 const INSTALL_HINT: Record<"rdp" | "vnc", string> = {
@@ -280,6 +281,43 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             Only for hosts you trust: while connected, anyone with root access on the server can use your
             agent&apos;s keys (they cannot copy them). Not applied to the jump host.
           </p>
+        )}
+        {mode !== "quick" && (shell || form.protocol === "telnet") && (
+          <fieldset className="span-2 session-look">
+            <legend>Appearance (optional; empty follows Settings)</legend>
+            <div className="form-grid">
+              <label>
+                Colors
+                <select value={form.lookScheme} onChange={(e) => set({ lookScheme: e.target.value })}>
+                  <option value="">As in Settings</option>
+                  {TERMINAL_SCHEMES.map((sc) => (
+                    <option key={sc.id} value={sc.id}>
+                      {sc.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Font size
+                <input
+                  value={form.lookFontSize}
+                  inputMode="numeric"
+                  placeholder="As in Settings"
+                  aria-invalid={invalid("lookFontSize")}
+                  onChange={(e) => set({ lookFontSize: e.target.value })}
+                />
+              </label>
+              <label className="span-2">
+                Font
+                <input
+                  value={form.lookFont}
+                  placeholder="As in Settings"
+                  spellCheck={false}
+                  onChange={(e) => set({ lookFont: e.target.value })}
+                />
+              </label>
+            </div>
+          </fieldset>
         )}
         {mode !== "quick" && (
           <label className="span-2">

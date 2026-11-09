@@ -1180,6 +1180,7 @@ button.icon.starred {
   border-color: var(--accent);
 }
 
+.session-look,
 .master-password {
   border: 1px solid var(--line);
   border-radius: 6px;

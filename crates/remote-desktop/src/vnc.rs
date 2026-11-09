@@ -56,12 +56,12 @@ async fn connect(p: &VncParams<'_>) -> Result<VncClient, DesktopError> {
                 .ok_or(VncError::NoPassword)
         })
         .add_encoding(VncEncoding::Zrle)
-        .add_encoding(VncEncoding::Trle)
         .add_encoding(VncEncoding::CopyRect)
         .add_encoding(VncEncoding::Raw)
+        // Server-side size changes. ExtendedDesktopSize is not requested:
+        // vnc-rs stops on a TigerVNC update that mixes its layout rectangle
+        // with pixels, so resizing from the client is not offered yet.
         .add_encoding(VncEncoding::DesktopSizePseudo)
-        .add_encoding(VncEncoding::ExtendedDesktopSizePseudo)
-        .add_encoding(VncEncoding::LastRectPseudo)
         .allow_shared(true)
         .set_pixel_format(PixelFormat::rgba())
         .build()
@@ -285,14 +285,8 @@ async fn run(
                         }
                     }
                 }
-                Ok(Control::Resize(w, h, _)) => {
-                    // Waits for the server's answer, which comes with the
-                    // events drained below: not awaited here.
-                    let c = client.clone();
-                    tokio::spawn(async move {
-                        let _ = c.resize_desktop(w, h).await;
-                    });
-                }
+                // Not offered yet (see `connect`): the viewer scales.
+                Ok(Control::Resize(..)) => {}
                 Ok(Control::Clipboard(text)) => {
                     // RFB clipboard text is Latin-1 only.
                     if text.chars().all(|c| u32::from(c) < 0x100) {
@@ -339,6 +333,25 @@ async fn run(
                             f.copy((dst.x, dst.y), (src.x, src.y), dst.width, dst.height)
                     {
                         dirty = Some(union(dirty, area));
+                    }
+                }
+                // A size change confirmed with a layout (defensive: the
+                // extended encoding is not requested).
+                VncEvent::DesktopUpdate(u) => {
+                    if let Some(l) = u.layout
+                        && fb
+                            .as_ref()
+                            .is_none_or(|f| (f.width, f.height) != (l.width, l.height))
+                    {
+                        fb = Some(Framebuffer::new(l.width, l.height));
+                        dirty = None;
+                        in_flight = 0;
+                        if !sink(ViewerEvent::Connected {
+                            width: l.width,
+                            height: l.height,
+                        }) {
+                            return Ok(());
+                        }
                     }
                 }
                 VncEvent::Text(text) => {

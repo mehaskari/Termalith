@@ -55,9 +55,7 @@ async fn connect(p: &VncParams<'_>) -> Result<VncClient, DesktopError> {
                 .map(|p| p.as_str().to_owned())
                 .ok_or(VncError::NoPassword)
         })
-        // ZRLE and Tight are not requested: the vnc-rs 0.6 zlib reader
-        // reports a deflate block that yields no bytes as end of data, and
-        // the session stops silently partway through a frame.
+        .add_encoding(VncEncoding::Zrle)
         .add_encoding(VncEncoding::CopyRect)
         .add_encoding(VncEncoding::Raw)
         // Server-side size changes. ExtendedDesktopSize is not requested:

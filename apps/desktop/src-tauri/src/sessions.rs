@@ -17,6 +17,9 @@ pub struct AppInfo {
     platform: String,
     secrets_available: bool,
     agent_available: bool,
+    /// Running from a portable folder: passwords are saved only with a
+    /// master password.
+    portable: bool,
 }
 
 /// Compares this version with the newest published release on GitHub.
@@ -35,6 +38,7 @@ pub fn app_info(state: State<'_, AppState>) -> AppInfo {
         version: env!("CARGO_PKG_VERSION"),
         platform: format!("{} {}", std::env::consts::OS, std::env::consts::ARCH),
         secrets_available: state.secrets_available,
+        portable: state.portable,
         agent_available: state.agent_available,
     }
 }

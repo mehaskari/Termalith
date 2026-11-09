@@ -240,6 +240,23 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: xvfb-run -a bash scripts/smoke-test.sh ${{ matrix.bin }}
 
+      # A copy next to a TermalithData folder must keep its data there.
+      - name: Portable mode (macOS, Linux)
+        if: ${{ !cancelled() && runner.os != 'Windows' }}
+        shell: bash
+        env:
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          dir="$(mktemp -d)"
+          cp "${{ matrix.bin }}" "$dir/"
+          mkdir "$dir/TermalithData"
+          bin="$dir/$(basename "${{ matrix.bin }}")"
+          if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a bash scripts/smoke-test.sh "$bin"; else bash scripts/smoke-test.sh "$bin"; fi
+          ls -la "$dir/TermalithData"
+          test -f "$dir/TermalithData/termalith.db"
+          echo "PASS: portable data stayed in TermalithData"
+
       # Embedded RDP against the runner's own Remote Desktop service (NLA,
       # a real Windows certificate). Informational until it has proven
       # stable on hosted runners, so it cannot block merges.

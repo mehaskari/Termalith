@@ -147,6 +147,8 @@ export interface AppInfo {
   platform?: string;
   secretsAvailable: boolean;
   agentAvailable: boolean;
+  /** Running from a portable folder: passwords are saved only with a master password. */
+  portable?: boolean;
 }
 
 export interface ImportCandidate {

@@ -20,9 +20,11 @@ interface Props {
   secretsAvailable?: boolean;
   /** Saved passwords were deleted (forgotten master password). */
   onSecretsReset?: () => void;
+  /** Running from a portable folder (passwords only with a master password). */
+  portable?: boolean;
 }
 
-export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvailable = false, onSecretsReset }: Props) {
+export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvailable = false, onSecretsReset, portable = false }: Props) {
   const [s, setS] = useState<Settings>(initial);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<Settings>) => setS((x) => ({ ...x, ...patch }));
@@ -250,7 +252,7 @@ export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvail
         {error && <p className="form-error span-2" role="alert">{error}</p>}
       </form>
       {/* Outside the form: it acts at once and has its own buttons. */}
-      <MasterPasswordSettings secretsAvailable={secretsAvailable} onReset={onSecretsReset} />
+      <MasterPasswordSettings secretsAvailable={secretsAvailable} onReset={onSecretsReset} portable={portable} />
     </Dialog>
   );
 }

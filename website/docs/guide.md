@@ -167,6 +167,16 @@ new Ed25519 key (optionally with a passphrase), copies a public key, and
 server (the folder and file get safe permissions; a key is never added
 twice).
 
+### Portable copy
+
+To carry Termalith on a USB stick, put the app on the stick and create a
+folder named **TermalithData** next to it: next to `Termalith.exe` on
+Windows, next to the `.AppImage` file on Linux, next to `Termalith.app` on
+macOS. Sessions, host keys, logs and crash reports are then kept in that
+folder, not on the computer. Passwords are saved there only after you set a
+master password, encrypted with it, because the computer's keychain does not
+travel with the stick.
+
 ### Master password
 
 **Settings → Master password** protects saved passwords with a password

@@ -117,8 +117,11 @@ type Mode = "idle" | "set" | "change" | "off";
 export function MasterPasswordSettings({
   secretsAvailable,
   onReset,
+  portable = false,
 }: {
   secretsAvailable: boolean;
+  /** Portable mode: saving passwords needs a master password, which cannot be turned off. */
+  portable?: boolean;
   /** Saved passwords were deleted (forgotten master password). */
   onReset?: () => void;
 }) {
@@ -177,7 +180,9 @@ export function MasterPasswordSettings({
           ? status.locked
             ? "Saved passwords are locked."
             : "Saved passwords are protected by a master password."
-          : "Optional: protect saved passwords with a password Termalith asks for at startup. It cannot be recovered if forgotten."}
+          : portable
+            ? "Portable mode: set a master password to save passwords on this drive. It cannot be recovered if forgotten."
+            : "Optional: protect saved passwords with a password Termalith asks for at startup. It cannot be recovered if forgotten."}
       </p>
       {mode === "idle" && (
         <div className="pane-actions">
@@ -196,9 +201,11 @@ export function MasterPasswordSettings({
               <button type="button" onClick={() => setMode("change")}>
                 Change…
               </button>
-              <button type="button" onClick={() => setMode("off")}>
-                Turn off…
-              </button>
+              {!portable && (
+                <button type="button" onClick={() => setMode("off")}>
+                  Turn off…
+                </button>
+              )}
             </>
           )}
           {status.protected && !status.locked && (

@@ -230,6 +230,7 @@ jobs:
           xvfb-run -a cargo test -p remote-desktop --lib freerdp_accepts -- --nocapture
           xvfb-run -a cargo test -p remote-desktop --features embedded --test real_servers -- --nocapture || {
             sudo tail -n 40 /var/log/xrdp.log || true
+            tail -n 40 "$RUNNER_TEMP/xvnc.log" || true
             exit 1
           }
 

@@ -89,3 +89,10 @@ Argon2id). The key exists in memory only while unlocked.
 - HTTP proxies receive their password with Basic authentication, which is
   readable on the way to the proxy; SOCKS5 user/password is likewise
   unencrypted. Use a proxy on a network you trust.
+
+## Known advisories in dependencies
+
+- **glib 0.18 (GHSA-wrw7-89jp-8q8g, unsound `VariantStrIter`)**, Linux only:
+  pulled in by Tauri 2 through gtk-rs 0.18, and no Tauri 2 release allows
+  the fixed glib 0.20. Termalith never calls glib directly. To be revisited
+  when Tauri moves to a newer gtk-rs.

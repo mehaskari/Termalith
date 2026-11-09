@@ -1154,7 +1154,7 @@ fn session(
 
 /// Diagnostics for tests and troubleshooting (`TERMALITH_RDP_DEBUG=1`);
 /// never includes credentials or screen contents.
-fn debug(message: &str) {
+pub(crate) fn debug(message: &str) {
     if std::env::var_os("TERMALITH_RDP_DEBUG").is_some() {
         eprintln!("rdp: {message}");
     }

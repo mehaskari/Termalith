@@ -11,7 +11,7 @@ use zeroize::Zeroizing;
 
 use crate::DesktopError;
 use crate::embedded::{
-    Control, MAX_FRAMES_IN_FLIGHT, Viewer, ViewerEvent, ViewerInput, crop, union,
+    Control, MAX_FRAMES_IN_FLIGHT, Viewer, ViewerEvent, ViewerInput, crop, debug, union,
 };
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
@@ -191,10 +191,23 @@ impl Framebuffer {
     }
 }
 
+/// The kind of an event, for the debug log (no pixels or clipboard text).
+fn event_name(ev: &VncEvent) -> String {
+    match ev {
+        VncEvent::SetResolution(s) => format!("resolution {}x{}", s.width, s.height),
+        VncEvent::RawImage(r, _) => format!("image {}x{} at {},{}", r.width, r.height, r.x, r.y),
+        VncEvent::Copy(d, _) => format!("copy {}x{}", d.width, d.height),
+        VncEvent::Error(e) => format!("error {e}"),
+        other => format!("{:?}", std::mem::discriminant(other)),
+    }
+}
+
 /// When sending fails, the engine has stopped; the reason waits among the
 /// events (a decoding error stops the network side too).
 async fn engine_error(client: &VncClient, e: VncError) -> String {
-    while let Ok(Some(ev)) = client.poll_event().await {
+    // vnc-rs closes the input channel before it queues the reason.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    while let Ok(Ok(ev)) = tokio::time::timeout_at(deadline, client.recv_event()).await {
         if let VncEvent::Error(reason) = ev {
             return format!("VNC: {reason}");
         }
@@ -308,6 +321,7 @@ async fn run(
             .map_err(|e| format!("connection lost: {e}"))?
         {
             got = true;
+            debug(&format!("event: {}", event_name(&ev)));
             match ev {
                 VncEvent::SetResolution(s) => {
                     fb = Some(Framebuffer::new(s.width, s.height));

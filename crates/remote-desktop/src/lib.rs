@@ -17,6 +17,8 @@ mod rdp_cert;
 pub use rdp_cert::{CertFingerprint, read_certificate};
 #[cfg(feature = "embedded")]
 pub mod embedded;
+#[cfg(feature = "embedded")]
+pub mod vnc;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum DesktopError {
@@ -30,6 +32,8 @@ pub enum DesktopError {
     Certificate(String),
     #[error("the server rejected the user name or password")]
     AuthFailed,
+    #[error("the server asks for a password")]
+    PasswordNeeded,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

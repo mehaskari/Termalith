@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **VNC inside Termalith:** VNC sessions can open in a tab too (experimental).
 - **Per-session look:** sessions can have their own terminal colors and font.
 - **Mosh:** SSH sessions can connect with the installed Mosh client.
 - **Portable copy:** a `TermalithData` folder next to the app keeps all data

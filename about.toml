@@ -14,6 +14,8 @@ accepted = [
     "MPL-2.0",
     # webpki-roots only (Mozilla root certificates as data); see deny.toml.
     "CDLA-Permissive-2.0",
+    # async_io_stream only (via vnc-rs); see deny.toml.
+    "Unlicense",
 ]
 # Notices are for what ships: all platforms the app is built for.
 targets = [

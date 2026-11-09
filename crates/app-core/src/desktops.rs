@@ -206,16 +206,7 @@ impl DesktopHub {
         sink: impl FnMut(ViewerEvent) -> bool + Send + 'static,
     ) -> Result<u64, AppError> {
         launch.target.validate()?;
-        if launch.target.protocol != Protocol::Rdp {
-            return Err(AppError::invalid(
-                "session",
-                "only RDP can be shown inside Termalith",
-            ));
-        }
-        let password = launch.password.ok_or(AppError::PasswordRequired)?;
-        let check = self.certs.as_ref().ok_or_else(|| {
-            AppError::invalid("embedded RDP", "certificate checks are not set up")
-        })?;
+        let vnc = launch.target.protocol == Protocol::Vnc;
         let mut connect_to = launch.target.clone();
         let forward = match launch.tunnel {
             Some((session, _)) => {
@@ -234,6 +225,27 @@ impl DesktopHub {
             }
             None => None,
         };
+        if vnc {
+            // VNC: a password only if the server asks for one.
+            let password = launch.password;
+            let viewer = tokio::task::spawn_blocking(move || {
+                remote_desktop::vnc::start(
+                    &remote_desktop::vnc::VncParams {
+                        host: &connect_to.host,
+                        port: connect_to.port,
+                        password,
+                    },
+                    sink,
+                )
+            })
+            .await
+            .map_err(|e| AppError::invalid("embedded VNC", e.to_string()))??;
+            return Ok(self.keep(viewer, forward));
+        }
+        let password = launch.password.ok_or(AppError::PasswordRequired)?;
+        let check = self.certs.as_ref().ok_or_else(|| {
+            AppError::invalid("embedded RDP", "certificate checks are not set up")
+        })?;
         let pin = Self::trusted_certificate(check, &launch.target, &connect_to).await?;
         let server = launch.target.clone();
         let viewer = tokio::task::spawn_blocking(move || {
@@ -260,6 +272,14 @@ impl DesktopHub {
                 reason: e.to_string(),
             })
         })??;
+        Ok(self.keep(viewer, forward))
+    }
+
+    fn keep(
+        &self,
+        viewer: remote_desktop::embedded::Viewer,
+        forward: Option<ForwardHandle>,
+    ) -> u64 {
         let id = self.next.fetch_add(1, Ordering::Relaxed);
         self.embedded_lock().insert(
             id,
@@ -268,7 +288,7 @@ impl DesktopHub {
                 _forward: forward,
             },
         );
-        Ok(id)
+        id
     }
 
     fn embedded_lock(&self) -> std::sync::MutexGuard<'_, HashMap<u64, Embedded>> {

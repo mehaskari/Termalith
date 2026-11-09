@@ -261,3 +261,111 @@ fn embedded_rdp_against_xrdp() {
         }
     }
 }
+
+/// Embedded VNC (ADR-035) against Xvnc: the desktop arrives, input is
+/// accepted, and a password server refuses a wrong password and accepts the
+/// right one.
+#[cfg(feature = "embedded")]
+#[test]
+fn embedded_vnc_against_xvnc() {
+    use remote_desktop::embedded::{ViewerEvent, ViewerInput};
+    use remote_desktop::vnc::{VncParams, start};
+    let Some(addr) = env("TERMALITH_TEST_VNC") else {
+        eprintln!("TERMALITH_TEST_VNC not set; skipped");
+        return;
+    };
+    let (host, port) = host_port(&addr);
+    let (tx, rx) = std::sync::mpsc::channel();
+    let viewer = start(
+        &VncParams {
+            host: &host,
+            port,
+            password: None,
+        },
+        move |ev| tx.send(ev).is_ok(),
+    )
+    .expect("connect without a password");
+    let first = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+    assert!(
+        matches!(
+            first,
+            ViewerEvent::Connected {
+                width: 800,
+                height: 600
+            }
+        ),
+        "{first:?}"
+    );
+    viewer.input(vec![
+        ViewerInput::MouseMove { x: 400, y: 300 },
+        ViewerInput::Key {
+            scancode: 0x1c,
+            down: true,
+        },
+        ViewerInput::Key {
+            scancode: 0x1c,
+            down: false,
+        },
+        ViewerInput::Unicode {
+            ch: 'a',
+            down: true,
+        },
+        ViewerInput::Unicode {
+            ch: 'a',
+            down: false,
+        },
+        ViewerInput::ReleaseAll,
+    ]);
+    let (mut frames, mut bytes) = (0, 0);
+    let deadline = Instant::now() + Duration::from_secs(6);
+    while Instant::now() < deadline {
+        match rx.recv_timeout(Duration::from_millis(200)) {
+            Ok(ViewerEvent::Frame {
+                w,
+                h,
+                desktop,
+                rgba,
+                ..
+            }) => {
+                assert_eq!(rgba.len(), usize::from(w) * usize::from(h) * 4);
+                assert_eq!(desktop, (800, 600));
+                frames += 1;
+                bytes += rgba.len();
+                viewer.ack();
+            }
+            Ok(ViewerEvent::Closed { reason }) => panic!("closed early: {reason:?}"),
+            Ok(_) | Err(_) => {}
+        }
+    }
+    eprintln!("embedded VNC: {frames} frames, {bytes} bytes in 6 s");
+    assert!(frames > 0, "no frames");
+    viewer.close();
+
+    let (Some(auth), Some(password)) = (
+        env("TERMALITH_TEST_VNC_AUTH"),
+        env("TERMALITH_TEST_VNC_PASSWORD"),
+    ) else {
+        eprintln!("TERMALITH_TEST_VNC_AUTH not set; password part skipped");
+        return;
+    };
+    let (host, port) = host_port(&auth);
+    let attempt = |pw: Option<&str>| {
+        start(
+            &VncParams {
+                host: &host,
+                port,
+                password: pw.map(|p| Zeroizing::new(p.to_owned())),
+            },
+            |_| true,
+        )
+    };
+    assert!(matches!(
+        attempt(None),
+        Err(remote_desktop::DesktopError::PasswordNeeded)
+    ));
+    assert!(matches!(
+        attempt(Some(&format!("{password}x"))),
+        Err(remote_desktop::DesktopError::AuthFailed)
+    ));
+    attempt(Some(&password)).expect("right password").close();
+}

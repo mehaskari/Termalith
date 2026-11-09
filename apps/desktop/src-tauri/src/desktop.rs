@@ -186,13 +186,17 @@ pub async fn embedded_open(
     } = login;
     let id = SessionId::parse(&session_id)?;
     let rec = state.connector.sessions.get(&id)?;
-    if rec.input.protocol != SessionProtocol::Rdp {
-        return Err(AppError::Invalid {
-            field: "session",
-            reason: "only RDP can be shown inside Termalith".into(),
+    let protocol = match rec.input.protocol {
+        SessionProtocol::Rdp => Protocol::Rdp,
+        SessionProtocol::Vnc => Protocol::Vnc,
+        _ => {
+            return Err(AppError::Invalid {
+                field: "session",
+                reason: "only RDP and VNC can be shown inside Termalith".into(),
+            }
+            .into());
         }
-        .into());
-    }
+    };
     // A typed password wins; otherwise the saved one is tried.
     let typed = password.map(Zeroizing::new);
     let credential = rec.credential.clone();
@@ -201,10 +205,11 @@ pub async fn embedded_open(
         Some(p) => Some(p.clone()),
         None => state.connector.saved_secret(credential.clone()).await,
     };
-    if secret.is_none() {
+    // VNC servers often need no password: it is asked for only if they do.
+    if secret.is_none() && protocol == Protocol::Rdp {
         return Err(AppError::PasswordRequired.into());
     }
-    let launch = launch_for(&state, id.clone(), rec, Protocol::Rdp, secret).await?;
+    let launch = launch_for(&state, id.clone(), rec, protocol, secret).await?;
     let sink = move |ev: ViewerEvent| match ev {
         ViewerEvent::Frame {
             x,
@@ -236,6 +241,9 @@ pub async fn embedded_open(
         Ok(viewer) => viewer,
         // A saved password that no longer works: ask the user again.
         Err(AppError::Desktop(DesktopError::AuthFailed)) if used_saved => {
+            return Err(AppError::PasswordRequired.into());
+        }
+        Err(AppError::Desktop(DesktopError::PasswordNeeded)) => {
             return Err(AppError::PasswordRequired.into());
         }
         Err(e) => return Err(e.into()),

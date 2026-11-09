@@ -544,7 +544,7 @@ pub enum ViewerInput {
     ReleaseAll,
 }
 
-enum Control {
+pub(crate) enum Control {
     Input(Vec<ViewerInput>),
     /// Ask the server for a new desktop size and scale (it may adjust or
     /// refuse it).
@@ -560,7 +560,7 @@ enum Control {
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Frames sent but not yet drawn; more changes are merged meanwhile.
-const MAX_FRAMES_IN_FLIGHT: usize = 2;
+pub(crate) const MAX_FRAMES_IN_FLIGHT: usize = 2;
 /// How often the session loop looks at viewer input while the server is quiet.
 const POLL: Duration = Duration::from_millis(15);
 /// Without Display Control a resize reconnects at the new size, once the
@@ -654,6 +654,12 @@ pub struct Viewer {
 }
 
 impl Viewer {
+    pub(crate) fn new(tx: std::sync::mpsc::SyncSender<Control>) -> Self {
+        Self { tx }
+    }
+}
+
+impl Viewer {
     pub fn input(&self, events: Vec<ViewerInput>) -> bool {
         self.tx.send(Control::Input(events)).is_ok()
     }
@@ -707,7 +713,10 @@ pub fn start(
 }
 
 /// Smallest rectangle covering both (inclusive coordinates).
-fn union(a: Option<(u16, u16, u16, u16)>, b: (u16, u16, u16, u16)) -> (u16, u16, u16, u16) {
+pub(crate) fn union(
+    a: Option<(u16, u16, u16, u16)>,
+    b: (u16, u16, u16, u16),
+) -> (u16, u16, u16, u16) {
     match a {
         None => b,
         Some(a) => (a.0.min(b.0), a.1.min(b.1), a.2.max(b.2), a.3.max(b.3)),
@@ -793,7 +802,7 @@ fn pump_graphics(
 }
 
 /// RGBA pixels of an inclusive rectangle, alpha forced opaque.
-fn crop(data: &[u8], width: u16, height: u16, r: (u16, u16, u16, u16)) -> ViewerEvent {
+pub(crate) fn crop(data: &[u8], width: u16, height: u16, r: (u16, u16, u16, u16)) -> ViewerEvent {
     let (iw, ih) = (usize::from(width), usize::from(height));
     let left = usize::from(r.0).min(iw.saturating_sub(1));
     let top = usize::from(r.1).min(ih.saturating_sub(1));
@@ -1145,7 +1154,7 @@ fn session(
 
 /// Diagnostics for tests and troubleshooting (`TERMALITH_RDP_DEBUG=1`);
 /// never includes credentials or screen contents.
-fn debug(message: &str) {
+pub(crate) fn debug(message: &str) {
     if std::env::var_os("TERMALITH_RDP_DEBUG").is_some() {
         eprintln!("rdp: {message}");
     }

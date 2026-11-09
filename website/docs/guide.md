@@ -256,9 +256,10 @@ Choose *Tunnel through* an SSH session to reach a desktop behind a bastion.
 Passwords are never passed on a command line; the client asks for them
 (FreeRDP on Linux receives it on standard input).
 
-**Inside Termalith (experimental):** with *Settings → Show RDP sessions
-inside Termalith*, an RDP session opens in a tab instead of the external
-client, on every system. The server certificate is checked the same way as
+**Inside Termalith (experimental):** with *Settings → Show RDP and VNC
+sessions inside Termalith*, RDP and VNC sessions open in a tab instead of
+the external client, on every system. VNC is not encrypted: use *Connect
+via* an SSH session to tunnel it. The server certificate is checked the same way as
 below, the password can be saved in the system keychain, and keyboard input
 uses the remote computer's layout. **Ctrl+Alt+Del** is on the tab's
 toolbar. The remote desktop follows the tab's size: servers that support

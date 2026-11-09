@@ -40,7 +40,8 @@ impl ShellSpec {
         self
     }
 
-    fn with_terminal_env(self) -> Self {
+    /// The variables terminal programs look for (TERM and friends).
+    pub fn with_terminal_env(self) -> Self {
         self.env("TERM", "xterm-256color")
             .env("COLORTERM", "truecolor")
             .env("TERM_PROGRAM", "Termalith")

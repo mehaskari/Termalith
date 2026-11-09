@@ -28,6 +28,7 @@ fn main() {
             "net_wake",
             "ssh_open",
             "ssh_files_open",
+            "mosh_open",
             "ftp_files_open",
             "desktop_clients",
             "desktop_open",

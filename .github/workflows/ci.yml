@@ -189,6 +189,12 @@ jobs:
           cargo test -p protocol-ftp --test real_server -- --nocapture
           cargo test -p app-core --test ftp_login -- --nocapture
 
+      - name: Mosh against the test sshd (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y -q mosh
+          TERMALITH_TEST_MOSH=1 TERMALITH_REQUIRE_SSHD=1 cargo test -p app-core --test mosh_real -- --nocapture
+
       - name: Remote desktop against real servers (Linux)
         if: runner.os == 'Linux'
         run: |

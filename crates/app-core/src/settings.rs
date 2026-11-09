@@ -286,6 +286,8 @@ struct ExportedSession {
     startup_command: Option<String>,
     #[serde(default)]
     files_only: bool,
+    #[serde(default)]
+    mosh: bool,
 }
 
 /// Serializes every session as versioned JSON. Never includes secrets.
@@ -317,6 +319,7 @@ pub fn export_sessions(store: &SessionStore) -> Result<String, AppError> {
                 x11_forward: s.input.x11_forward,
                 startup_command: s.input.startup_command.clone(),
                 files_only: s.input.files_only,
+                mosh: s.input.mosh,
             })
             .collect(),
     };
@@ -409,6 +412,7 @@ fn to_input(s: &ExportedSession) -> SessionInput {
         x11_forward: s.x11_forward,
         startup_command: s.startup_command.clone(),
         files_only: s.files_only,
+        mosh: s.mosh,
     }
 }
 
@@ -481,6 +485,7 @@ mod tests {
             x11_forward: false,
             startup_command: None,
             files_only: false,
+            mosh: false,
         }
     }
 

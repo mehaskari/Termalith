@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-mosh-open"
+description = "Enables the mosh_open command without any pre-configured scope."
+commands.allow = ["mosh_open"]
+
+[[permission]]
+identifier = "deny-mosh-open"
+description = "Denies the mosh_open command without any pre-configured scope."
+commands.deny = ["mosh_open"]

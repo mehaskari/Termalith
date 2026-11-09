@@ -66,7 +66,7 @@ describe("parseForm", () => {
     const r = parseForm(base, { requireName: true });
     expect(r).toEqual({
       ok: true,
-      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false },
+      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false },
     });
   });
 
@@ -103,7 +103,7 @@ describe("parseForm", () => {
     const rec = s("web", "prod");
     const r = parseForm(formFromSession(rec), { requireName: true });
     expect(r.ok && r.value).toEqual({
-      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false,
+      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false,
     });
   });
 });
@@ -197,6 +197,15 @@ describe("startup command", () => {
     expect(parseForm({ ...f, startupCommand: "a\nb" }, { requireName: true })).toMatchObject({ ok: false, field: "startupCommand" });
   });
 
+  it("keeps Mosh sessions direct and without forwarding", () => {
+    const f = { ...emptyForm(), name: "n", host: "h", username: "u", mosh: true, jumpVia: "ses-1", forwardAgent: true, x11Forward: true };
+    expect(parseForm(f, { requireName: true })).toMatchObject({
+      ok: true,
+      value: { mosh: true, jumpVia: null, forwardAgent: false, x11Forward: false },
+    });
+    expect(parseForm({ ...f, filesOnly: true }, { requireName: true })).toMatchObject({ ok: true, value: { mosh: false } });
+  });
+
   it("connects FTP sessions directly", () => {
     const f = { ...emptyForm(), name: "n", host: "h", username: "", protocol: "ftps" as const, port: "21", jumpVia: "ses-1" };
     expect(parseForm(f, { requireName: true })).toMatchObject({ ok: true, value: { protocol: "ftps", jumpVia: null } });
@@ -208,7 +217,7 @@ describe("startup command", () => {
       ok: true,
       value: { filesOnly: true, startupCommand: null, forwardAgent: false, x11Forward: false },
     });
-    expect(parseForm({ ...f, protocol: "telnet", port: "23" }, { requireName: true })).toMatchObject({ ok: true, value: { filesOnly: false } });
+    expect(parseForm({ ...f, protocol: "telnet", port: "23" }, { requireName: true })).toMatchObject({ ok: true, value: { filesOnly: false, mosh: false } });
   });
 });
 

@@ -111,6 +111,40 @@ pub async fn terminal_open(
     Ok(id)
 }
 
+/// Opens a saved Mosh session in a terminal with the installed `mosh`
+/// client (ADR-034).
+#[tauri::command]
+pub async fn mosh_open(
+    state: State<'_, AppState>,
+    session_id: String,
+    cols: u16,
+    rows: u16,
+    on_output: Channel<InvokeResponseBody>,
+    on_exit: Channel<ExitPayload>,
+) -> Result<u64, IpcError> {
+    let size = TerminalSize::new(cols, rows)?;
+    let rec = state
+        .connector
+        .sessions
+        .get(&app_core::SessionId::parse(&session_id)?)?;
+    let hub = state.hub.clone();
+    let (tap, sink) = logged_sink(on_output, on_exit);
+    let id = tauri::async_runtime::spawn_blocking(move || -> Result<u64, IpcError> {
+        let mosh = app_core::find_mosh().ok_or_else(|| {
+            IpcError::coded(
+                "mosh_missing",
+                "Mosh is not installed on this computer (macOS: brew install mosh; Linux: install the mosh package)",
+            )
+        })?;
+        let spec = app_core::mosh_command(&rec.input, &mosh)?;
+        Ok(hub.open_local(&spec, size, sink)?)
+    })
+    .await
+    .map_err(|_| IpcError::internal("terminal task failed"))??;
+    state.logs.register(id, tap);
+    Ok(id)
+}
+
 #[tauri::command]
 pub async fn terminal_write(
     state: State<'_, AppState>,

@@ -38,6 +38,7 @@ import {
   isIpcError,
   listSessions,
   openLocalTerminal,
+  moshTerminal,
   openSsh,
   openSerial,
   onLocalNetworkBlocked,
@@ -527,6 +528,11 @@ export function App() {
       }
       if (s.filesOnly || isFtp(s)) {
         openFilesTab(s);
+        return;
+      }
+      if (s.mosh) {
+        const key = addTab(s.name, "local", moshTerminal(s.id));
+        patchTab(key, { sessionId: s.id, startup: s.startupCommand ?? undefined });
         return;
       }
       connect({ sessionId: s.id }, s.name, {

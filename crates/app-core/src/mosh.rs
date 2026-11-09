@@ -121,17 +121,17 @@ mod tests {
 
     #[test]
     fn key_paths_are_quoted_for_mosh() {
+        // An absolute path on every system, with a space in it.
+        let key = std::env::temp_dir().join("My Keys").join("id_ed25519");
         let mut s = session();
-        s.auth = AuthMethod::KeyFile {
-            path: "/Users/me/My Keys/id_ed25519".into(),
-        };
+        s.auth = AuthMethod::KeyFile { path: key.clone() };
         let spec = mosh_command(&s, Path::new("mosh")).unwrap();
         assert_eq!(
             args(&spec)[0],
-            "--ssh=ssh -p 2222 -i '/Users/me/My Keys/id_ed25519'"
+            format!("--ssh=ssh -p 2222 -i '{}'", key.display())
         );
         s.auth = AuthMethod::KeyFile {
-            path: "/tmp/it's".into(),
+            path: std::env::temp_dir().join("it's"),
         };
         assert!(mosh_command(&s, Path::new("mosh")).is_err());
     }

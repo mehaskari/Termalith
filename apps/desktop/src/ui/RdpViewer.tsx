@@ -17,6 +17,8 @@ interface Props {
   name: string;
   /** Asks for the RDP password; null = cancelled. */
   askPassword: (retry: "wrong" | null) => Promise<{ password: string; save: boolean } | null>;
+  /** RDP takes scan codes; VNC takes characters (X11 keysyms) for printable keys. */
+  keyboard?: "scancode" | "keysym";
   /** A password was stored in the OS keychain, or could not be. */
   onPasswordSaved: (error: string | null) => void;
   onClose: () => void;
@@ -35,7 +37,7 @@ const WHEEL_NOTCH = 120;
  * scales to the tab; keyboard (scan codes, so the remote layout applies)
  * and mouse go back to the server, batched per animation frame.
  */
-export function RdpViewer({ sessionId, name, askPassword, onPasswordSaved, onClose }: Props) {
+export function RdpViewer({ sessionId, name, askPassword, onPasswordSaved, onClose, keyboard = "scancode" }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const idRef = useRef<number | null>(null);
   const queue = useRef<EmbeddedInput[]>([]);
@@ -225,6 +227,13 @@ export function RdpViewer({ sessionId, name, askPassword, onPasswordSaved, onClo
   };
 
   const key = (e: React.KeyboardEvent, down: boolean) => {
+    // VNC: the character the user typed, so the local layout applies.
+    if (keyboard === "keysym" && [...e.key].length === 1 && !e.metaKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      send({ kind: "text", ch: e.key, down });
+      return;
+    }
     const code = scancode(e.code);
     if (code === null) return;
     e.preventDefault();

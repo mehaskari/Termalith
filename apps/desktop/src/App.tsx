@@ -519,7 +519,7 @@ export function App() {
         patchTab(key, { sessionId: s.id, reconnect: () => connectSaved(s) });
         return;
       }
-      if (s.protocol === "rdp" && settings.embeddedRdp) {
+      if ((s.protocol === "rdp" || s.protocol === "vnc") && settings.embeddedRdp) {
         const key = addTab(s.name, "rdp", openLocalTerminal);
         patchTab(key, { sessionId: s.id });
         return;
@@ -1099,6 +1099,7 @@ export function App() {
                 <RdpViewer
                   sessionId={t.sessionId}
                   name={t.title}
+                  keyboard={sessions.find((x) => x.id === t.sessionId)?.protocol === "vnc" ? "keysym" : "scancode"}
                   askPassword={(retry) =>
                     askPassword({
                       target: t.title,

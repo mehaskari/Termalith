@@ -219,7 +219,7 @@ export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvail
         </label>
         <label className="checkbox span-2">
           <input type="checkbox" checked={s.embeddedRdp} onChange={(e) => set({ embeddedRdp: e.target.checked })} />
-          Show RDP sessions inside Termalith (experimental; otherwise the installed client opens)
+          Show RDP and VNC sessions inside Termalith (experimental; otherwise the installed client opens)
         </label>
         <label className="checkbox span-2">
           <input type="checkbox" checked={s.highlightOutput} onChange={(e) => set({ highlightOutput: e.target.checked })} />

@@ -62,6 +62,8 @@ confidence-threshold = 0.9
 # used by the update check's HTTPS client. See ADR-029.
 exceptions = [
     { allow = ["CDLA-Permissive-2.0"], crate = "webpki-roots" },
+    # Public-domain dedication (OSI and FSF approved); via vnc-rs.
+    { allow = ["Unlicense"], crate = "async_io_stream" },
 ]
 
 [bans]

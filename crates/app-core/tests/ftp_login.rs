@@ -71,6 +71,13 @@ fn typed(password: &str, save: bool) -> PasswordInput {
     }
 }
 
+/// A random password per run, so no secret is written in the source.
+fn random_password() -> String {
+    let mut b = [0u8; 12];
+    getrandom::fill(&mut b).unwrap();
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
 fn env(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|v| !v.is_empty())
 }
@@ -97,7 +104,9 @@ async fn ftp_does_not_bypass_a_configured_proxy() {
     };
     r.connector.sessions.save_settings(&settings).unwrap();
     assert!(matches!(
-        r.connector.connect_ftp(&id, typed("x", false)).await,
+        r.connector
+            .connect_ftp(&id, typed(&random_password(), false))
+            .await,
         Err(AppError::Invalid { field: "proxy", .. })
     ));
 }

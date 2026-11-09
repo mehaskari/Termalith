@@ -62,6 +62,7 @@ fn session(addr: &str, protocol: SessionProtocol) -> SessionInput {
         startup_command: None,
         files_only: false,
         mosh: false,
+        appearance: None,
     }
 }
 

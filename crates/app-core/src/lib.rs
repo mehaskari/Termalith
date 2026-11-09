@@ -53,7 +53,7 @@ pub use mosh::{find_mosh, mosh_command};
 pub use rdp_certs::{CertificateCheck, FTPS_CERT_ALGORITHM, RDP_CERT_ALGORITHM};
 pub use remote_files::RemoteFiles;
 pub use sessions::{
-    AuthMethod, SessionId, SessionInput, SessionProtocol, SessionRecord, SessionStore,
+    Appearance, AuthMethod, SessionId, SessionInput, SessionProtocol, SessionRecord, SessionStore,
 };
 pub use settings::{
     CursorStyle, ProxySetting, ProxyType, Settings, Theme, export_sessions, import_sessions,

@@ -200,6 +200,7 @@ mod tests {
                 startup_command: None,
                 files_only: false,
                 mosh: false,
+                appearance: None,
             })
             .unwrap()
             .id

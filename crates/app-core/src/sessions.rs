@@ -138,6 +138,59 @@ pub struct SessionInput {
     /// Connects with the installed Mosh client instead (SSH only, ADR-034).
     #[serde(default)]
     pub mosh: bool,
+    /// Terminal look for this session; unset fields follow the settings.
+    #[serde(default)]
+    pub appearance: Option<Appearance>,
+}
+
+/// A session's own terminal font and colors (M-012).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Appearance {
+    #[serde(default)]
+    pub font_family: Option<String>,
+    #[serde(default)]
+    pub font_size: Option<u8>,
+    #[serde(default)]
+    pub terminal_scheme: Option<String>,
+}
+
+impl Appearance {
+    fn validate(&self) -> Result<(), AppError> {
+        if let Some(size) = self.font_size
+            && !(8..=32).contains(&size)
+        {
+            return Err(AppError::invalid("font size", "must be 8-32"));
+        }
+        if let Some(f) = &self.font_family
+            && (f.chars().count() > 200 || f.chars().any(char::is_control))
+        {
+            return Err(AppError::invalid(
+                "font family",
+                "too long or contains control characters",
+            ));
+        }
+        if let Some(s) = &self.terminal_scheme
+            && (s.is_empty()
+                || s.len() > 40
+                || !s
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'))
+        {
+            return Err(AppError::invalid("terminal colors", "unknown scheme"));
+        }
+        Ok(())
+    }
+
+    fn is_empty(&self) -> bool {
+        self.font_family.is_none() && self.font_size.is_none() && self.terminal_scheme.is_none()
+    }
+}
+
+fn appearance_json(a: &Option<Appearance>) -> Option<String> {
+    a.as_ref()
+        .filter(|a| !a.is_empty())
+        .and_then(|a| serde_json::to_string(a).ok())
 }
 
 pub const MAX_TAGS: usize = 20;
@@ -267,6 +320,9 @@ impl SessionInput {
                     "has no shell, so no forwarding or startup command",
                 ));
             }
+        }
+        if let Some(a) = &self.appearance {
+            a.validate()?;
         }
         if self.mosh {
             if self.protocol != SessionProtocol::Ssh || self.files_only {
@@ -493,6 +549,8 @@ const MIGRATIONS: &[&str] = &[
     );",
     // v19: Mosh for SSH sessions.
     "ALTER TABLE sessions ADD COLUMN mosh INTEGER NOT NULL DEFAULT 0;",
+    // v20: per-session terminal appearance (JSON).
+    "ALTER TABLE sessions ADD COLUMN appearance TEXT;",
 ];
 
 pub struct SessionStore {
@@ -563,7 +621,7 @@ impl SessionStore {
     pub fn list(&self) -> Result<Vec<SessionRecord>, AppError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance
              FROM sessions ORDER BY folder IS NOT NULL, folder COLLATE NOCASE, name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], row_to_record)?;
@@ -574,7 +632,7 @@ impl SessionStore {
     pub fn get(&self, id: &SessionId) -> Result<SessionRecord, AppError> {
         let conn = self.conn();
         conn.query_row(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance
              FROM sessions WHERE id = ?1",
             [id.as_str()],
             row_to_record,
@@ -590,8 +648,8 @@ impl SessionStore {
         let (kind, key) = auth_columns(&input.auth);
         let t = now();
         self.conn().execute(
-            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
             params![
                 id.as_str(),
                 input.name.trim(),
@@ -610,7 +668,8 @@ impl SessionStore {
                 input.x11_forward,
                 input.startup_command,
                 input.files_only,
-                input.mosh
+                input.mosh,
+                appearance_json(&input.appearance)
             ],
         )?;
         self.get(&id)
@@ -673,7 +732,7 @@ impl SessionStore {
             "UPDATE sessions SET name = ?2, host = ?3, port = ?4, username = ?5, auth_kind = ?6,
              key_path = ?7, folder = ?8, credential_ref = ?9, updated_at = ?10, jump_session_id = ?11,
              protocol = ?12, domain = ?13, tags = ?14, forward_agent = ?15,
-             x11_forward = ?16, startup_command = ?17, files_only = ?18, mosh = ?19
+             x11_forward = ?16, startup_command = ?17, files_only = ?18, mosh = ?19, appearance = ?20
              WHERE id = ?1",
             params![
                 id.as_str(),
@@ -694,7 +753,8 @@ impl SessionStore {
                 input.x11_forward,
                 input.startup_command,
                 input.files_only,
-                input.mosh
+                input.mosh,
+                appearance_json(&input.appearance)
             ],
         )?;
         Ok((self.get(id)?, stale))
@@ -793,6 +853,10 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
             startup_command: r.get(17)?,
             files_only: r.get::<_, i64>(18)? != 0,
             mosh: r.get::<_, i64>(19)? != 0,
+            // An unreadable look must not hide the session.
+            appearance: r
+                .get::<_, Option<String>>(20)?
+                .and_then(|j| serde_json::from_str(&j).ok()),
         },
         updated_at: r.get(9)?,
     }))
@@ -819,6 +883,7 @@ mod tests {
             startup_command: None,
             files_only: false,
             mosh: false,
+            appearance: None,
         }
     }
 
@@ -1010,6 +1075,7 @@ mod tests {
             startup_command: None,
             files_only: false,
             mosh: false,
+            appearance: None,
         };
         let rec = store.create(&rdp).unwrap();
         assert_eq!(store.get(&rec.id).unwrap().input, rdp);
@@ -1106,6 +1172,33 @@ mod tests {
         );
         ftp.jump_via = Some(jump.id);
         assert!(store.create(&ftp).is_err());
+    }
+
+    #[test]
+    fn appearance_is_stored_and_checked() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let mut s = input();
+        s.appearance = Some(Appearance {
+            font_family: Some("Menlo".into()),
+            font_size: Some(16),
+            terminal_scheme: Some("solarized-dark".into()),
+        });
+        let rec = store.create(&s).unwrap();
+        assert_eq!(store.get(&rec.id).unwrap().input.appearance, s.appearance);
+        // Nothing set is stored as no appearance.
+        s.appearance = Some(Appearance::default());
+        store.update(&rec.id, &s).unwrap();
+        assert_eq!(store.get(&rec.id).unwrap().input.appearance, None);
+        s.appearance = Some(Appearance {
+            font_size: Some(99),
+            ..Appearance::default()
+        });
+        assert!(store.create(&s).is_err());
+        s.appearance = Some(Appearance {
+            terminal_scheme: Some("../x".into()),
+            ..Appearance::default()
+        });
+        assert!(store.create(&s).is_err());
     }
 
     #[test]

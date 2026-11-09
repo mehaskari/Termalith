@@ -455,7 +455,11 @@ export function App() {
         return r.id;
       };
       tabKey = addTab(label, "ssh", open);
-      patchTab(tabKey, { reconnect: () => connect(target, label, opts), startup: opts.startup ?? undefined });
+      patchTab(tabKey, {
+        reconnect: () => connect(target, label, opts),
+        startup: opts.startup ?? undefined,
+        sessionId: "sessionId" in target ? target.sessionId : undefined,
+      });
     },
     [addTab, withLogin, renameTab, patchTab],
   );
@@ -782,6 +786,26 @@ export function App() {
   useEffect(() => {
     if (recording && !tabs.some((t) => t.key === recording.key)) setRecording(null);
   }, [recording, tabs]);
+
+  /** A session's own font and colors over the settings; the same object while nothing changes. */
+  const lookCache = useRef(new Map<string, Settings>());
+  const settingsFor = (sessionId: string | undefined): Settings => {
+    const look = sessionId ? sessions.find((x) => x.id === sessionId)?.appearance : null;
+    if (!look) return settings;
+    const key = JSON.stringify([look, settings]);
+    let merged = lookCache.current.get(key);
+    if (!merged) {
+      merged = {
+        ...settings,
+        fontFamily: look.fontFamily ?? settings.fontFamily,
+        fontSize: look.fontSize ?? settings.fontSize,
+        terminalScheme: look.terminalScheme ?? settings.terminalScheme,
+      };
+      if (lookCache.current.size > 50) lookCache.current.clear();
+      lookCache.current.set(key, merged);
+    }
+    return merged;
+  };
 
   const mirrorInput = (sourceKey: number, data: string) => {
     if (recording?.key === sourceKey) recording.recorder.add(data);
@@ -1275,7 +1299,7 @@ export function App() {
                               : undefined,
                         })
                       }
-                      settings={settings}
+                      settings={settingsFor(t.sessionId)}
                       theme={theme}
                       command={t.command}
                       label={t.title}
@@ -1304,7 +1328,7 @@ export function App() {
                       >
                         ×
                       </button>
-                      <TerminalView open={s.open} active={t.key === active} settings={settings} theme={theme} />
+                      <TerminalView open={s.open} active={t.key === active} settings={settingsFor(t.sessionId)} theme={theme} />
                     </div>
                   ))}
                 </div>

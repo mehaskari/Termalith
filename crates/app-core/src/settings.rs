@@ -288,6 +288,8 @@ struct ExportedSession {
     files_only: bool,
     #[serde(default)]
     mosh: bool,
+    #[serde(default)]
+    appearance: Option<crate::sessions::Appearance>,
 }
 
 /// Serializes every session as versioned JSON. Never includes secrets.
@@ -320,6 +322,7 @@ pub fn export_sessions(store: &SessionStore) -> Result<String, AppError> {
                 startup_command: s.input.startup_command.clone(),
                 files_only: s.input.files_only,
                 mosh: s.input.mosh,
+                appearance: s.input.appearance.clone(),
             })
             .collect(),
     };
@@ -413,6 +416,7 @@ fn to_input(s: &ExportedSession) -> SessionInput {
         startup_command: s.startup_command.clone(),
         files_only: s.files_only,
         mosh: s.mosh,
+        appearance: s.appearance.clone(),
     }
 }
 
@@ -486,6 +490,7 @@ mod tests {
             startup_command: None,
             files_only: false,
             mosh: false,
+            appearance: None,
         }
     }
 

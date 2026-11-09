@@ -95,6 +95,7 @@ impl Connector {
                     startup_command: None,
                     files_only: false,
                     mosh: false,
+                    appearance: None,
                 };
                 input.validate()?;
                 let typed = match secret {

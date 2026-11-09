@@ -140,6 +140,8 @@ export interface SessionInput {
   filesOnly?: boolean;
   /** Connects with the installed Mosh client (ADR-034). */
   mosh?: boolean;
+  /** The session's own terminal look; unset fields follow the settings. */
+  appearance?: Appearance | null;
 }
 
 export interface SessionRecord extends SessionInput {
@@ -237,6 +239,12 @@ export interface QuickTarget {
 }
 
 export type SshTarget = { sessionId: string } | { quick: QuickTarget };
+
+export interface Appearance {
+  fontFamily?: string | null;
+  fontSize?: number | null;
+  terminalScheme?: string | null;
+}
 
 export interface SshOpened {
   id: TerminalId;

@@ -305,6 +305,9 @@ test), DNS lookup, an IPv4 subnet calculator and Wake-on-LAN.
   Snippets plays it in the current terminal. Recording captures everything,
   passwords included, and macros are stored unencrypted, so discard a
   recording if you typed one.
+- **Per-session look:** a session's **Appearance** (in its settings) can give
+  it its own colors, font size and font, so production servers stand out.
+  Empty fields follow Settings.
 - **Split** a tab side by side, top and bottom, or into four panes (**⊞**); SSH splits share the
   connection.
 - **Broadcast…** types into several terminals at once; the source shows a

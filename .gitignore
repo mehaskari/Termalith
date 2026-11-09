@@ -14,3 +14,7 @@ apps/desktop/src-tauri/gen/
 # The public website and its documentation are published.
 !website/**/*.md
 /site
+
+# Local knowledge graph (graphify); rebuilt on demand, never published.
+graphify-out/
+.graphify*/

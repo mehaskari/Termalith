@@ -2,20 +2,22 @@
 
 **One workspace. Every connection.**
 
-Termalith is an open-source, cross-platform remote administration workstation for system and network administrators: SSH terminals, SFTP, remote desktop, tunnels, serial and Telnet consoles and network tools in one app. It is built with Tauri 2, Rust, React and TypeScript.
+Termalith is an open-source, cross-platform remote administration workstation for system and network administrators: SSH and Mosh terminals, SFTP/FTP/FTPS, remote desktop (RDP and VNC), tunnels, serial and Telnet consoles and network tools in one app. It is built with Tauri 2, Rust, React and TypeScript.
 
 > **Status: early preview (0.5).** Most features are in daily use on macOS. Windows and Linux builds pass CI (unit and integration tests, real-server tests, a launch smoke test) and have had a first hands-on run on ARM64. Expect rough edges, and please report them.
 
 ## Features
 
 **Terminals**
-- Local terminals in tabs and split panes, with a choice of installed shell (zsh/bash/fish…; PowerShell, cmd, Git Bash and WSL on Windows).
+- Local terminals in tabs and split panes (up to a 2×2 grid), with a choice of installed shell (zsh/bash/fish…; PowerShell, cmd, Git Bash and WSL on Windows).
 - Find, copy/paste and zoom shortcuts, copy-on-select and right-click paste (optional), color schemes (Solarized, Nord, Gruvbox, Tomorrow Night).
 - Broadcast typing to several terminals, with a visible banner and explicit targets.
 - Command snippets with `{{variables}}` and a preview of exactly what will be typed.
 - Session logs (plain text, opt-in) and "save output" of a tab's scrollback.
 - Command palette (Cmd+K / Ctrl+Shift+K) over tabs, sessions and actions.
 - Links in terminal output open in your browser with Cmd/Ctrl+click (http and https only).
+- Macros: record keystrokes with their pauses and play them back.
+- Optional keyword colors (error, warning, ok) in terminal output, and per-session font and colors.
 
 **SSH**
 - Password, private key, ssh-agent and keyboard-interactive (PAM, one-time codes) authentication; secrets are stored only in the OS keychain, and only after a successful login.
@@ -24,15 +26,19 @@ Termalith is an open-source, cross-platform remote administration workstation fo
 - Tunnels: local (-L), remote (-R) and dynamic SOCKS (-D), loopback-only unless you allow other machines.
 - X11 forwarding (with cookie substitution, like OpenSSH) and agent forwarding, both opt-in per session.
 - Startup command per session; SSH key manager (generate Ed25519, install a public key on a server).
+- Mosh sessions through the installed `mosh` client.
+- Optional server monitor under SSH terminals (CPU, load, memory, disk, network; Linux servers).
 
 **Files**
-- SFTP panel next to a terminal, or a file-browser tab without a shell.
+- SFTP panel next to a terminal, or a file-browser tab without a shell (files-only sessions).
+- FTP and FTPS sessions in the same file browser; FTPS accepts only the server certificate you confirmed, plain FTP is marked unencrypted.
+- The Files panel can follow the terminal's current folder.
 - Upload files and whole folders by drag and drop, downloads, folders, rename, delete (no recursive delete), transfer queue with retry.
 - Edit a remote text file in place; saving refuses to overwrite changes made on the server meanwhile.
 - Compare two remote text files side by side; transfer history (last 500, metadata only).
 
 **Other connections**
-- RDP and VNC through the installed client (Windows App/Microsoft Remote Desktop and Screen Sharing on macOS, Remote Desktop Connection on Windows, FreeRDP/TigerVNC on Linux), optionally through an SSH tunnel. On Linux, Termalith checks the RDP server certificate like an SSH host key and FreeRDP accepts only that one.
+- RDP and VNC inside a Termalith tab (IronRDP and vnc-rs; resizes with the tab, sharp on Retina screens), or through the installed client (Windows App/Microsoft Remote Desktop and Screen Sharing on macOS, Remote Desktop Connection on Windows, FreeRDP/TigerVNC on Linux), optionally through an SSH tunnel. On Linux, Termalith checks the RDP server certificate like an SSH host key and FreeRDP accepts only that one.
 - Serial consoles (COM/tty) and Telnet (marked as unencrypted; can go through an SSH jump host).
 - Network tools: ping, traceroute, TCP port check, port scan, DNS lookup, subnet calculator, Wake-on-LAN.
 
@@ -41,11 +47,13 @@ Termalith is an open-source, cross-platform remote administration workstation fo
 - Import from `~/.ssh/config` and from MobaXterm `.mxtsessions` exports; export/import as JSON (never containing secrets).
 
 **App**
+- Optional master password that protects saved passwords (Argon2id + XChaCha20-Poly1305), asked at startup.
+- Portable mode: a `TermalithData` folder next to the app keeps all data there, for running from a USB stick.
 - Keyboard navigation and screen-reader labels in the session list, tab bar and Files panel; WCAG AA contrast in both themes.
 - Crash reports kept locally and shown on the next start (copy, or report on GitHub; never sent automatically); a recovery screen with Reload if the window hits an error.
 - **Check for updates** in About (or at startup, if you turn it on): links to a newer release, never installs anything. No telemetry.
 
-Not yet: embedded RDP/VNC (external clients are used), code-signed installers, automatic updates.
+Not yet: code-signed installers, automatic updates, sound and file clipboard in embedded RDP, a built-in X server on Windows.
 
 ## Install
 
@@ -71,7 +79,7 @@ Full instructions, including the release process: [Building and releasing](https
 
 ## Security
 
-Termalith handles credentials and remote access, so it is deliberately conservative: no shell or arbitrary command execution from the UI, secrets only in the OS credential store, strict host keys, loopback-only tunnels by default, no passwords on command lines, and opt-in for agent and X11 forwarding. If you find a security issue, please report it privately via GitHub's "Report a vulnerability" (Security tab) rather than in a public issue.
+Termalith handles credentials and remote access, so it is deliberately conservative: no shell or arbitrary command execution from the UI, secrets only in the OS credential store (or sealed with your master password), strict host keys, loopback-only tunnels by default, no passwords on command lines, and opt-in for agent and X11 forwarding. If you find a security issue, please report it privately via GitHub's "Report a vulnerability" (Security tab) rather than in a public issue.
 
 ## License
 

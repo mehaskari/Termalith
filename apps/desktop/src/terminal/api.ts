@@ -72,6 +72,12 @@ export const localTerminal =
 
 export const openLocalTerminal: Opener = localTerminal();
 
+/** A saved Mosh session, run by the installed `mosh` client in a terminal. */
+export const moshTerminal =
+  (sessionId: string): Opener =>
+  (cols, rows, onOutput, onExit) =>
+    invoke<TerminalId>("mosh_open", { sessionId, cols, rows, ...channels(onOutput, onExit) });
+
 export interface ShellChoice {
   id: string;
   name: string;
@@ -132,6 +138,8 @@ export interface SessionInput {
   startupCommand?: string | null;
   /** Opens as a file browser (SFTP) without a terminal. */
   filesOnly?: boolean;
+  /** Connects with the installed Mosh client (ADR-034). */
+  mosh?: boolean;
 }
 
 export interface SessionRecord extends SessionInput {

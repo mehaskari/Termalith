@@ -215,6 +215,7 @@ export interface SessionFormState {
   x11Forward: boolean;
   startupCommand: string;
   filesOnly: boolean;
+  mosh: boolean;
 }
 
 /** Switches protocol, moving the port along if it was the old default. */
@@ -240,6 +241,7 @@ export function emptyForm(): SessionFormState {
     x11Forward: false,
     startupCommand: "",
     filesOnly: false,
+    mosh: false,
   };
 }
 
@@ -260,6 +262,7 @@ export function formFromSession(s: SessionInput): SessionFormState {
     x11Forward: s.x11Forward ?? false,
     startupCommand: s.startupCommand ?? "",
     filesOnly: s.filesOnly ?? false,
+    mosh: s.mosh ?? false,
   };
 }
 
@@ -302,6 +305,8 @@ export function parseForm(
   // Everything but SSH: optional user name, no keys, no SSH-only options.
   const desktop = f.protocol !== "ssh";
   const shell = !desktop && !f.filesOnly;
+  // Mosh: a terminal session that connects directly, without forwarding.
+  const mosh = shell && f.mosh;
   if (!username && !desktop) return { ok: false, field: "username", message: "Username is required" };
   if (/\s/.test(username)) return { ok: false, field: "username", message: "No spaces allowed" };
   if (/^[-/]/.test(username)) return { ok: false, field: "username", message: "Must not start with - or /" };
@@ -340,14 +345,15 @@ export function parseForm(
       username,
       auth,
       folder: f.folder.trim() || null,
-      jumpVia: (!isFtp(f) && f.jumpVia) || null,
+      jumpVia: (!isFtp(f) && !mosh && f.jumpVia) || null,
       protocol: f.protocol,
       domain: domain || null,
       tags,
-      forwardAgent: shell && f.forwardAgent,
-      x11Forward: shell && f.x11Forward,
+      forwardAgent: shell && !mosh && f.forwardAgent,
+      x11Forward: shell && !mosh && f.x11Forward,
       startupCommand: (shell && f.startupCommand.trim()) || null,
       filesOnly: !desktop && f.filesOnly,
+      mosh,
     },
   };
 }

@@ -159,6 +159,15 @@ Tunnels listen on `127.0.0.1` unless you tick *Allow other machines to
 connect* (for remote tunnels: *Listen on all server interfaces*). They close
 with the tab.
 
+### Mosh
+
+Turn on **Connect with Mosh** in an SSH session to keep it alive when your
+network changes (Wi-Fi to cable, sleep and wake). Termalith runs the
+**mosh** program installed on this computer (macOS: `brew install mosh`;
+Linux: the `mosh` package), and the server needs `mosh-server`. Mosh signs
+in with your system's ssh in the terminal, so the password is typed there
+and not saved, and jump hosts and forwarding are not available.
+
 ### SSH keys
 
 **SSH keys** (sidebar footer) lists the key pairs in `~/.ssh`, generates a

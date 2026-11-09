@@ -334,7 +334,7 @@ export function Sidebar(p: Props) {
   };
 
   const sessionRow = (s: SessionRecord, inFavorites = false) => {
-    const protocol = s.filesOnly ? "sftp" : (s.protocol ?? "ssh");
+    const protocol = s.filesOnly ? "sftp" : s.mosh ? "mosh" : (s.protocol ?? "ssh");
     const jump = s.jumpVia ? p.sessions.find((j) => j.id === s.jumpVia)?.name ?? "?" : null;
     const extras = [authLabel(s) && authLabel(s) !== protocol.toUpperCase() ? authLabel(s) : "", jump ? `via ${jump}` : "", s.forwardAgent ? "agent fwd" : "", s.x11Forward ? "X11" : ""].filter(Boolean);
     return (

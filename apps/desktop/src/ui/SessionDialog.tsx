@@ -207,7 +207,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             />
           </label>
         )}
-        {mode !== "quick" && !isFtp(form) && (
+        {mode !== "quick" && !isFtp(form) && !(form.mosh && shell) && (
           <label className="span-2">
             {desktop ? "Tunnel through (SSH session)" : "Connect via (jump host)"}
             <select value={form.jumpVia} onChange={(e) => set({ jumpVia: e.target.value })}>
@@ -227,6 +227,18 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             <input type="checkbox" checked={form.filesOnly} onChange={(e) => set({ filesOnly: e.target.checked })} />
             Files only (SFTP, no terminal)
           </label>
+        )}
+        {mode !== "quick" && shell && (
+          <label className="checkbox span-2">
+            <input type="checkbox" checked={form.mosh} onChange={(e) => set({ mosh: e.target.checked })} />
+            Connect with Mosh (stays connected over changing networks; needs Mosh on this computer and the server)
+          </label>
+        )}
+        {mode !== "quick" && shell && form.mosh && (
+          <p className="hint span-2">
+            Mosh signs in with your system&apos;s ssh and its known hosts, in the terminal: passwords are typed there and
+            not saved. No jump host or forwarding.
+          </p>
         )}
         {mode !== "quick" && shell && (
           <label className="span-2">

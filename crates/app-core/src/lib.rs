@@ -17,6 +17,7 @@ mod macros;
 mod master;
 mod mobaxterm;
 mod monitor;
+mod mosh;
 mod rdp_certs;
 mod remote_files;
 mod sessions;
@@ -48,6 +49,7 @@ pub use macros::{MAX_MACRO_BYTES, Macro, MacroInput, MacroStep};
 pub use master::{MIN_MASTER_PASSWORD, MasterPassword, MasterStatus};
 pub use mobaxterm::{import_mobaxterm, is_mobaxterm, parse_mobaxterm};
 pub use monitor::{ServerMonitor, ServerStats};
+pub use mosh::{find_mosh, mosh_command};
 pub use rdp_certs::{CertificateCheck, FTPS_CERT_ALGORITHM, RDP_CERT_ALGORITHM};
 pub use remote_files::RemoteFiles;
 pub use sessions::{

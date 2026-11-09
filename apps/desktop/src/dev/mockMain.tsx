@@ -512,6 +512,11 @@ mockIPC(
         setTimeout(() => send(id, `\x1b[2m(split of terminal ${a.source})\x1b[0m\r\n$ `), 50);
         return id;
       }
+      case "mosh_open": {
+        const id = nextTerm++;
+        setTimeout(() => send(id, "\x1b[2m(mock mosh)\x1b[0m\r\nops@edge:~$ "), 50);
+        return id;
+      }
       case "terminal_open": {
         const id = nextTerm++;
         outputs.set(id, { ch: a.onOutput as ChannelLike, index: 0 });

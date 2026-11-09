@@ -170,6 +170,20 @@ const cancelled = () => ({ code: "cancelled", message: "Connection cancelled" })
 
 export function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
+  // Saved passwords protected by a master password start locked (ADR-032).
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  const [masterProtected, setMasterProtected] = useState(false);
+  const refreshMaster = useCallback(() => {
+    masterStatus().then((s) => setMasterProtected(s.protected), () => {});
+  }, []);
+  useEffect(() => {
+    masterStatus().then((s) => {
+      setUnlockOpen(s.locked);
+      setMasterProtected(s.protected);
+    }, () => {});
+  }, []);
+  // Portable mode saves passwords only under a master password (ADR-033).
+  const canSave = (info?.secretsAvailable ?? false) && (!info?.portable || masterProtected);
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [active, setActive] = useState<number | null>(null);
@@ -453,7 +467,7 @@ export function App() {
       patchTab(key, { sessionId: s.id, noShell: ftp });
       withLogin(
         s.name,
-        { canSave: info?.secretsAvailable ?? false, keyAuth: s.auth.kind === "keyFile", savedSecret: s.hasSavedSecret },
+        { canSave, keyAuth: s.auth.kind === "keyFile", savedSecret: s.hasSavedSecret },
         (password, savePassword) =>
           (ftp ? openFtpFiles : openSshFiles)({ sessionId: s.id, password, savePassword }),
       ).then(
@@ -461,7 +475,7 @@ export function App() {
         (e) => patchTab(key, { ended: true, desktopError: isIpcError(e) ? e.message : String(e) }),
       );
     },
-    [addTab, info, patchTab, withLogin],
+    [addTab, canSave, patchTab, withLogin],
   );
 
   /** Opens an RDP/VNC session in its external client, in tab `key`. */
@@ -516,13 +530,13 @@ export function App() {
         return;
       }
       connect({ sessionId: s.id }, s.name, {
-        canSave: info?.secretsAvailable ?? false,
+        canSave,
         keyAuth: s.auth.kind === "keyFile",
         savedSecret: s.hasSavedSecret,
         startup: s.startupCommand,
       });
     },
-    [addTab, connect, info, openFilesTab, patchTab, runDesktop, settings.embeddedRdp],
+    [addTab, canSave, connect, openFilesTab, patchTab, runDesktop, settings.embeddedRdp],
   );
 
   // Remote desktop status: poll while a client is running.
@@ -757,11 +771,6 @@ export function App() {
   const [recording, setRecording] = useState<{ key: number; recorder: MacroRecorder } | null>(null);
   const [macroToSave, setMacroToSave] = useState<MacroStep[] | null>(null);
   const [macrosVersion, setMacrosVersion] = useState(0);
-  // Saved passwords protected by a master password start locked (ADR-032).
-  const [unlockOpen, setUnlockOpen] = useState(false);
-  useEffect(() => {
-    masterStatus().then((s) => setUnlockOpen(s.locked), () => {});
-  }, []);
 
   // A closed tab ends its recording; nothing typed there is kept.
   useEffect(() => {
@@ -1064,7 +1073,7 @@ export function App() {
                     askPassword({
                       target: t.title,
                       kind: "password",
-                      canSave: info?.secretsAvailable ?? false,
+                      canSave,
                       retry: retry ?? (sessions.find((x) => x.id === t.sessionId)?.hasSavedSecret ? "savedRejected" : null),
                     })
                   }
@@ -1436,8 +1445,12 @@ export function App() {
           initial={settings}
           shells={shells}
           secretsAvailable={info?.secretsAvailable ?? false}
+          portable={info?.portable ?? false}
           onSecretsReset={refresh}
-          onCancel={() => setSettingsOpen(false)}
+          onCancel={() => {
+            setSettingsOpen(false);
+            refreshMaster();
+          }}
           onSave={async (next) => {
             await saveSettings(next);
             setSettings(next);

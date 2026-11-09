@@ -8,8 +8,10 @@ use std::sync::{Mutex, OnceLock};
 
 use zeroize::Zeroizing;
 
+mod file;
 mod vault;
 
+pub use file::FileSecretStore;
 pub use vault::{DataKey, KdfCost, VaultStore, WrappedKey};
 
 const REF_PREFIX: &str = "cred-";

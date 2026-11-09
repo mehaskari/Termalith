@@ -8,6 +8,7 @@ mod files;
 mod keys;
 mod links;
 mod nettools;
+mod portable;
 mod sessions;
 mod ssh;
 mod state;
@@ -24,8 +25,12 @@ use crate::state::AppState;
 pub fn run() {
     let app = tauri::Builder::default()
         .setup(|app| {
+            let crash_dir = match portable::data_root() {
+                Some(root) => root.join("crashes"),
+                None => app.path().app_log_dir()?.join("crashes"),
+            };
             let reports = Arc::new(app_core::CrashReports::new(
-                app.path().app_log_dir()?.join("crashes"),
+                crash_dir,
                 env!("CARGO_PKG_VERSION"),
             ));
             crash::install_hook(reports.clone());

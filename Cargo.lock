@@ -948,6 +948,7 @@ dependencies = [
  "chacha20poly1305",
  "getrandom 0.3.4",
  "keyring-core",
+ "tempfile",
  "thiserror 2.0.21",
  "windows-native-keyring-store",
  "zbus-secret-service-keyring-store",

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Portable copy:** a `TermalithData` folder next to the app keeps all data
+  there, for running from a USB stick.
 - **Master password:** optionally protect saved passwords with a password
   asked for at startup.
 - **Sharp RDP on Retina screens:** the embedded viewer asks for the desktop in

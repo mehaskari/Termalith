@@ -7,7 +7,9 @@ use app_core::{
     AuthPromptBroker, CertificateCheck, Connector, DesktopHub, DroppedFiles, MasterPassword,
     PromptBroker, ServerMonitor, SessionStore, TerminalHub, TerminalLogs, Transfers, Tunnels,
 };
-use credential_store::{KdfCost, MemorySecretStore, NativeSecretStore, SecretStore, VaultStore};
+use credential_store::{
+    FileSecretStore, KdfCost, MemorySecretStore, NativeSecretStore, SecretStore, VaultStore,
+};
 use protocol_ssh::FileKnownHosts;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -38,6 +40,8 @@ pub struct AppState {
     pub logs: Arc<TerminalLogs>,
     pub monitor: Arc<ServerMonitor>,
     pub master: Arc<MasterPassword>,
+    /// Running from a portable folder (ADR-033).
+    pub portable: bool,
 }
 
 /// The user's SSH agent: `SSH_AUTH_SOCK` on Unix (set for GUI apps by
@@ -58,28 +62,42 @@ fn agent_socket() -> Option<PathBuf> {
 
 impl AppState {
     pub fn init(app: &AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
-        let data_dir = app.path().app_data_dir()?;
+        // Portable: everything in the folder next to the app (ADR-033).
+        let portable = crate::portable::data_root();
+        let data_dir = match &portable {
+            Some(root) => root.clone(),
+            None => app.path().app_data_dir()?,
+        };
         std::fs::create_dir_all(&data_dir)?;
 
         let sessions = Arc::new(SessionStore::open(&data_dir.join("termalith.db"))?);
         let sessions_for_master = Arc::clone(&sessions);
 
         let mut known_hosts = FileKnownHosts::new(data_dir.join("known_hosts"));
-        if let Ok(home) = app.path().home_dir() {
+        if portable.is_none()
+            && let Ok(home) = app.path().home_dir()
+        {
             // Trust what the user already accepted in OpenSSH; never written.
             known_hosts = known_hosts.with_read_only(home.join(".ssh").join("known_hosts"));
         }
 
-        let (os_secrets, secrets_available): (Arc<dyn SecretStore>, bool) =
-            match NativeSecretStore::new(CREDENTIAL_SERVICE) {
-                Ok(s) => (Arc::new(s), true),
-                Err(_) => (Arc::new(MemorySecretStore::default()), false),
-            };
         // With a master password the vault starts locked (ADR-032).
-        let vault = Arc::new(VaultStore::new(
-            os_secrets,
-            sessions.master_key()?.is_some(),
-        ));
+        let protected = sessions.master_key()?.is_some();
+        let (vault, secrets_available) = if let Some(root) = &portable {
+            // This computer's credential store is not portable: a file next
+            // to the data, holding only sealed values.
+            let file: Arc<dyn SecretStore> = Arc::new(FileSecretStore::new(root.join("secrets")));
+            (VaultStore::new(file, protected).sealed_only(), true)
+        } else {
+            match NativeSecretStore::new(CREDENTIAL_SERVICE) {
+                Ok(s) => (VaultStore::new(Arc::new(s), protected), true),
+                Err(_) => (
+                    VaultStore::new(Arc::new(MemorySecretStore::default()), protected),
+                    false,
+                ),
+            }
+        };
+        let vault = Arc::new(vault);
         let secrets: Arc<dyn SecretStore> = vault.clone();
 
         let emitter = app.clone();
@@ -117,19 +135,25 @@ impl AppState {
             .unwrap_or_else(|_| data_dir.clone());
 
         // Connection files for external RDP clients (no secrets in them).
-        let desktop_dir = app
-            .path()
-            .app_cache_dir()
-            .unwrap_or_else(|_| data_dir.join("cache"))
-            .join("remote-desktop");
+        let desktop_dir = match &portable {
+            Some(root) => root.join("cache"),
+            None => app
+                .path()
+                .app_cache_dir()
+                .unwrap_or_else(|_| data_dir.join("cache")),
+        }
+        .join("remote-desktop");
         std::fs::create_dir_all(&desktop_dir)?;
 
         // Session logs go where users look for documents.
-        let logs_dir = app
-            .path()
-            .document_dir()
-            .map(|d| d.join("Termalith Logs"))
-            .unwrap_or_else(|_| data_dir.join("logs"));
+        let logs_dir = match &portable {
+            Some(root) => root.join("logs"),
+            None => app
+                .path()
+                .document_dir()
+                .map(|d| d.join("Termalith Logs"))
+                .unwrap_or_else(|_| data_dir.join("logs")),
+        };
 
         let transfers = Arc::new(Transfers::with_recorder(app_core::history_recorder(
             Arc::clone(&connector.sessions),
@@ -158,6 +182,7 @@ impl AppState {
             desktops,
             logs: Arc::new(TerminalLogs::new(logs_dir)),
             monitor: Arc::new(ServerMonitor::default()),
+            portable: portable.is_some(),
             master: Arc::new(MasterPassword {
                 store: sessions_for_master,
                 vault,

@@ -162,6 +162,8 @@ enum State {
 pub struct VaultStore {
     inner: Arc<dyn SecretStore>,
     state: RwLock<State>,
+    /// Portable mode: plain values are never written (ADR-033).
+    sealed_only: bool,
 }
 
 impl VaultStore {
@@ -170,7 +172,15 @@ impl VaultStore {
         Self {
             inner,
             state: RwLock::new(if protected { State::Locked } else { State::Off }),
+            sealed_only: false,
         }
+    }
+
+    /// Writes only sealed values: without a master password nothing is saved.
+    #[must_use]
+    pub fn sealed_only(mut self) -> Self {
+        self.sealed_only = true;
+        self
     }
 
     fn state(&self) -> std::sync::RwLockReadGuard<'_, State> {
@@ -222,6 +232,11 @@ impl VaultStore {
     /// Turns protection off: every listed secret is opened and stored plain.
     /// Needs the store unlocked.
     pub fn unprotect(&self, refs: &[CredentialRef]) -> Result<(), SecretError> {
+        if self.sealed_only {
+            return Err(SecretError::Unavailable(
+                "portable mode keeps saved passwords sealed".into(),
+            ));
+        }
         {
             let state = self.state();
             let State::Unlocked(key) = &*state else {
@@ -243,6 +258,9 @@ impl VaultStore {
 impl SecretStore for VaultStore {
     fn put(&self, r: &CredentialRef, secret: &[u8]) -> Result<(), SecretError> {
         match &*self.state() {
+            State::Off if self.sealed_only => Err(SecretError::Unavailable(
+                "set a master password to save passwords in portable mode".into(),
+            )),
             State::Off => self.inner.put(r, secret),
             State::Locked => Err(SecretError::Locked),
             State::Unlocked(key) => self.inner.put(r, &key.seal_secret(r, secret)?),
@@ -354,6 +372,22 @@ mod tests {
             unreachable!()
         };
         key.seal_secret(r, v).unwrap()
+    }
+
+    #[test]
+    fn sealed_only_refuses_plain_values() {
+        let inner = Arc::new(MemorySecretStore::default());
+        let vault = VaultStore::new(inner.clone(), false).sealed_only();
+        let r = CredentialRef::generate().unwrap();
+        assert!(matches!(
+            vault.put(&r, b"x"),
+            Err(SecretError::Unavailable(_))
+        ));
+        let (key, _) = DataKey::create(&password(), FAST).unwrap();
+        vault.protect(key, &[]).unwrap();
+        vault.put(&r, b"x").unwrap();
+        assert!(is_sealed(&inner.get(&r).unwrap().unwrap()));
+        assert!(vault.unprotect(std::slice::from_ref(&r)).is_err());
     }
 
     #[test]

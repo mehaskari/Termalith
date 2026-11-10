@@ -224,6 +224,8 @@ fn embedded_rdp_against_xrdp() {
                 viewer.ack();
             }
             Ok(ViewerEvent::Closed { reason }) => panic!("closed early: {reason:?}"),
+            // The server's pointer shapes (xrdp sends its own).
+            Ok(ViewerEvent::Cursor(_)) => cursors += 1,
             Ok(other) => panic!("unexpected {other:?}"),
             Err(_) => {}
         }

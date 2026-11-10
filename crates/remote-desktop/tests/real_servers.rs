@@ -202,6 +202,7 @@ fn embedded_rdp_against_xrdp() {
     );
     let mut frames = 0;
     let mut bytes = 0;
+    let mut cursors = 0;
     let deadline = Instant::now() + Duration::from_secs(6);
     viewer.input(vec![
         ViewerInput::MouseMove { x: 500, y: 400 },
@@ -230,8 +231,9 @@ fn embedded_rdp_against_xrdp() {
             Err(_) => {}
         }
     }
-    eprintln!("viewer: {frames} frames, {bytes} bytes in 6 s");
+    eprintln!("viewer: {frames} frames, {bytes} bytes, {cursors} pointer shapes in 6 s");
     assert!(frames > 0, "no frames");
+    assert!(cursors > 0, "no pointer shape from the server");
 
     // Offering clipboard text must not disturb the session (xrdp's login
     // screen may not open the clipboard channel; then nothing is sent).

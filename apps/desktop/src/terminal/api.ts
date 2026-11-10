@@ -306,7 +306,8 @@ export type TransferEvent =
   | { kind: "retrying"; attempt: number; max: number; message: string }
   | { kind: "done"; destination: string }
   | { kind: "failed"; message: string; retryable: boolean }
-  | { kind: "cancelled" };
+  | { kind: "cancelled" }
+  | { kind: "paused" };
 
 export interface DroppedFile {
   token: number;
@@ -354,6 +355,8 @@ export const sftpUpload = (
 ) => invoke<number>("sftp_upload", { terminalId, token, dir, connection: connection ?? null, onEvent: transferChannel(onEvent) });
 
 export const cancelTransfer = (id: number) => invoke<boolean>("transfer_cancel", { id });
+/** Pauses a running transfer; `retryTransfer` continues where it stopped. */
+export const pauseTransfer = (id: number) => invoke<boolean>("transfer_pause", { id });
 
 /** Runs a failed or cancelled transfer again; resolves to the new id. */
 export const retryTransfer = (id: number, onEvent: (e: TransferEvent) => void) =>

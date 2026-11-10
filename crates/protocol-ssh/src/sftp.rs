@@ -229,6 +229,46 @@ impl SftpClient {
         }
     }
 
+    /// Downloads `remote` to `local` through `partial`, continuing after
+    /// the bytes `partial` already holds. The partial file is kept when the
+    /// download stops, so a later call continues; it becomes `local` when
+    /// complete. Returns the file's full length.
+    pub async fn download_resume(
+        &self,
+        remote: &str,
+        local: &Path,
+        partial: &Path,
+        opts: TransferOptions,
+        cancel: &CancellationToken,
+        mut progress: impl FnMut(u64) + Send,
+    ) -> Result<u64, SshError> {
+        use tokio::io::AsyncSeekExt;
+        let offset = match tokio::fs::metadata(partial).await {
+            Ok(m) => m.len(),
+            Err(_) => 0,
+        };
+        let mut src = self.inner.open(remote).await?;
+        if offset > 0 {
+            src.seek(std::io::SeekFrom::Start(offset)).await?;
+        }
+        let mut dst = tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(partial)
+            .await?;
+        let mut report = |n: u64| progress(offset + n);
+        let copied = copy(&mut src, &mut dst, opts.chunk_size, cancel, &mut report).await;
+        // Written bytes reach the file before the partial file is left for
+        // a later attempt (tokio writes in the background otherwise).
+        let flushed = dst.flush().await;
+        let n = copied?;
+        flushed?;
+        dst.sync_all().await?;
+        drop(dst);
+        tokio::fs::rename(partial, local).await?;
+        Ok(offset + n)
+    }
+
     /// Sets Unix permission bits.
     pub async fn set_mode(&self, remote: &str, mode: u32) -> Result<(), SshError> {
         let attrs = russh_sftp::protocol::FileAttributes {

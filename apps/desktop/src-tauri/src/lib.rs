@@ -166,6 +166,7 @@ pub fn run() {
             files::sftp_download,
             files::sftp_upload,
             files::transfer_cancel,
+            files::transfer_pause,
             files::transfer_retry,
             files::transfer_history,
             files::transfer_history_clear,

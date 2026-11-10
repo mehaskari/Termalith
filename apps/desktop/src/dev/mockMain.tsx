@@ -45,16 +45,32 @@ const mockSettings: Record<string, unknown> = { theme: "system", fontSize: 13, f
 const logging = new Set<number>();
 let nextTunnel = 1;
 const tunnels: Array<Record<string, unknown> & { id: number; terminalId: number }> = [];
-function progressThen(ch: ChannelLike, total: number, done: unknown) {
+/** Running mock transfers that can be paused: id → pause. */
+const pausers = new Map<number, () => void>();
+/** Paused mock downloads: id → what a resume needs. */
+const pausedDownloads = new Map<number, { name: string; total: number; sent: number }>();
+function progressThen(ch: ChannelLike, total: number, done: unknown, pausable?: { id: number; name: string; from?: number }) {
   let index = 0;
-  let sent = 0;
+  let sent = pausable?.from ?? 0;
+  let timer: ReturnType<typeof setTimeout>;
+  const send = (message: unknown) => window.__TAURI_INTERNALS__.runCallback(ch.id, { index: index++, message });
   const step = () => {
     sent = Math.min(total, sent + total / 8);
-    window.__TAURI_INTERNALS__.runCallback(ch.id, { index: index++, message: { kind: "progress", transferred: sent, total } });
-    if (sent < total) setTimeout(step, 150);
-    else window.__TAURI_INTERNALS__.runCallback(ch.id, { index: index++, message: done });
+    send({ kind: "progress", transferred: sent, total });
+    if (sent < total) timer = setTimeout(step, 400);
+    else {
+      if (pausable) pausers.delete(pausable.id);
+      send(done);
+    }
   };
-  setTimeout(step, 100);
+  timer = setTimeout(step, 100);
+  if (pausable)
+    pausers.set(pausable.id, () => {
+      clearTimeout(timer);
+      pausers.delete(pausable.id);
+      pausedDownloads.set(pausable.id, { name: pausable.name, total, sent });
+      send({ kind: "paused" });
+    });
 }
 const retryNames = new Map<number, string>();
 const mockKeys = [
@@ -628,6 +644,7 @@ mockIPC(
           fails
             ? { kind: "failed", message: "SFTP error: connection lost", retryable: true }
             : { kind: "done", destination: `/Users/me/Downloads/${a.name}` },
+          fails ? undefined : { id, name: String(a.name) },
         );
         return { id, downloadsDir: "/Users/me/Downloads" };
       }
@@ -667,6 +684,13 @@ mockIPC(
         return { size: remoteText[key].length, modified: remoteVersions[key] };
       }
       case "transfer_retry": {
+        const p = pausedDownloads.get(Number(a.id));
+        if (p) {
+          pausedDownloads.delete(Number(a.id));
+          const id = nextTransfer++;
+          progressThen(a.onEvent as ChannelLike, p.total, { kind: "done", destination: `/Users/me/Downloads/${p.name}` }, { id, name: p.name, from: p.sent });
+          return id;
+        }
         const name = retryNames.get(Number(a.id));
         if (!name) throw { code: "not_found", message: "not found" };
         retryNames.delete(Number(a.id));
@@ -698,7 +722,13 @@ mockIPC(
         return i >= 0;
       }
       case "transfer_cancel":
+        pausedDownloads.delete(Number(a.id));
         return true;
+      case "transfer_pause": {
+        const pause = pausers.get(Number(a.id));
+        pause?.();
+        return Boolean(pause);
+      }
       case "known_host_forget":
         forgotten.add(`${a.host}:${a.port}`);
         return { removed: 1, remainingInUserFile: 0 };

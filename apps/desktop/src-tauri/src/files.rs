@@ -272,3 +272,9 @@ pub fn transfer_retry(
 pub fn transfer_cancel(state: State<'_, AppState>, id: u64) -> bool {
     state.transfers.cancel(id)
 }
+
+/// Pauses a running transfer; `transfer_retry` continues it.
+#[tauri::command]
+pub fn transfer_pause(state: State<'_, AppState>, id: u64) -> bool {
+    state.transfers.pause(id)
+}

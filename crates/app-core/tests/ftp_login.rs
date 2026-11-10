@@ -301,3 +301,67 @@ async fn ftp_folder_downloads_with_its_subfolders() {
     assert_eq!(std::fs::read(got.join("sub/b.bin")).unwrap().len(), 150_000);
     assert!(got.join("empty").is_dir());
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn ftp_download_continues_its_partial_file() {
+    use app_core::RemoteFiles;
+    use protocol_ssh::{CancellationToken, TransferOptions};
+    let (Some(addr), Some(password)) = (
+        env("TERMALITH_TEST_FTP"),
+        env("TERMALITH_TEST_FTP_PASSWORD"),
+    ) else {
+        eprintln!("TERMALITH_TEST_FTP not set; skipped");
+        return;
+    };
+    let r = rig();
+    let id = r
+        .connector
+        .sessions
+        .create(&session(&addr, SessionProtocol::Ftp))
+        .unwrap()
+        .id;
+    let (client, _, _) = r
+        .connector
+        .connect_ftp(&id, typed(&password, false))
+        .await
+        .unwrap();
+    let files = RemoteFiles::Ftp(Arc::new(client));
+    let data: Vec<u8> = (0..300_000u32).map(|i| (i % 251) as u8).collect();
+    let local = tempfile::tempdir().unwrap();
+    std::fs::write(local.path().join("src.bin"), &data).unwrap();
+    let remote = format!("/resume-{}.bin", random_password());
+    let cancel = CancellationToken::new();
+    files
+        .upload(
+            &local.path().join("src.bin"),
+            &remote,
+            TransferOptions::default(),
+            &cancel,
+            |_| {},
+        )
+        .await
+        .unwrap();
+
+    // A partial file with marked bytes: REST continues after them.
+    let partial = local.path().join(".got.bin.termalith-partial");
+    std::fs::write(&partial, vec![0xFF; 100_000]).unwrap();
+    let mut first = None;
+    let n = files
+        .download_resume(
+            &remote,
+            &local.path().join("got.bin"),
+            &partial,
+            &cancel,
+            |p| {
+                first.get_or_insert(p);
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(n, 300_000);
+    assert!(first.unwrap() > 100_000, "progress counts the kept bytes");
+    let got = std::fs::read(local.path().join("got.bin")).unwrap();
+    assert!(got[..100_000].iter().all(|b| *b == 0xFF), "partial kept");
+    assert_eq!(&got[100_000..], &data[100_000..], "rest from the offset");
+    assert!(!partial.exists());
+}

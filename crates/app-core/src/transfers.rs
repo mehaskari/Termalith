@@ -18,9 +18,7 @@ use protocol_ssh::{CancellationToken, SshError, TransferOptions};
 use serde::Serialize;
 use tokio::sync::Semaphore;
 
-use crate::files::{
-    MAX_FOLDER_ENTRIES, MAX_FOLDER_LEVELS, safe_file_name, unique_destination, walk_local_folder,
-};
+use crate::files::{MAX_FOLDER_LEVELS, safe_file_name, unique_destination, walk_local_folder};
 use crate::history::{TransferDirection, TransferMeta};
 use crate::{AppError, RemoteFiles};
 
@@ -108,71 +106,9 @@ impl Default for Transfers {
     }
 }
 
-/// A remote folder to download, as paths relative to it. Folders come
-/// before their contents.
-#[derive(Debug, Default, PartialEq, Eq)]
-struct RemoteTree {
-    dirs: Vec<Vec<String>>,
-    files: Vec<Vec<String>>,
-}
-
-/// Lists `root` and its subfolders without following symbolic links, with
-/// the same limits as an uploaded folder. Names that are not valid file
-/// names on this computer stop the walk with an error.
-async fn walk_remote_folder(
-    files: &RemoteFiles,
-    root: &str,
-    cancel: &CancellationToken,
-) -> Result<RemoteTree, SshError> {
-    use protocol_ssh::RemoteKind;
-    let mut tree = RemoteTree::default();
-    let mut pending: VecDeque<Vec<String>> = VecDeque::from([Vec::new()]);
-    let mut entries = 0usize;
-    while let Some(rel) = pending.pop_front() {
-        if cancel.is_cancelled() {
-            return Err(SshError::Cancelled);
-        }
-        let dir = rel
-            .iter()
-            .fold(root.to_owned(), |acc, p| remote_join(&acc, p));
-        let mut list = files.list(&dir).await?;
-        list.sort_by(|a, b| a.name.cmp(&b.name));
-        for e in list {
-            if e.name == "." || e.name == ".." {
-                continue;
-            }
-            let kind = match e.kind {
-                RemoteKind::Dir => true,
-                RemoteKind::File => false,
-                _ => continue,
-            };
-            entries += 1;
-            if entries > MAX_FOLDER_ENTRIES {
-                return Err(SshError::Remote(format!(
-                    "{root} has more than {MAX_FOLDER_ENTRIES} entries"
-                )));
-            }
-            if safe_file_name(&e.name).is_err() {
-                return Err(SshError::Remote(format!(
-                    "{}: the name is not allowed on this computer",
-                    remote_join(&dir, &e.name)
-                )));
-            }
-            let mut child = rel.clone();
-            child.push(e.name);
-            if kind {
-                if child.len() > MAX_FOLDER_LEVELS {
-                    return Err(SshError::Remote(format!("{root} is nested too deeply")));
-                }
-                tree.dirs.push(child.clone());
-                pending.push_back(child);
-            } else {
-                tree.files.push(child);
-            }
-        }
-    }
-    Ok(tree)
-}
+/// Most entries (files and folders) a downloaded folder may contain; a
+/// guard against servers that list the same folders over and over.
+pub const MAX_DOWNLOAD_ENTRIES: usize = 500_000;
 
 /// Joins a remote directory and a validated file name.
 pub fn remote_join(dir: &str, name: &str) -> String {
@@ -289,7 +225,7 @@ impl Transfers {
     /// Downloads the remote folder `remote_dir/name` with everything in it
     /// into `dest_dir` under a unique name (one transfer). Symbolic links
     /// are not followed. A retry continues in the folder this transfer
-    /// created, replacing files it wrote before.
+    /// created, keeping files that are complete.
     pub fn start_folder_download(
         self: &Arc<Self>,
         files: impl Into<RemoteFiles>,
@@ -324,8 +260,9 @@ impl Transfers {
                 Arc::clone(&chosen),
             );
             Box::pin(async move {
-                let tree = walk_remote_folder(&files, &remote, &cancel).await?;
+                use protocol_ssh::RemoteKind;
                 let earlier = chosen.lock().unwrap_or_else(|e| e.into_inner()).clone();
+                let retrying = earlier.is_some();
                 let root = match earlier {
                     Some(root) => root,
                     None => {
@@ -335,24 +272,75 @@ impl Transfers {
                         root
                     }
                 };
-                let local_of =
-                    |rel: &[String]| rel.iter().fold(root.clone(), |acc, part| acc.join(part));
-                for dir in &tree.dirs {
-                    std::fs::create_dir_all(local_of(dir))?;
-                }
                 let opts = TransferOptions {
                     overwrite: true,
                     ..TransferOptions::default()
                 };
+                // Folders are listed as the download goes, so files arrive
+                // (and progress shows) from the first folder on, also on
+                // FTP where every listing is a new connection.
+                let mut pending: VecDeque<Vec<String>> = VecDeque::from([Vec::new()]);
+                let mut entries = 0usize;
                 let mut done = 0u64;
-                for rel in &tree.files {
-                    let from = rel
+                while let Some(rel) = pending.pop_front() {
+                    if cancel.is_cancelled() {
+                        return Err(SshError::Cancelled);
+                    }
+                    let dir = rel
                         .iter()
                         .fold(remote.clone(), |acc, p| remote_join(&acc, p));
-                    let n = files
-                        .download(&from, &local_of(rel), opts, &cancel, |n| progress(done + n))
-                        .await?;
-                    done += n;
+                    let local_dir = rel.iter().fold(root.clone(), |acc, p| acc.join(p));
+                    std::fs::create_dir_all(&local_dir)?;
+                    let mut list = files.list(&dir).await?;
+                    list.sort_by(|a, b| a.name.cmp(&b.name));
+                    for e in list {
+                        if e.name == "." || e.name == ".." {
+                            continue;
+                        }
+                        let is_dir = match e.kind {
+                            RemoteKind::Dir => true,
+                            RemoteKind::File => false,
+                            // Symbolic links are not followed.
+                            _ => continue,
+                        };
+                        entries += 1;
+                        if entries > MAX_DOWNLOAD_ENTRIES {
+                            return Err(SshError::Remote(format!(
+                                "{remote} has more than {MAX_DOWNLOAD_ENTRIES} entries"
+                            )));
+                        }
+                        let from = remote_join(&dir, &e.name);
+                        if safe_file_name(&e.name).is_err() {
+                            return Err(SshError::Remote(format!(
+                                "{from}: the name is not allowed on this computer"
+                            )));
+                        }
+                        if is_dir {
+                            if rel.len() + 1 > MAX_FOLDER_LEVELS {
+                                return Err(SshError::Remote(format!(
+                                    "{remote} is nested too deeply"
+                                )));
+                            }
+                            let mut child = rel.clone();
+                            child.push(e.name);
+                            pending.push_back(child);
+                            continue;
+                        }
+                        let local = local_dir.join(&e.name);
+                        // A retry keeps files an earlier attempt finished.
+                        if retrying
+                            && let Some(size) = e.size
+                            && std::fs::metadata(&local).is_ok_and(|m| m.len() == size)
+                        {
+                            done += size;
+                            progress(done);
+                            continue;
+                        }
+                        let n = files
+                            .download(&from, &local, opts, &cancel, |n| progress(done + n))
+                            .await?;
+                        done += n;
+                    }
                 }
                 Ok(root.to_string_lossy().into_owned())
             })

@@ -471,6 +471,10 @@ export function FilesPanel({
                 {t.state === "running" && (
                   <progress max={100} value={pct ?? undefined} aria-label={`${t.name} progress`} />
                 )}
+                {t.state === "running" && pct === null && (
+                  // A folder's size is not known up front: show what arrived.
+                  <span className="transfer-detail">{formatSize(t.transferred)} so far</span>
+                )}
                 {t.state !== "running" && (
                   <span className="transfer-detail" title={t.detail}>
                     {t.state === "done"

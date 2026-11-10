@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Folder downloads start at once:** files arrive while the folder is
+  still being listed, and the transfer shows how much has arrived. Large
+  folders (such as a website's `public_html`) no longer stop at 10,000
+  entries; a retry keeps the files already downloaded.
+
 ## 0.5.4 (2026-11-10)
 
 - **Download folders:** *⋯ → Download folder* in the file browser saves a

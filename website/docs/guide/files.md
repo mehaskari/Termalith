@@ -24,8 +24,11 @@ description: Files in Termalith — the SFTP panel and file browser, FTP and FTP
   folder of the same name on the server is never merged or overwritten.
 - **Download:** **↓** on a file saves it to your Downloads folder. For a
   folder, choose **⋯ → Download folder**: it is saved with everything in
-  it (symbolic links are skipped), over SFTP, FTP and FTPS alike. If a
-  folder of that name is already in Downloads, the new one gets a number.
+  it (symbolic links are skipped), over SFTP, FTP and FTPS alike. Files
+  start arriving at once; the transfer shows how much has arrived so far
+  (the folder's total size is not known in advance). If a folder of that
+  name is already in Downloads, the new one gets a number; **↻** after a
+  failure keeps the files already downloaded.
 - Up to three transfers run at once. Connection errors are retried
   automatically; a failed transfer has **Retry**.
 - **⏱ Transfer history** lists recent transfers of all connections (the

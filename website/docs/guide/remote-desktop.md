@@ -26,6 +26,11 @@ With the setting on, RDP and VNC desktops open in a tab on every system:
   protocol defines.
 - The password can be saved in the system keychain after a successful
   login.
+- VNC logins: no password, or a VNC password. Servers that offer only
+  their own account login cannot be used inside Termalith yet: in RealVNC
+  Server set *Options → Security → Authentication* to **VNC password**; on
+  a Mac turn on *System Settings → General → Sharing → Screen Sharing → ⓘ
+  → VNC viewers may control screen with password*.
 - Not supported yet: files on the clipboard, sound and drive sharing; VNC
   desktops are scaled, not resized.
 
@@ -34,7 +39,7 @@ With the setting on, RDP and VNC desktops open in a tab on every system:
 | System | RDP | VNC |
 |---|---|---|
 | macOS | Windows App / Microsoft Remote Desktop | Screen Sharing (built in) |
-| Windows | Remote Desktop Connection (built in) | TigerVNC |
+| Windows | Remote Desktop Connection (built in) | TigerVNC or RealVNC Viewer |
 | Linux | FreeRDP (`xfreerdp`) | TigerVNC (`vncviewer`) |
 
 The session dialog shows which client will be used. If none is installed,

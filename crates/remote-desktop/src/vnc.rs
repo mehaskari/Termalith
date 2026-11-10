@@ -3,8 +3,12 @@
 //! VNC itself is not encrypted; the app offers it through an SSH tunnel.
 
 use std::collections::HashSet;
+use std::pin::Pin;
 use std::sync::mpsc::{Receiver, TryRecvError};
+use std::task::{Context, Poll};
 use std::time::Duration;
+
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, ReadBuf};
 
 use vnc::{PixelFormat, VncClient, VncConnector, VncEncoding, VncError, VncEvent, X11Event};
 use zeroize::Zeroizing;
@@ -32,12 +36,96 @@ fn failed(what: &str, e: impl std::fmt::Display) -> DesktopError {
     }
 }
 
+/// What vnc-rs says when the server offers neither "no password" nor a VNC
+/// password (for example a Mac with only its account login turned on).
+const ONLY_VNC_AUTH: &str = "Security type apart from Vnc Auth has not been implemented";
+
 fn vnc_error(e: VncError) -> DesktopError {
     match e {
         VncError::NoPassword => DesktopError::PasswordNeeded,
         VncError::WrongPassword => DesktopError::AuthFailed,
+        VncError::General(msg) if msg.contains(ONLY_VNC_AUTH) => failed(
+            "login",
+            "the server offers no login method Termalith supports (a VNC password or none); \
+             in RealVNC Server set Options → Security → Authentication to \"VNC password\"; \
+             on a Mac, turn on System Settings → General → Sharing → Screen Sharing → ⓘ → \
+             \"VNC viewers may control screen with password\"",
+        ),
         e => failed("login", e),
     }
+}
+
+/// The protocol version line vnc-rs should see for the one a server sent.
+/// vnc-rs knows only 3.3, 3.7 and 3.8 and treats anything else as 3.3, which
+/// fails on servers that announce a later version and refuse 3.3 logins
+/// (macOS Screen Sharing sends 3.889). Like other viewers, versions from 3.8
+/// up are answered as 3.8; everything else is left alone.
+fn normalized_version(line: [u8; 12]) -> [u8; 12] {
+    let digits = |r: std::ops::Range<usize>| {
+        std::str::from_utf8(&line[r])
+            .ok()
+            .filter(|d| d.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|d| d.parse::<u32>().ok())
+    };
+    if &line[..4] != b"RFB " || line[7] != b'.' || line[11] != b'\n' {
+        return line;
+    }
+    match (digits(4..7), digits(8..11)) {
+        (Some(major), Some(minor)) if major > 3 || (major == 3 && minor > 8) => *b"RFB 003.008\n",
+        _ => line,
+    }
+}
+
+/// A stream that hands out `head` before reading from `inner`.
+struct Prefixed<S> {
+    head: [u8; 12],
+    sent: usize,
+    inner: S,
+}
+
+impl<S: AsyncRead + Unpin> AsyncRead for Prefixed<S> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let this = &mut *self;
+        if this.sent < this.head.len() {
+            let n = buf.remaining().min(this.head.len() - this.sent);
+            buf.put_slice(&this.head[this.sent..this.sent + n]);
+            this.sent += n;
+            return Poll::Ready(Ok(()));
+        }
+        Pin::new(&mut this.inner).poll_read(cx, buf)
+    }
+}
+
+impl<S: AsyncWrite + Unpin> AsyncWrite for Prefixed<S> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        Pin::new(&mut self.inner).poll_write(cx, buf)
+    }
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_flush(cx)
+    }
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_shutdown(cx)
+    }
+}
+
+/// Reads the server's version line and returns a stream that replays it,
+/// normalized, to vnc-rs.
+async fn with_known_version<S: AsyncRead + Unpin>(mut inner: S) -> std::io::Result<Prefixed<S>> {
+    let mut line = [0u8; 12];
+    inner.read_exact(&mut line).await?;
+    Ok(Prefixed {
+        head: normalized_version(line),
+        sent: 0,
+        inner,
+    })
 }
 
 async fn connect(p: &VncParams<'_>) -> Result<VncClient, DesktopError> {
@@ -48,8 +136,12 @@ async fn connect(p: &VncParams<'_>) -> Result<VncClient, DesktopError> {
     .await
     .map_err(|_| failed("connect", "timed out"))?
     .map_err(|e| failed("connect", e))?;
+    let stream = tokio::time::timeout(CONNECT_TIMEOUT, with_known_version(tcp))
+        .await
+        .map_err(|_| failed("login", "timed out"))?
+        .map_err(|e| failed("login", e))?;
     let password = p.password.clone();
-    let connector = VncConnector::new(tcp)
+    let connector = VncConnector::new(stream)
         .set_auth_method(async move {
             password
                 .map(|p| p.as_str().to_owned())
@@ -425,5 +517,45 @@ mod tests {
         assert_eq!(f.copy((0, 0), (1, 1), 2, 1), Some((0, 0, 1, 0)));
         assert_eq!(&f.data[..8], &px[..8]);
         assert_eq!(f.copy((0, 0), (3, 2), 2, 1), None, "source outside");
+    }
+
+    #[test]
+    fn later_protocol_versions_are_answered_as_3_8() {
+        let v = |s: &[u8; 12]| normalized_version(*s);
+        assert_eq!(
+            &v(b"RFB 003.889\n"),
+            b"RFB 003.008\n",
+            "macOS Screen Sharing"
+        );
+        assert_eq!(&v(b"RFB 004.001\n"), b"RFB 003.008\n");
+        for same in [
+            b"RFB 003.008\n",
+            b"RFB 003.007\n",
+            b"RFB 003.003\n",
+            b"RFB 003.006\n",
+        ] {
+            assert_eq!(&v(same), same);
+        }
+        for odd in [b"RFB 0x3.889\n", b"XYZ 003.889\n", b"RFB 003.889 "] {
+            assert_eq!(&v(odd), odd, "not a version line");
+        }
+    }
+
+    #[tokio::test]
+    async fn the_version_line_is_replayed_before_the_stream() {
+        let input: &[u8] = b"RFB 003.889\nrest";
+        let mut s = with_known_version(input).await.unwrap();
+        let mut out = Vec::new();
+        s.read_to_end(&mut out).await.unwrap();
+        assert_eq!(out, b"RFB 003.008\nrest");
+    }
+
+    #[test]
+    fn missing_login_methods_get_a_hint() {
+        let e = vnc_error(VncError::General(ONLY_VNC_AUTH.into())).to_string();
+        assert!(
+            e.contains("VNC viewers may control screen with password"),
+            "{e}"
+        );
     }
 }

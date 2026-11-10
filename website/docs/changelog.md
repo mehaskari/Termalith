@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.1 (2026-11-10)
 
 - **Windows:** Remote Desktop Connection is found wherever Windows is
   installed (not only on `C:`), and "No RDP client found" now points to the

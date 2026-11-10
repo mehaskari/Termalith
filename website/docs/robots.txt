@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://mehaskari.github.io/Termalith/sitemap.xml

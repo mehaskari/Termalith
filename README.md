@@ -2,9 +2,23 @@
 
 **One workspace. Every connection.**
 
-Termalith is an open-source, cross-platform remote administration workstation for system and network administrators: SSH and Mosh terminals, SFTP/FTP/FTPS, remote desktop (RDP and VNC), tunnels, serial and Telnet consoles and network tools in one app. It is built with Tauri 2, Rust, React and TypeScript.
+[![Latest release](https://img.shields.io/github/v/release/mehaskari/Termalith?label=release)](https://github.com/mehaskari/Termalith/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-teal)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-blue)](https://github.com/mehaskari/Termalith/releases/latest)
+[![CI](https://github.com/mehaskari/Termalith/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mehaskari/Termalith/actions/workflows/ci.yml)
 
-> **Status: early preview (0.5).** Most features are in daily use on macOS. Windows and Linux builds pass CI (unit and integration tests, real-server tests, a launch smoke test) and have had a first hands-on run on ARM64. Expect rough edges, and please report them.
+**[Download](https://github.com/mehaskari/Termalith/releases/latest)** · **[Website](https://mehaskari.github.io/Termalith/)** · **[User guide](https://mehaskari.github.io/Termalith/guide/)**
+
+Termalith is a free, open-source, cross-platform remote administration workstation for system and network administrators: SSH and Mosh terminals, SFTP/FTP/FTPS, remote desktop (RDP and VNC), tunnels, serial and Telnet consoles and network tools in one app. It is built with Tauri 2, Rust, React and TypeScript.
+
+## Why Termalith
+
+- **Free for any use.** MIT licensed: no paid edition, no account, no session limits, at home or at work.
+- **The same on every system.** macOS (Apple Silicon and Intel), Windows (x64 and ARM64) and Linux (x64 and ARM64), one feature set, every build tested in CI.
+- **Careful with your keys.** Passwords in the system keychain (optionally sealed with a master password), strict host keys, pinned RDP and FTPS certificates, no telemetry.
+- **Easy to switch to.** Imports MobaXterm `.mxtsessions` exports and `~/.ssh/config`.
+
+> **Status: 0.5.0, the first release.** Most features are in daily use on macOS. Windows and Linux builds pass CI on every change (unit and integration tests, real-server tests against OpenSSH, xrdp, Xvnc, FTP and Mosh, an installer and launch test) and have had less hands-on use. Please report anything that does not work.
 
 ## Features
 
@@ -57,7 +71,7 @@ Not yet: code-signed installers, automatic updates, sound and file clipboard in 
 
 ## Install
 
-Pre-release installers are on the [Releases](https://github.com/mehaskari/Termalith/releases) page for macOS (Apple Silicon and Intel DMG), Windows (x64 and ARM64, NSIS and MSI) and Linux (x64 and ARM64, AppImage and deb), with a `SHA256SUMS.txt` to verify them. They are **not code-signed yet**:
+Installers are on the [Releases](https://github.com/mehaskari/Termalith/releases/latest) page for macOS (Apple Silicon and Intel DMG), Windows (x64 and ARM64, NSIS and MSI) and Linux (x64 and ARM64, AppImage and deb), with a `SHA256SUMS.txt` to verify them. They are **not code-signed yet**:
 
 - macOS: drag Termalith to Applications and open it; macOS refuses the first time. Then choose **Open Anyway** in System Settings → Privacy & Security (on macOS 14 and older, right-click the app and choose **Open**).
 - Windows: SmartScreen may warn; choose **More info → Run anyway**.

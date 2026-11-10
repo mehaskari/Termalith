@@ -2,7 +2,7 @@
 # Built by .github/workflows/pages.yml on every push to main that touches it.
 # Local preview:  pip install -r website/requirements.txt && mkdocs serve -f website/mkdocs.yml
 site_name: Termalith
-site_description: Open-source remote administration workstation — SSH, SFTP, RDP/VNC, tunnels, serial, Telnet and network tools in one app
+site_description: Free, open-source remote administration app for macOS, Windows and Linux — SSH and Mosh terminals, SFTP/FTP/FTPS, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window
 site_url: https://mehaskari.github.io/Termalith/
 repo_url: https://github.com/mehaskari/Termalith
 repo_name: mehaskari/Termalith

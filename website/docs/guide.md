@@ -1,13 +1,13 @@
 # User Guide
 
 Termalith keeps your servers, network devices and tools in one window: saved
-sessions on the left, tabs on the right. This guide covers everything that
-works in version 0.1.
+sessions on the left, tabs on the right. This guide covers version 0.5.
 
-!!! note "Preview"
-    Termalith is an early preview. Most features are used daily on macOS;
-    Windows and Linux builds pass automated tests but have had little
-    hands-on use. Please [report problems](https://github.com/mehaskari/Termalith/issues).
+!!! note "Feedback welcome"
+    Termalith is free and open source. Most features are used daily on macOS;
+    Windows and Linux builds pass automated and real-server tests on every
+    change but have had less hands-on use. Please
+    [report problems](https://github.com/mehaskari/Termalith/issues).
 
 ## Install
 

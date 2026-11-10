@@ -4,8 +4,31 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
-<title>Termalith — One workspace. Every connection.</title>
-<meta name="description" content="Termalith: an open-source remote administration workstation — SSH terminals, SFTP, RDP/VNC, tunnels, serial and Telnet consoles and network tools in one app for macOS, Windows and Linux.">
+<title>Termalith — free, open-source SSH, SFTP, RDP and VNC client for macOS, Windows and Linux</title>
+<meta name="description" content="Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Termalith">
+<meta property="og:title" content="Termalith — one workspace, every connection">
+<meta property="og:description" content="Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry.">
+<meta property="og:url" content="https://mehaskari.github.io/Termalith/">
+<meta property="og:image" content="https://mehaskari.github.io/Termalith/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Termalith — one workspace, every connection">
+<meta name="twitter:description" content="Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry.">
+<meta name="twitter:image" content="https://mehaskari.github.io/Termalith/assets/og.png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Termalith","applicationCategory":"DeveloperApplication","applicationSubCategory":"Remote administration","operatingSystem":"macOS 11+, Windows 10/11, Linux","softwareVersion":"0.5.0","license":"https://opensource.org/licenses/MIT","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://mehaskari.github.io/Termalith/","downloadUrl":"https://github.com/mehaskari/Termalith/releases/latest","codeRepository":"https://github.com/mehaskari/Termalith","description":"Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry."}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"Is Termalith free?","acceptedAnswer":{"@type":"Answer","text":"Yes. Termalith is open source under the MIT license and free for personal and commercial use. There is no paid edition, no account and no telemetry."}},
+{"@type":"Question","name":"Which systems does Termalith run on?","acceptedAnswer":{"@type":"Answer","text":"macOS 11 or newer (Apple Silicon and Intel), Windows 10/11 (x64 and ARM64) and Linux (x64 and ARM64, AppImage and deb), with the same features on all of them."}},
+{"@type":"Question","name":"Can I move my sessions from MobaXterm or OpenSSH?","acceptedAnswer":{"@type":"Answer","text":"Yes. Termalith imports MobaXterm .mxtsessions exports with their folders and hosts from ~/.ssh/config."}},
+{"@type":"Question","name":"Where are my passwords stored?","acceptedAnswer":{"@type":"Answer","text":"In the system keychain (macOS Keychain, Windows Credential Manager, Secret Service on Linux), saved only after a login worked, optionally sealed with a master password."}}
+]}
+</script>
 <link rel="canonical" href="https://mehaskari.github.io/Termalith/">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230A0E12'/%3E%3Cpath d='M26 34l16 16-16 16' fill='none' stroke='%237FD1B9' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M50 68h24' stroke='%237FD1B9' stroke-width='8' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -448,14 +471,14 @@
   <section class="hero">
     <div class="wrap hero-grid">
       <div>
-        <span class="eyebrow">Open source · macOS · Windows · Linux</span>
+        <span class="eyebrow">Free &amp; open source · macOS · Windows · Linux</span>
         <h1>One workspace.<br><em>Every connection.</em></h1>
-        <p class="lede">Termalith keeps your servers, network gear and remote desktops in one window: SSH terminals, SFTP, RDP and VNC, tunnels, serial and Telnet consoles and network tools — with your passwords in the system keychain and host keys checked every time.</p>
+        <p class="lede">Termalith keeps your servers, network gear and remote desktops in one window: SSH and Mosh terminals, SFTP, FTP and FTPS, RDP and VNC in a tab, tunnels, serial and Telnet consoles and network tools — free for any use, the same on every system, with your passwords in the system keychain and host keys checked every time.</p>
 
         <div class="install-pill">
           <span class="prompt">↓</span>
-          <span class="cmd">Termalith 0.1 preview</span>
-          <a class="copy-btn" href="https://github.com/mehaskari/Termalith/releases" target="_blank" rel="noopener">releases</a>
+          <span class="cmd">Termalith 0.5.0 — free, MIT licensed</span>
+          <a class="copy-btn" href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener">download</a>
         </div>
 
         <div class="hero-ctas">
@@ -523,10 +546,10 @@
           <span class="g-tag">Terminals</span>
           <h3>Work in many places at once</h3>
           <ul>
-            <li>Local shells, tabs and split panes</li>
+            <li>Local shells, tabs, up to 2×2 split panes</li>
             <li>Broadcast typing with a loud banner</li>
-            <li>Snippets with <code>&#123;&#123;variables&#125;&#125;</code></li>
-            <li>Session logs, find, color schemes</li>
+            <li>Snippets with <code>&#123;&#123;variables&#125;&#125;</code>, macros</li>
+            <li>Session logs, keyword colors, per-session look</li>
             <li>Command palette <code>⌘K</code></li>
           </ul>
         </div>
@@ -537,8 +560,8 @@
             <li>Password, keys, agent, one-time codes</li>
             <li>Strict host keys, keychain secrets</li>
             <li>Jump hosts, SOCKS/HTTP proxy</li>
-            <li>Tunnels <code>-L</code> <code>-R</code> <code>-D</code></li>
-            <li>X11 &amp; agent forwarding, reconnect</li>
+            <li>Tunnels <code>-L</code> <code>-R</code> <code>-D</code>, Mosh</li>
+            <li>X11 &amp; agent forwarding, server monitor</li>
           </ul>
         </div>
         <div class="group">
@@ -546,8 +569,9 @@
           <h3>Move and edit files</h3>
           <ul>
             <li>SFTP panel or file-browser tab</li>
+            <li>FTP and FTPS (pinned certificate)</li>
             <li>Drag and drop, queue with retry</li>
-            <li>Folders, rename, delete</li>
+            <li>Files follow the terminal's folder</li>
             <li>Edit remote files with conflict check</li>
             <li>SSH key manager</li>
           </ul>
@@ -556,7 +580,7 @@
           <span class="g-tag">Everything else</span>
           <h3>Desktops, devices, diagnostics</h3>
           <ul>
-            <li>RDP and VNC via your installed client</li>
+            <li>RDP and VNC in a tab, or your own client</li>
             <li>Serial consoles and Telnet</li>
             <li>Ping, traceroute, port scan, DNS</li>
             <li>Subnet calculator, Wake-on-LAN</li>
@@ -573,8 +597,8 @@
     <div class="wrap">
       <div class="section-head">
         <span class="eyebrow">Why Termalith</span>
-        <h2>Conservative where it matters</h2>
-        <p>A remote-access tool holds the keys to your infrastructure. Termalith is open source and careful by default.</p>
+        <h2>Free, cross-platform, careful by default</h2>
+        <p>Most all-in-one admin tools run on one system or keep everyday features behind a paid edition. Termalith is MIT-licensed, the same on all three systems, and holds the keys to your infrastructure with care.</p>
       </div>
       <div class="why">
         <div class="why-card">
@@ -587,7 +611,19 @@
         </div>
         <div class="why-card">
           <h3>Native on three systems</h3>
-          <p>A small Rust core with a web UI (Tauri), the same features on macOS, Windows and Linux, tested in CI on all three. MIT licensed.</p>
+          <p>A small Rust core with a web UI (Tauri), the same features on macOS, Windows and Linux, Intel and ARM, tested in CI on all six builds.</p>
+        </div>
+        <div class="why-card">
+          <h3>Free for any use</h3>
+          <p>MIT licensed, no paid edition, no account, no session limits. Use it at home or at work, read the code, change it.</p>
+        </div>
+        <div class="why-card">
+          <h3>Nothing phones home</h3>
+          <p>No telemetry. Crash reports stay on your machine. The update check runs only when you ask, or at startup if you turn it on.</p>
+        </div>
+        <div class="why-card">
+          <h3>Master password &amp; portable</h3>
+          <p>Optionally seal saved passwords with a master password, or run from a USB stick with all data in a folder next to the app.</p>
         </div>
       </div>
     </div>
@@ -600,7 +636,7 @@
       <div class="section-head">
         <span class="eyebrow">Install</span>
         <h2>Pick your platform</h2>
-        <p>Preview builds are on the <a href="https://github.com/mehaskari/Termalith/releases" target="_blank" rel="noopener">Releases page</a>. They are not code-signed yet.</p>
+        <p>Version 0.5.0 is on the <a href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener">Releases page</a>, with a <code>SHA256SUMS.txt</code> to verify downloads. The installers are not code-signed with a developer certificate yet.</p>
       </div>
 
       <div class="install-grid">
@@ -612,22 +648,23 @@
             <button class="itab" data-i="src">From source</button>
           </div>
           <div class="install-panel active" data-p="mac">
-            <div class="code-block"><span class="cm"># Apple Silicon</span>
-Termalith_0.1.0_aarch64.dmg
-<span class="cm"># first launch: right-click the app → Open</span></div>
+            <div class="code-block"><span class="cm"># Apple Silicon / Intel (macOS 11+)</span>
+Termalith_0.5.0_aarch64.dmg
+Termalith_0.5.0_x64.dmg
+<span class="cm"># first launch: System Settings → Privacy &amp; Security → Open Anyway</span></div>
           </div>
           <div class="install-panel" data-p="win">
-            <div class="code-block"><span class="cm"># Windows 10/11, installer or MSI</span>
-Termalith_0.1.0_x64-setup.exe
-Termalith_0.1.0_x64_en-US.msi
+            <div class="code-block"><span class="cm"># Windows 10/11, x64 or ARM64, installer or MSI</span>
+Termalith_0.5.0_x64-setup.exe
+Termalith_0.5.0_arm64-setup.exe
 <span class="cm"># SmartScreen: More info → Run anyway</span></div>
           </div>
           <div class="install-panel" data-p="linux">
             <div class="code-block"><span class="cm"># AppImage (any distribution) or .deb</span>
-chmod +x Termalith_0.1.0_amd64.AppImage
-./Termalith_0.1.0_amd64.AppImage
-<span class="cm"># or</span>
-sudo apt install ./Termalith_0.1.0_amd64.deb</div>
+chmod +x Termalith_0.5.0_amd64.AppImage
+./Termalith_0.5.0_amd64.AppImage
+<span class="cm"># or (ARM64: aarch64.AppImage / arm64.deb)</span>
+sudo apt install ./Termalith_0.5.0_amd64.deb</div>
           </div>
           <div class="install-panel" data-p="src">
             <div class="code-block">git clone https://github.com/mehaskari/Termalith.git
@@ -648,9 +685,28 @@ corepack pnpm dev</div>
           </div>
           <div class="platform-card">
             <h3>Coming from MobaXterm?</h3>
-            <p>Export your sessions there and paste the <code>.mxtsessions</code> file into <b>Import…</b> — folders come along.</p>
+            <p>Export your sessions there and paste the <code>.mxtsessions</code> file into <b>Import…</b> — folders come along. Hosts from <code>~/.ssh/config</code> import too.</p>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <section id="faq">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Questions</span>
+        <h2>Short answers</h2>
+      </div>
+      <div class="why">
+        <div class="why-card"><h3>Is it really free?</h3><p>Yes: MIT licensed, free for personal and commercial use, no paid tier.</p></div>
+        <div class="why-card"><h3>Which systems?</h3><p>macOS 11+ (Apple Silicon, Intel), Windows 10/11 (x64, ARM64), Linux (x64, ARM64; AppImage and deb).</p></div>
+        <div class="why-card"><h3>Is it a MobaXterm alternative?</h3><p>For daily SSH, files, RDP/VNC and tunnels, yes, on all three systems; it imports MobaXterm sessions. A built-in X server on Windows is not there yet.</p></div>
+        <div class="why-card"><h3>Where do passwords go?</h3><p>Into the system keychain, only after a login worked, optionally sealed with a master password. Never into exports or logs.</p></div>
+        <div class="why-card"><h3>Why the security warning?</h3><p>The installers are not code-signed with a paid certificate yet. Check the download against <code>SHA256SUMS.txt</code>, or build from source.</p></div>
+        <div class="why-card"><h3>How can I help?</h3><p>Star the project, report problems and ideas in <a href="https://github.com/mehaskari/Termalith/issues" target="_blank" rel="noopener">Issues</a>, or send a pull request.</p></div>
       </div>
     </div>
   </section>
@@ -686,10 +742,10 @@ corepack pnpm dev</div>
 
   <div class="strip">
     <div class="wrap strip-inner">
-      <span class="strip-item"><b>MIT</b> licensed</span>
+      <span class="strip-item"><b>Free</b> · MIT licensed</span>
       <span class="strip-item">Rust · Tauri 2 · React</span>
-      <span class="strip-item">CI on <b>macOS, Windows, Linux</b></span>
-      <span class="strip-item">Secrets in the <b>system keychain</b></span>
+      <span class="strip-item"><b>macOS, Windows, Linux</b> · Intel &amp; ARM</span>
+      <span class="strip-item"><b>No telemetry</b> · no account</span>
     </div>
   </div>
 

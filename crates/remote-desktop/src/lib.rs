@@ -24,7 +24,9 @@ pub mod vnc;
 pub enum DesktopError {
     #[error("invalid {field}: {reason}")]
     Invalid { field: &'static str, reason: String },
-    #[error("no {0} client found; install one (see the session's help text)")]
+    #[error(
+        "no {0} client found; install one (see the session's help text), or turn on \"Show RDP and VNC sessions inside Termalith\" in Settings"
+    )]
     NoClient(&'static str),
     #[error("could not start {client}: {reason}")]
     Launch { client: String, reason: String },
@@ -160,8 +162,8 @@ struct Candidate {
     id: &'static str,
     name: &'static str,
     protocol: Protocol,
-    /// Absolute paths (app bundles / system tools) or bare names looked up
-    /// on PATH.
+    /// Absolute paths (app bundles / system tools, `%VAR%` expanded) or
+    /// bare names looked up on PATH.
     locations: &'static [&'static str],
 }
 
@@ -202,7 +204,15 @@ const CANDIDATES: &[(Os, Candidate)] = &[
             id: "mstsc",
             name: "Remote Desktop Connection",
             protocol: Protocol::Rdp,
-            locations: &[r"C:\Windows\System32\mstsc.exe"],
+            // Windows may live outside C:\Windows; a 32-bit view of the
+            // system needs Sysnative to see the 64-bit System32.
+            locations: &[
+                r"%SystemRoot%\System32\mstsc.exe",
+                r"%SystemRoot%\Sysnative\mstsc.exe",
+                r"%windir%\System32\mstsc.exe",
+                r"C:\Windows\System32\mstsc.exe",
+                "mstsc.exe",
+            ],
         },
     ),
     (
@@ -234,6 +244,22 @@ const CANDIDATES: &[(Os, Candidate)] = &[
     ),
 ];
 
+/// Replaces `%NAME%` with the environment variable's value; `None` when a
+/// variable is unset (that location is then skipped).
+fn expand_env(location: &str, var: impl Fn(&str) -> Option<String>) -> Option<String> {
+    let mut out = String::new();
+    let mut rest = location;
+    while let Some(start) = rest.find('%') {
+        let after = &rest[start + 1..];
+        let Some(end) = after.find('%') else { break };
+        out.push_str(&rest[..start]);
+        out.push_str(&var(&after[..end]).filter(|v| !v.is_empty())?);
+        rest = &after[end + 1..];
+    }
+    out.push_str(rest);
+    Some(out)
+}
+
 fn find_on_path(name: &str) -> Option<PathBuf> {
     let paths = std::env::var_os("PATH")?;
     std::env::split_paths(&paths)
@@ -249,11 +275,12 @@ pub fn available_clients(protocol: Protocol) -> Vec<Client> {
         .filter(|(o, c)| *o == os && c.protocol == protocol)
         .filter_map(|(_, c)| {
             let program = c.locations.iter().find_map(|l| {
-                let p = Path::new(l);
+                let l = expand_env(l, |v| std::env::var(v).ok())?;
+                let p = Path::new(&l);
                 if p.is_absolute() {
                     p.exists().then(|| p.to_path_buf())
                 } else {
-                    find_on_path(l)
+                    find_on_path(&l)
                 }
             })?;
             Some(Client {
@@ -558,6 +585,38 @@ mod tests {
         )
         .unwrap();
         assert_eq!(l.args, vec!["srv.example.com::5900".to_string()]);
+    }
+
+    /// Windows ships Remote Desktop Connection; the CI runners (x64, ARM64)
+    /// prove it is found wherever Windows is installed.
+    #[cfg(windows)]
+    #[test]
+    fn remote_desktop_connection_is_found_on_windows() {
+        let clients = available_clients(Protocol::Rdp);
+        let mstsc = clients.iter().find(|c| c.id == "mstsc");
+        assert!(
+            mstsc.is_some(),
+            "mstsc.exe not found; SystemRoot={:?}",
+            std::env::var("SystemRoot")
+        );
+        assert!(mstsc.unwrap().program.is_file());
+    }
+
+    #[test]
+    fn locations_expand_environment_variables() {
+        let var = |v: &str| match v {
+            "SystemRoot" => Some(r"D:\Windows".to_string()),
+            "Empty" => Some(String::new()),
+            _ => None,
+        };
+        assert_eq!(
+            expand_env(r"%SystemRoot%\System32\mstsc.exe", var).as_deref(),
+            Some(r"D:\Windows\System32\mstsc.exe")
+        );
+        assert_eq!(expand_env("mstsc.exe", var).as_deref(), Some("mstsc.exe"));
+        assert_eq!(expand_env(r"%Missing%\x.exe", var), None);
+        assert_eq!(expand_env(r"%Empty%\x.exe", var), None);
+        assert_eq!(expand_env("50%", var).as_deref(), Some("50%"));
     }
 
     #[test]

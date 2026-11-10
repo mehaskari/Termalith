@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.3 (2026-11-10)
 
 - **Built-in VNC viewer and RealVNC Server or macOS Screen Sharing:** servers
   that announce a newer protocol version (RealVNC 5.0, macOS 3.889) failed

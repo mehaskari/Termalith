@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.2 (2026-11-10)
 
 - **Windows: finding Remote Desktop Connection** no longer depends on the
   environment Termalith was started with: the Windows folder is read from

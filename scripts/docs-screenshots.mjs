@@ -62,13 +62,31 @@ const js = async (expression) => {
   if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || expression);
   return r.result?.result?.value;
 };
-const click = (label) => js(`(() => {
-  const want = ${JSON.stringify(label)};
-  const els = [...document.querySelectorAll("button,[role=tab],[role=menuitem],a,label,summary")];
-  const el = els.find(e => e.getAttribute("aria-label") === want) || els.find(e => (e.textContent || "").trim() === want)
-    || els.find(e => (e.getAttribute("aria-label") || "").startsWith(want)) || els.find(e => (e.textContent || "").trim().startsWith(want));
-  if (!el) throw new Error("not found: " + want);
-  el.scrollIntoView({ block: "center" }); el.click(); })()`);
+/**
+ * Runs `fn` in the page with `args` passed as values (never pasted into
+ * code), so labels and selectors cannot change what runs.
+ */
+const call = async (fn, ...args) => {
+  const doc = await cmd("Runtime.evaluate", { expression: "document" });
+  const r = await cmd("Runtime.callFunctionOn", {
+    objectId: doc.result.result.objectId,
+    functionDeclaration: fn.toString(),
+    arguments: args.map((value) => ({ value })),
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || String(fn));
+  return r.result?.result?.value;
+};
+const click = (label) =>
+  call((want) => {
+    const els = [...document.querySelectorAll("button,[role=tab],[role=menuitem],a,label,summary")];
+    const el = els.find((e) => e.getAttribute("aria-label") === want) || els.find((e) => (e.textContent || "").trim() === want)
+      || els.find((e) => (e.getAttribute("aria-label") || "").startsWith(want)) || els.find((e) => (e.textContent || "").trim().startsWith(want));
+    if (!el) throw new Error("not found: " + want);
+    el.scrollIntoView({ block: "center" });
+    el.click();
+  }, label);
 const key = async (k, code, text) => {
   await cmd("Input.dispatchKeyEvent", { type: "keyDown", key: k, code, windowsVirtualKeyCode: code === "Enter" ? 13 : 0, ...(text ? { text } : {}) });
   await cmd("Input.dispatchKeyEvent", { type: "keyUp", key: k, code });
@@ -81,8 +99,12 @@ async function shot(name, clipSelector) {
       s.textContent = s.textContent.replace(/ ?\\(mock[^)]*\\)/g, ""); }); })()`);
   let clip;
   if (clipSelector) {
-    const b = await js(`(() => { const e = document.querySelector(${JSON.stringify(clipSelector)}); if (!e) return null;
-      const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; })()`);
+    const b = await call((sel) => {
+      const e = document.querySelector(sel);
+      if (!e) return null;
+      const r = e.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    }, clipSelector);
     if (b) clip = { x: Math.max(0, b.x - 12), y: Math.max(0, b.y - 12), width: b.width + 24, height: b.height + 24, scale: 1 };
   }
   const r = await cmd("Page.captureScreenshot", { format: "png", ...(clip ? { clip } : {}) });

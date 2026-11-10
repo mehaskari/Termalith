@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Built-in RDP viewer: the remote pointer's shapes.** The pointer now
+  shows the remote computer's cursor (resize arrows on window edges, text
+  beam, busy), so windows can be resized by their edges. Drags keep going
+  when the pointer leaves the tab.
+
 ## 0.5.3 (2026-11-10)
 
 - **Built-in VNC viewer and RealVNC Server or macOS Screen Sharing:** servers

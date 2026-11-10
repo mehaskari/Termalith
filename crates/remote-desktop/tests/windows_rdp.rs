@@ -76,6 +76,7 @@ fn embedded_rdp_against_windows() {
                 }
             }
             Ok(ViewerEvent::Clipboard(text)) => eprintln!("remote clipboard: {} chars", text.len()),
+            Ok(ViewerEvent::Cursor(_)) => eprintln!("remote cursor changed"),
             Ok(ViewerEvent::Closed { reason }) => panic!("closed: {reason:?}"),
             Err(_) => {}
         }

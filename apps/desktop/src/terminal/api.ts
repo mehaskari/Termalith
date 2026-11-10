@@ -615,7 +615,17 @@ export function listDesktops(): Promise<DesktopInfo[]> {
 export type EmbeddedEvent =
   | { kind: "connected"; width: number; height: number }
   | { kind: "clipboard"; text: string }
+  /** The remote pointer's shape; `image` is RGBA, none means the normal arrow. */
+  | { kind: "cursor"; hidden: boolean; image: CursorImage | null }
   | { kind: "closed"; reason: string | null };
+
+export interface CursorImage {
+  width: number;
+  height: number;
+  hotX: number;
+  hotY: number;
+  rgba: number[];
+}
 
 export type EmbeddedInput =
   | { kind: "move"; x: number; y: number }

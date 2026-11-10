@@ -3,7 +3,7 @@
 //! experimental embedded RDP viewer (ADR-030).
 
 use app_core::{AppError, DesktopHub, DesktopInfo, DesktopLaunch, SessionId, SessionProtocol};
-use remote_desktop::embedded::{ViewerEvent, ViewerInput};
+use remote_desktop::embedded::{Cursor, ViewerEvent, ViewerInput};
 use remote_desktop::{DesktopError, DesktopTarget, Protocol};
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -115,6 +115,47 @@ async fn launch_for(
     })
 }
 
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CursorImageDto {
+    width: u16,
+    height: u16,
+    hot_x: u16,
+    hot_y: u16,
+    rgba: Vec<u8>,
+}
+
+impl From<Cursor> for EmbeddedEventDto {
+    fn from(c: Cursor) -> Self {
+        match c {
+            Cursor::Default => EmbeddedEventDto::Cursor {
+                hidden: false,
+                image: None,
+            },
+            Cursor::Hidden => EmbeddedEventDto::Cursor {
+                hidden: true,
+                image: None,
+            },
+            Cursor::Image {
+                width,
+                height,
+                hot_x,
+                hot_y,
+                rgba,
+            } => EmbeddedEventDto::Cursor {
+                hidden: false,
+                image: Some(CursorImageDto {
+                    width,
+                    height,
+                    hot_x,
+                    hot_y,
+                    rgba,
+                }),
+            },
+        }
+    }
+}
+
 #[derive(Serialize, Clone)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum EmbeddedEventDto {
@@ -125,6 +166,13 @@ pub enum EmbeddedEventDto {
     /// The remote computer copied this text.
     Clipboard {
         text: String,
+    },
+    /// The remote pointer's shape: `image` is RGBA; none with `hidden`
+    /// false means the normal arrow.
+    #[serde(rename_all = "camelCase")]
+    Cursor {
+        hidden: bool,
+        image: Option<CursorImageDto>,
     },
     Closed {
         reason: Option<String>,
@@ -229,6 +277,7 @@ pub async fn embedded_open(
             .send(EmbeddedEventDto::Connected { width, height })
             .is_ok(),
         ViewerEvent::Clipboard(text) => on_event.send(EmbeddedEventDto::Clipboard { text }).is_ok(),
+        ViewerEvent::Cursor(c) => on_event.send(c.into()).is_ok(),
         ViewerEvent::Closed { reason } => {
             on_event.send(EmbeddedEventDto::Closed { reason }).is_ok()
         }

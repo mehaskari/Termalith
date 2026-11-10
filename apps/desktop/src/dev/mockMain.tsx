@@ -320,6 +320,11 @@ mockIPC(
         setTimeout(() => {
           sendEv({ kind: "connected", width: w, height: h });
           paint(w, h);
+          // A pointer shape, like a server's resize arrow: a 16×16 triangle.
+          const rgba: number[] = [];
+          for (let y = 0; y < 16; y++)
+            for (let x = 0; x < 16; x++) rgba.push(255, 255, 255, x <= y ? 255 : 0);
+          sendEv({ kind: "cursor", hidden: false, image: { width: 16, height: 16, hotX: 0, hotY: 0, rgba } });
         }, 300);
         return { id: 1 };
       }

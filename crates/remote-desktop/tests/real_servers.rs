@@ -247,7 +247,7 @@ fn embedded_rdp_against_xrdp() {
                 viewer.ack();
             }
             Ok(ViewerEvent::Closed { reason }) => panic!("closed during resize: {reason:?}"),
-            Ok(ViewerEvent::Clipboard(_)) | Err(_) => {}
+            Ok(ViewerEvent::Clipboard(_) | ViewerEvent::Cursor(_)) | Err(_) => {}
         }
     }
     eprintln!("viewer resize to 800x600: {resized:?}");

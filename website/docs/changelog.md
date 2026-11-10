@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Windows:** Remote Desktop Connection is found wherever Windows is
+  installed (not only on `C:`), and "No RDP client found" now points to the
+  built-in viewer in Settings, which needs no client.
 - **New user guide:** fourteen pages with screenshots: download and
   install (which file for which computer), first connection, sessions, SSH,
   terminals, files, remote desktop, serial/Telnet/tools, passwords and your

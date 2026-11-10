@@ -12,7 +12,7 @@ import { TERMINAL_SCHEMES } from "./theme";
 import { type SessionFormState, allFolderPaths, emptyForm, formFromSession, isFtp, parseForm, withProtocol } from "./sessionList";
 
 const INSTALL_HINT: Record<"rdp" | "vnc", string> = {
-  rdp: "No RDP client found. Install Windows App (macOS), or FreeRDP (xfreerdp) on Linux; Windows has Remote Desktop Connection built in.",
+  rdp: "No RDP client found. Install Windows App (macOS) or FreeRDP (xfreerdp, Linux); on Windows, Remote Desktop Connection (mstsc.exe) is built in. Or turn on \"Show RDP and VNC sessions inside Termalith\" in Settings: no client needed.",
   vnc: "No VNC client found. macOS includes Screen Sharing; on Linux or Windows install TigerVNC (vncviewer).",
 };
 

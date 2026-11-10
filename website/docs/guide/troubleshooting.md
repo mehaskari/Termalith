@@ -60,6 +60,15 @@ sessions stay.
 
 ## Remote desktop and X11
 
+**"No RDP client found" (or VNC).** Termalith did not find a client
+program. The quickest fix on every system: turn on *Show RDP and VNC sessions
+inside Termalith* in [Settings](settings.md), which needs no client. On
+Windows, Remote Desktop Connection (`mstsc.exe`) is part of Windows and is
+looked for in `%SystemRoot%\System32` and on the `PATH`; if it was removed,
+add it back under Settings → System → Optional features. On macOS install
+*Windows App* from the App Store; on Linux install FreeRDP (`xfreerdp`), and
+for VNC TigerVNC.
+
 **RDP/VNC does nothing.** With desktops in your own client, the session
 dialog says which client is used; install it if it is missing. On macOS the
 client keeps its own window, so Termalith cannot tell when you disconnect.

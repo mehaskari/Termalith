@@ -31,6 +31,13 @@ description: Files in Termalith — the SFTP panel and file browser, FTP and FTP
   failure keeps the files already downloaded.
 - Up to three transfers run at once. Connection errors are retried
   automatically; a failed transfer has **Retry**.
+- **Pause and resume downloads:** **⏸** pauses a running download and
+  **▶** continues it where it stopped, over SFTP, FTP and FTPS (also for
+  folders). Automatic retries and **Retry** after a dropped connection
+  continue the same way. If the file changed on the server in the
+  meantime, it is downloaded again from the start. **×** on a paused
+  download discards the part already downloaded. Paused downloads last
+  until Termalith is closed.
 - **⏱ Transfer history** lists recent transfers of all connections (the
   last 500) with their outcome; **Clear** empties it. Only names, paths and
   sizes are kept, never file contents.

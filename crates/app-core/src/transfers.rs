@@ -58,6 +58,9 @@ pub enum TransferEvent {
         retryable: bool,
     },
     Cancelled,
+    /// Stopped by [`Transfers::pause`]; [`Transfers::retry`] continues where
+    /// it stopped.
+    Paused,
 }
 
 type Progress = Box<dyn FnMut(u64) + Send>;
@@ -65,12 +68,18 @@ type OpFuture = Pin<Box<dyn Future<Output = Result<String, SshError>> + Send>>;
 /// One attempt of a transfer: returns the destination on success.
 type Op = Arc<dyn Fn(CancellationToken, Progress) -> OpFuture + Send + Sync>;
 
+/// Removes what an unfinished transfer left behind (partial files).
+type Cleanup = Arc<dyn Fn() + Send + Sync>;
+
 #[derive(Clone)]
 struct Job {
     op: Op,
     total: Option<u64>,
     /// What and where, for the history (None in tests).
     meta: Option<TransferMeta>,
+    /// Run when the transfer will not continue where it stopped: cancelled,
+    /// or failed for good. Not run when paused or failed retryably.
+    cleanup: Option<Cleanup>,
 }
 
 /// A file to download.
@@ -92,6 +101,8 @@ pub struct Transfers {
     next: AtomicU64,
     active: Mutex<HashMap<u64, CancellationToken>>,
     retryable: Mutex<VecDeque<(u64, Job)>>,
+    /// Running transfers asked to pause (their cancellation is a pause).
+    pausing: Mutex<std::collections::HashSet<u64>>,
     slots: Arc<Semaphore>,
     retry_delays: [Duration; AUTO_RETRIES as usize],
     recorder: Option<TransferRecorder>,
@@ -119,6 +130,19 @@ pub fn remote_join(dir: &str, name: &str) -> String {
     }
 }
 
+/// The hidden file a download of `dest` writes into until it is complete.
+fn stat_key(s: protocol_ssh::RemoteStat) -> (Option<u64>, Option<u32>) {
+    (s.size, s.modified)
+}
+
+fn partial_path(dest: &std::path::Path) -> PathBuf {
+    let name = dest
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    dest.with_file_name(format!(".{name}.termalith-partial"))
+}
+
 /// Connection-level problems that may succeed on another attempt. Server
 /// answers (permission denied, no such file, already exists) are final.
 fn is_transient(e: &SshError) -> bool {
@@ -134,6 +158,7 @@ impl Transfers {
             next: AtomicU64::new(0),
             active: Mutex::default(),
             retryable: Mutex::default(),
+            pausing: Mutex::default(),
             slots: Arc::new(Semaphore::new(concurrent)),
             retry_delays,
             recorder: None,
@@ -199,15 +224,51 @@ impl Transfers {
             connection: connection.to_owned(),
             size: total,
         };
-        let op: Op = Arc::new(move |cancel, mut progress| {
-            let (files, remote) = (files.clone(), remote.clone());
-            // Chosen per attempt: an earlier attempt never took the name.
-            let dest = unique_destination(&dest_dir, &name);
+        // Chosen once: later attempts continue in the same partial file.
+        let dest: Arc<Mutex<Option<PathBuf>>> = Arc::default();
+        // The file as first seen; a changed file is downloaded from the start.
+        let seen: Arc<Mutex<Option<protocol_ssh::RemoteStat>>> = Arc::default();
+        let cleanup: Cleanup = {
+            let dest = Arc::clone(&dest);
+            Arc::new(move || {
+                if let Some(d) = dest.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+                    let _ = std::fs::remove_file(partial_path(d));
+                }
+            })
+        };
+        let op: Op = Arc::new(move |cancel, progress| {
+            let (files, remote, dest, seen) = (
+                files.clone(),
+                remote.clone(),
+                Arc::clone(&dest),
+                Arc::clone(&seen),
+            );
+            let dest = dest
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .get_or_insert_with(|| unique_destination(&dest_dir, &name))
+                .clone();
             Box::pin(async move {
+                let partial = partial_path(&dest);
+                let now = files.stat(&remote).await.ok();
+                let changed = {
+                    let mut seen = seen.lock().unwrap_or_else(|e| e.into_inner());
+                    let first = seen.is_none();
+                    let changed = !first && now.map(stat_key) != seen.map(stat_key);
+                    if now.is_some() {
+                        *seen = now;
+                    }
+                    changed
+                };
+                let too_long = now
+                    .and_then(|s| s.size)
+                    .zip(std::fs::metadata(&partial).ok())
+                    .is_some_and(|(size, m)| m.len() > size);
+                if changed || too_long {
+                    let _ = std::fs::remove_file(&partial);
+                }
                 files
-                    .download(&remote, &dest, TransferOptions::default(), &cancel, |n| {
-                        progress(n)
-                    })
+                    .download_resume(&remote, &dest, &partial, &cancel, progress)
                     .await?;
                 Ok(dest.to_string_lossy().into_owned())
             })
@@ -217,11 +278,11 @@ impl Transfers {
                 op,
                 total,
                 meta: Some(meta),
+                cleanup: Some(cleanup),
             },
             sink,
         ))
     }
-
     /// Downloads the remote folder `remote_dir/name` with everything in it
     /// into `dest_dir` under a unique name (one transfer). Symbolic links
     /// are not followed. A retry continues in the folder this transfer
@@ -251,13 +312,26 @@ impl Transfers {
         };
         // The local folder, once created, so retries reuse it.
         let chosen: Arc<Mutex<Option<PathBuf>>> = Arc::default();
+        // The file being downloaded: its partial file and how the listing
+        // described it, so a retry continues it only if it is unchanged.
+        type Current = Option<(PathBuf, (Option<u64>, Option<u32>))>;
+        let current: Arc<Mutex<Current>> = Arc::default();
+        let cleanup: Cleanup = {
+            let current = Arc::clone(&current);
+            Arc::new(move || {
+                if let Some((p, _)) = current.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                    let _ = std::fs::remove_file(p);
+                }
+            })
+        };
         let op: Op = Arc::new(move |cancel, mut progress| {
-            let (files, remote, name, dest_dir, chosen) = (
+            let (files, remote, name, dest_dir, chosen, current) = (
                 files.clone(),
                 remote.clone(),
                 name.clone(),
                 dest_dir.clone(),
                 Arc::clone(&chosen),
+                Arc::clone(&current),
             );
             Box::pin(async move {
                 use protocol_ssh::RemoteKind;
@@ -271,10 +345,6 @@ impl Transfers {
                         *chosen.lock().unwrap_or_else(|e| e.into_inner()) = Some(root.clone());
                         root
                     }
-                };
-                let opts = TransferOptions {
-                    overwrite: true,
-                    ..TransferOptions::default()
                 };
                 // Folders are listed as the download goes, so files arrive
                 // (and progress shows) from the first folder on, also on
@@ -336,9 +406,29 @@ impl Transfers {
                             progress(done);
                             continue;
                         }
+                        let partial = partial_path(&local);
+                        let key = (e.size, e.modified);
+                        {
+                            let mut cur = current.lock().unwrap_or_else(|e| e.into_inner());
+                            if cur
+                                .as_ref()
+                                .is_some_and(|(p, k)| *p == partial && *k != key)
+                            {
+                                let _ = std::fs::remove_file(&partial);
+                            }
+                            *cur = Some((partial.clone(), key));
+                        }
+                        if e.size.is_some_and(|size| {
+                            std::fs::metadata(&partial).is_ok_and(|m| m.len() > size)
+                        }) {
+                            let _ = std::fs::remove_file(&partial);
+                        }
                         let n = files
-                            .download(&from, &local, opts, &cancel, |n| progress(done + n))
+                            .download_resume(&from, &local, &partial, &cancel, |n| {
+                                progress(done + n)
+                            })
                             .await?;
+                        *current.lock().unwrap_or_else(|e| e.into_inner()) = None;
                         done += n;
                     }
                 }
@@ -350,6 +440,7 @@ impl Transfers {
                 op,
                 total: None,
                 meta: Some(meta),
+                cleanup: Some(cleanup),
             },
             sink,
         ))
@@ -398,6 +489,7 @@ impl Transfers {
                 op,
                 total,
                 meta: Some(meta),
+                cleanup: None,
             },
             sink,
         ))
@@ -478,13 +570,14 @@ impl Transfers {
                 op,
                 total: Some(total),
                 meta: Some(meta),
+                cleanup: None,
             },
             sink,
         ))
     }
 
-    /// Runs a failed or cancelled transfer again (from the start) under a
-    /// new id. It must still be remembered and its connection open.
+    /// Runs a failed, cancelled or paused transfer again under a new id.
+    /// Downloads continue in their partial file when one was kept. It must still be remembered and its connection open.
     pub fn retry(
         self: &Arc<Self>,
         id: u64,
@@ -509,13 +602,34 @@ impl Transfers {
         let (id, cancel) = self.register();
         let this = Arc::clone(self);
         tokio::spawn(async move {
-            let ev = this.run(&job, &cancel, &mut sink).await;
+            let mut ev = this.run(&job, &cancel, &mut sink).await;
+            let paused = this
+                .pausing
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&id);
+            if paused && matches!(ev, TransferEvent::Cancelled) {
+                ev = TransferEvent::Paused;
+            }
             if let (Some(rec), Some(meta)) = (&this.recorder, &job.meta) {
                 rec(meta, &ev);
+            }
+            // Partial files stay only while the transfer can continue.
+            if matches!(
+                ev,
+                TransferEvent::Cancelled
+                    | TransferEvent::Failed {
+                        retryable: false,
+                        ..
+                    }
+            ) && let Some(cleanup) = &job.cleanup
+            {
+                cleanup();
             }
             if matches!(
                 ev,
                 TransferEvent::Cancelled
+                    | TransferEvent::Paused
                     | TransferEvent::Failed {
                         retryable: true,
                         ..
@@ -605,15 +719,42 @@ impl Transfers {
         }
     }
 
-    /// Requests cancellation. `false` if the transfer is unknown or done.
+    /// Requests cancellation. A paused (or failed) transfer drops its
+    /// partial files, so a retry starts from the beginning. `false` if the
+    /// transfer is unknown or done.
     pub fn cancel(&self, id: u64) -> bool {
-        match self
+        if let Some(t) = self
             .active
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .get(&id)
         {
+            t.cancel();
+            return true;
+        }
+        let r = self.retryable.lock().unwrap_or_else(|e| e.into_inner());
+        match r.iter().find(|(x, _)| *x == id) {
+            Some((_, job)) => {
+                if let Some(cleanup) = &job.cleanup {
+                    cleanup();
+                }
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Stops a running transfer so that [`Transfers::retry`] continues
+    /// where it stopped (downloads keep their partial file). It ends with
+    /// [`TransferEvent::Paused`]. `false` if the transfer is not running.
+    pub fn pause(&self, id: u64) -> bool {
+        let active = self.active.lock().unwrap_or_else(|e| e.into_inner());
+        match active.get(&id) {
             Some(t) => {
+                self.pausing
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .insert(id);
                 t.cancel();
                 true
             }
@@ -696,6 +837,7 @@ mod tests {
                 TransferEvent::Done { .. }
                     | TransferEvent::Failed { .. }
                     | TransferEvent::Cancelled
+                    | TransferEvent::Paused
             );
             all.push(e);
             if end {
@@ -725,6 +867,7 @@ mod tests {
                 op,
                 total: None,
                 meta: None,
+                cleanup: None,
             },
             calls,
         )
@@ -781,6 +924,58 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn pause_keeps_partial_files_and_cancel_drops_them() {
+        let t = fast();
+        let cleaned = Arc::new(AtomicUsize::new(0));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let c = Arc::clone(&calls);
+        // The first attempt runs until stopped; the next one finishes.
+        let op: Op = Arc::new(move |cancel, _progress| {
+            let n = c.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async move {
+                if n == 0 {
+                    cancel.cancelled().await;
+                    Err(SshError::Cancelled)
+                } else {
+                    Ok("dest".into())
+                }
+            })
+        });
+        let cl = Arc::clone(&cleaned);
+        let job = Job {
+            op,
+            total: None,
+            meta: None,
+            cleanup: Some(Arc::new(move || {
+                cl.fetch_add(1, Ordering::SeqCst);
+            })),
+        };
+        let (s, mut rx) = sink();
+        let id = t.spawn(job, s);
+        while calls.load(Ordering::SeqCst) == 0 {
+            tokio::task::yield_now().await;
+        }
+        assert!(t.pause(id));
+        assert_eq!(last(&mut rx).await.last(), Some(&TransferEvent::Paused));
+        while t.active_count() > 0 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(cleaned.load(Ordering::SeqCst), 0, "paused keeps partials");
+        assert!(!t.pause(id), "only running transfers pause");
+
+        // Cancelling the paused transfer drops its partial files; it can
+        // still be retried (from the beginning).
+        assert!(t.cancel(id));
+        assert_eq!(cleaned.load(Ordering::SeqCst), 1);
+        let (s, mut rx) = sink();
+        t.retry(id, s).unwrap();
+        assert!(matches!(
+            last(&mut rx).await.last(),
+            Some(TransferEvent::Done { .. })
+        ));
+    }
+
+    #[tokio::test]
     async fn existing_destination_is_not_retryable() {
         let t = fast();
         let (job, _) = flaky(9, || SshError::DestinationExists("/x".into()));
@@ -834,6 +1029,7 @@ mod tests {
                     op: op.clone(),
                     total: None,
                     meta: None,
+                    cleanup: None,
                 },
                 s,
             ));

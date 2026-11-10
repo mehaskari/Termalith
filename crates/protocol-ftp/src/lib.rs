@@ -574,6 +574,69 @@ impl FtpClient {
         result
     }
 
+    /// Downloads `remote` to `local` through `partial`, continuing after
+    /// the bytes `partial` already holds (REST). The partial file is kept
+    /// when the download stops, so a later call continues; it becomes
+    /// `local` when complete. A server that refuses to continue gets the
+    /// whole file again. Returns the file's full length.
+    pub async fn download_resume(
+        &self,
+        remote: &str,
+        local: &Path,
+        partial: &Path,
+        cancel: &CancellationToken,
+        mut progress: impl FnMut(u64) + Send,
+    ) -> Result<u64, FtpError> {
+        check_path(remote)?;
+        let mut offset = match tokio::fs::metadata(partial).await {
+            Ok(m) => m.len(),
+            Err(_) => 0,
+        };
+        let mut ftp = login(&self.config).await?;
+        let started = if offset > 0 {
+            match timed(ftp.resume_transfer(usize::try_from(offset).unwrap_or(usize::MAX))).await {
+                Ok(()) => timed(ftp.retr_as_stream(remote)).await,
+                Err(e) => Err(e),
+            }
+        } else {
+            timed(ftp.retr_as_stream(remote)).await
+        };
+        let mut src = match started {
+            Ok(src) => src,
+            // Refused to continue: start over on a fresh connection, so a
+            // pending reply cannot confuse the next command.
+            Err(_) if offset > 0 => {
+                drop(ftp);
+                tokio::fs::remove_file(partial).await?;
+                offset = 0;
+                ftp = login(&self.config).await?;
+                timed(ftp.retr_as_stream(remote)).await?
+            }
+            Err(e) => return Err(e),
+        };
+        let mut dst = tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(partial)
+            .await?;
+        let mut report = |n: u64| progress(offset + n);
+        let copied = copy(&mut src, &mut dst, cancel, &mut report).await;
+        let n = match copied {
+            Ok(n) => {
+                timed(src.finish()).await?;
+                n
+            }
+            Err(e) => {
+                drop(src);
+                return Err(e);
+            }
+        };
+        dst.sync_all().await?;
+        drop(dst);
+        tokio::fs::rename(partial, local).await?;
+        Ok(offset + n)
+    }
+
     /// Reads a whole file of at most `limit` bytes.
     pub async fn read_file(&self, path: &str, limit: u64) -> Result<(Vec<u8>, Stat), FtpError> {
         check_path(path)?;

@@ -5,6 +5,7 @@ import {
   type TerminalId,
   type TransferEvent,
   cancelTransfer,
+  pauseTransfer,
   isIpcError,
   retryTransfer,
   sftpDelete,
@@ -91,7 +92,7 @@ interface Transfer {
   name: string;
   transferred: number;
   total: number | null;
-  state: "queued" | "running" | "retrying" | "done" | "failed" | "cancelled";
+  state: "queued" | "running" | "retrying" | "done" | "failed" | "cancelled" | "paused";
   detail?: string;
   /** The backend can run it again (failed transiently, or cancelled). */
   retryable?: boolean;
@@ -247,12 +248,17 @@ export function FilesPanel({
       case "cancelled":
         update(key, { state: "cancelled", retryable: true });
         break;
+      case "paused":
+        update(key, { state: "paused", retryable: true });
+        break;
     }
   };
 
   function retry(t: Transfer) {
     if (t.id === null) return;
-    update(t.key, { state: "running", transferred: 0, detail: undefined, retryable: false });
+    // A paused download continues where it stopped.
+    const transferred = t.state === "paused" ? t.transferred : 0;
+    update(t.key, { state: "running", transferred, detail: undefined, retryable: false });
     retryTransfer(t.id, onEvent(t.key, t.direction === "up")).then(
       (id) => update(t.key, { id }),
       (e) => update(t.key, { state: "failed", detail: message(e), retryable: false }),
@@ -455,6 +461,28 @@ export function FilesPanel({
                 <div className="transfer-line">
                   <span aria-hidden="true">{t.direction === "down" ? "↓" : "↑"}</span>
                   <span className="file-name" title={t.name}>{t.name}</span>
+                  {t.direction === "down" && t.state === "running" && t.id !== null && (
+                    <button type="button" className="icon" aria-label={`Pause ${t.name}`} title="Pause"
+                      onClick={() => t.id !== null && void pauseTransfer(t.id)}>
+                      ⏸
+                    </button>
+                  )}
+                  {t.state === "paused" && t.id !== null && (
+                    <button type="button" className="icon" aria-label={`Resume ${t.name}`} title="Resume"
+                      onClick={() => retry(t)}>
+                      ▶
+                    </button>
+                  )}
+                  {t.state === "paused" && t.id !== null && (
+                    <button type="button" className="icon" aria-label={`Cancel ${t.name}`} title="Cancel"
+                      onClick={() => {
+                        // Drops the partial file; ↻ then starts from the beginning.
+                        if (t.id !== null) void cancelTransfer(t.id);
+                        update(t.key, { state: "cancelled", transferred: 0, retryable: true });
+                      }}>
+                      ×
+                    </button>
+                  )}
                   {t.retryable && t.id !== null && (t.state === "failed" || t.state === "cancelled") && (
                     <button type="button" className="icon" aria-label={`Retry ${t.name}`} title="Retry"
                       onClick={() => retry(t)}>
@@ -483,6 +511,8 @@ export function FilesPanel({
                         : "Uploaded"
                       : t.state === "cancelled"
                         ? "Cancelled"
+                        : t.state === "paused"
+                          ? `Paused at ${formatSize(t.transferred)}`
                         : t.state === "queued"
                           ? "Waiting for a free slot…"
                           : t.detail}

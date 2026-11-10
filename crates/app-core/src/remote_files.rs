@@ -114,6 +114,43 @@ impl RemoteFiles {
         }
     }
 
+    /// Downloads through `partial`, continuing after what it holds; see
+    /// `SftpClient::download_resume`. Returns the file's full length.
+    pub async fn download_resume(
+        &self,
+        remote: &str,
+        local: &Path,
+        partial: &Path,
+        cancel: &CancellationToken,
+        progress: impl FnMut(u64) + Send,
+    ) -> Result<u64, SshError> {
+        match self {
+            Self::Sftp(c) => {
+                c.download_resume(
+                    remote,
+                    local,
+                    partial,
+                    TransferOptions::default(),
+                    cancel,
+                    progress,
+                )
+                .await
+            }
+            Self::Ftp(c) => c
+                .download_resume(remote, local, partial, cancel, progress)
+                .await
+                .map_err(ftp_error),
+        }
+    }
+
+    /// Size and modification time of a remote file.
+    pub async fn stat(&self, remote: &str) -> Result<RemoteStat, SshError> {
+        match self {
+            Self::Sftp(c) => c.stat(remote).await,
+            Self::Ftp(c) => c.stat(remote).await.map(remote_stat).map_err(ftp_error),
+        }
+    }
+
     pub async fn read_file(
         &self,
         remote: &str,

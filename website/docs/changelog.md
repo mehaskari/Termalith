@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Pause and resume downloads:** ⏸ pauses a download and ▶ continues it
+  where it stopped, like a download manager (SFTP, FTP and FTPS, files and
+  folders). Retries after a dropped connection also continue instead of
+  starting over; a file that changed on the server starts again.
 - **Folder downloads start at once:** files arrive while the folder is
   still being listed, and the transfer shows how much has arrived. Large
   folders (such as a website's `public_html`) no longer stop at 10,000

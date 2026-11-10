@@ -731,6 +731,56 @@ async fn dropped_folder_uploads_with_its_subfolders() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn download_continues_its_partial_file() {
+    use app_core::{Download, TransferEvent, Transfers};
+    let Some(r) = rig() else { return };
+    let session = trusted_connection(&r).await;
+    let (sink, _c) = collector();
+    let id = r
+        .hub
+        .open_ssh(session, TerminalSize::new(80, 24).unwrap(), sink)
+        .await
+        .unwrap();
+    let data: Vec<u8> = (0..300_000u32).map(|i| (i % 251) as u8).collect();
+    std::fs::create_dir_all(r.sshd.path("res")).unwrap();
+    std::fs::write(r.sshd.path("res").join("big.bin"), &data).unwrap();
+    let sftp = r.hub.sftp(id).await.unwrap();
+
+    // What a paused download left behind: the first 100,000 bytes. They are
+    // marked (0xFF), so the result shows they were kept, not fetched again.
+    let dest = tempfile::tempdir().unwrap();
+    let partial = dest.path().join(".big.bin.termalith-partial");
+    std::fs::write(&partial, vec![0xFF; 100_000]).unwrap();
+
+    let transfers = Arc::new(Transfers::default());
+    let (sink, mut rx) = event_sink();
+    transfers
+        .start_download(
+            sftp.clone(),
+            Download {
+                remote_dir: &r.sshd.remote("res"),
+                name: "big.bin",
+                size: Some(300_000),
+                dest_dir: dest.path().to_path_buf(),
+                connection: "c",
+            },
+            sink,
+        )
+        .unwrap();
+    match wait_event(&mut rx).await {
+        TransferEvent::Done { destination } => {
+            assert_eq!(destination, dest.path().join("big.bin").to_string_lossy())
+        }
+        other => panic!("{other:?}"),
+    }
+    let got = std::fs::read(dest.path().join("big.bin")).unwrap();
+    assert_eq!(got.len(), 300_000);
+    assert!(got[..100_000].iter().all(|b| *b == 0xFF), "partial kept");
+    assert_eq!(&got[100_000..], &data[100_000..], "rest from the offset");
+    assert!(!partial.exists(), "partial file renamed");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn remote_folder_downloads_with_its_subfolders() {
     use app_core::{Download, TransferEvent, Transfers};
     let Some(r) = rig() else { return };

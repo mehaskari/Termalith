@@ -37,7 +37,8 @@ With the setting on, RDP and VNC desktops open in a tab on every system:
 | Windows | Remote Desktop Connection (built in) | TigerVNC |
 | Linux | FreeRDP (`xfreerdp`) | TigerVNC (`vncviewer`) |
 
-The session dialog shows which client will be used, or how to install one.
+The session dialog shows which client will be used. If none is installed,
+the session opens inside Termalith instead, with a notice.
 Passwords are never passed on a command line; the client asks for them
 (FreeRDP on Linux receives it on standard input).
 

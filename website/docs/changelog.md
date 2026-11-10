@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **RDP and VNC without a client:** when no external client is installed
+  (for example a Windows image without Remote Desktop Connection), the
+  session opens in the built-in viewer with a notice, instead of failing
+  with "No RDP client found".
+
 ## 0.5.1 (2026-11-10)
 
 - **Windows:** Remote Desktop Connection is found wherever Windows is

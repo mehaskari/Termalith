@@ -240,7 +240,10 @@ mockIPC(
           { id: "/opt/homebrew/bin/fish", name: "fish" },
         ];
       case "desktop_clients":
-        return { rdp: { name: "Microsoft Remote Desktop", asksPasswordFirst: false }, vnc: { name: "Screen Sharing", asksPasswordFirst: false } };
+        // `?noclient` simulates a system without RDP/VNC client programs.
+        return new URLSearchParams(location.search).has("noclient")
+          ? { rdp: null, vnc: null }
+          : { rdp: { name: "Microsoft Remote Desktop", asksPasswordFirst: false }, vnc: { name: "Screen Sharing", asksPasswordFirst: false } };
       case "desktop_open": {
         const s = sessions.get(String(a.sessionId));
         if (!s) throw { code: "not_found", message: "not found" };

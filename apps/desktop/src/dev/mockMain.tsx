@@ -618,7 +618,7 @@ mockIPC(
         return list.map((e) => ({ ...e, modified: 1_790_000_000, permissions: 0o644 }));
       }
       case "sftp_download": {
-        const size = (a.size as number | null) ?? 1000;
+        const size = (a.size as number | null) ?? (a.folder ? 250_000 : 1000);
         const fails = String(a.name).includes("flaky");
         const id = nextTransfer++;
         if (fails) retryNames.set(id, String(a.name));

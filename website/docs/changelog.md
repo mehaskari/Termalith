@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Download folders:** *⋯ → Download folder* in the file browser saves a
+  remote folder with its subfolders, over SFTP, FTP and FTPS. Before, only
+  files could be downloaded.
 - **Built-in RDP viewer: the remote pointer's shapes.** The pointer now
   shows the remote computer's cursor (resize arrows on window edges, text
   beam, busy), so windows can be resized by their edges. Drags keep going

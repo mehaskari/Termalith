@@ -22,7 +22,10 @@ description: Files in Termalith — the SFTP panel and file browser, FTP and FTP
   outlined while you drag). A folder is uploaded with everything in it as
   one transfer, up to 10,000 entries; symbolic links are not followed, and a
   folder of the same name on the server is never merged or overwritten.
-- **Download:** **↓** on a file saves it to your Downloads folder.
+- **Download:** **↓** on a file saves it to your Downloads folder. For a
+  folder, choose **⋯ → Download folder**: it is saved with everything in
+  it (symbolic links are skipped), over SFTP, FTP and FTPS alike. If a
+  folder of that name is already in Downloads, the new one gets a number.
 - Up to three transfers run at once. Connection errors are retried
   automatically; a failed transfer has **Retry**.
 - **⏱ Transfer history** lists recent transfers of all connections (the

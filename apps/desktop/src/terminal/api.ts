@@ -333,6 +333,7 @@ export const sftpDownload = (
   size: number | null,
   onEvent: (e: TransferEvent) => void,
   connection?: string,
+  folder = false,
 ) =>
   invoke<{ id: number; downloadsDir: string }>("sftp_download", {
     terminalId,
@@ -340,6 +341,7 @@ export const sftpDownload = (
     name,
     size,
     connection: connection ?? null,
+    folder,
     onEvent: transferChannel(onEvent),
   });
 

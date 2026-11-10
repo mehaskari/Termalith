@@ -18,7 +18,9 @@ use protocol_ssh::{CancellationToken, SshError, TransferOptions};
 use serde::Serialize;
 use tokio::sync::Semaphore;
 
-use crate::files::{safe_file_name, unique_destination, walk_local_folder};
+use crate::files::{
+    MAX_FOLDER_ENTRIES, MAX_FOLDER_LEVELS, safe_file_name, unique_destination, walk_local_folder,
+};
 use crate::history::{TransferDirection, TransferMeta};
 use crate::{AppError, RemoteFiles};
 
@@ -104,6 +106,72 @@ impl Default for Transfers {
             [Duration::from_secs(1), Duration::from_secs(3)],
         )
     }
+}
+
+/// A remote folder to download, as paths relative to it. Folders come
+/// before their contents.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct RemoteTree {
+    dirs: Vec<Vec<String>>,
+    files: Vec<Vec<String>>,
+}
+
+/// Lists `root` and its subfolders without following symbolic links, with
+/// the same limits as an uploaded folder. Names that are not valid file
+/// names on this computer stop the walk with an error.
+async fn walk_remote_folder(
+    files: &RemoteFiles,
+    root: &str,
+    cancel: &CancellationToken,
+) -> Result<RemoteTree, SshError> {
+    use protocol_ssh::RemoteKind;
+    let mut tree = RemoteTree::default();
+    let mut pending: VecDeque<Vec<String>> = VecDeque::from([Vec::new()]);
+    let mut entries = 0usize;
+    while let Some(rel) = pending.pop_front() {
+        if cancel.is_cancelled() {
+            return Err(SshError::Cancelled);
+        }
+        let dir = rel
+            .iter()
+            .fold(root.to_owned(), |acc, p| remote_join(&acc, p));
+        let mut list = files.list(&dir).await?;
+        list.sort_by(|a, b| a.name.cmp(&b.name));
+        for e in list {
+            if e.name == "." || e.name == ".." {
+                continue;
+            }
+            let kind = match e.kind {
+                RemoteKind::Dir => true,
+                RemoteKind::File => false,
+                _ => continue,
+            };
+            entries += 1;
+            if entries > MAX_FOLDER_ENTRIES {
+                return Err(SshError::Remote(format!(
+                    "{root} has more than {MAX_FOLDER_ENTRIES} entries"
+                )));
+            }
+            if safe_file_name(&e.name).is_err() {
+                return Err(SshError::Remote(format!(
+                    "{}: the name is not allowed on this computer",
+                    remote_join(&dir, &e.name)
+                )));
+            }
+            let mut child = rel.clone();
+            child.push(e.name);
+            if kind {
+                if child.len() > MAX_FOLDER_LEVELS {
+                    return Err(SshError::Remote(format!("{root} is nested too deeply")));
+                }
+                tree.dirs.push(child.clone());
+                pending.push_back(child);
+            } else {
+                tree.files.push(child);
+            }
+        }
+    }
+    Ok(tree)
 }
 
 /// Joins a remote directory and a validated file name.
@@ -212,6 +280,87 @@ impl Transfers {
             Job {
                 op,
                 total,
+                meta: Some(meta),
+            },
+            sink,
+        ))
+    }
+
+    /// Downloads the remote folder `remote_dir/name` with everything in it
+    /// into `dest_dir` under a unique name (one transfer). Symbolic links
+    /// are not followed. A retry continues in the folder this transfer
+    /// created, replacing files it wrote before.
+    pub fn start_folder_download(
+        self: &Arc<Self>,
+        files: impl Into<RemoteFiles>,
+        req: Download<'_>,
+        sink: impl FnMut(TransferEvent) + Send + 'static,
+    ) -> Result<u64, AppError> {
+        let files = files.into();
+        let Download {
+            remote_dir,
+            name,
+            dest_dir,
+            connection,
+            ..
+        } = req;
+        let name = safe_file_name(name)?.to_owned();
+        let remote = remote_join(remote_dir, &name);
+        let meta = TransferMeta {
+            direction: TransferDirection::Download,
+            name: format!("{name}/"),
+            remote_path: remote.clone(),
+            connection: connection.to_owned(),
+            size: None,
+        };
+        // The local folder, once created, so retries reuse it.
+        let chosen: Arc<Mutex<Option<PathBuf>>> = Arc::default();
+        let op: Op = Arc::new(move |cancel, mut progress| {
+            let (files, remote, name, dest_dir, chosen) = (
+                files.clone(),
+                remote.clone(),
+                name.clone(),
+                dest_dir.clone(),
+                Arc::clone(&chosen),
+            );
+            Box::pin(async move {
+                let tree = walk_remote_folder(&files, &remote, &cancel).await?;
+                let earlier = chosen.lock().unwrap_or_else(|e| e.into_inner()).clone();
+                let root = match earlier {
+                    Some(root) => root,
+                    None => {
+                        let root = unique_destination(&dest_dir, &name);
+                        std::fs::create_dir(&root)?;
+                        *chosen.lock().unwrap_or_else(|e| e.into_inner()) = Some(root.clone());
+                        root
+                    }
+                };
+                let local_of =
+                    |rel: &[String]| rel.iter().fold(root.clone(), |acc, part| acc.join(part));
+                for dir in &tree.dirs {
+                    std::fs::create_dir_all(local_of(dir))?;
+                }
+                let opts = TransferOptions {
+                    overwrite: true,
+                    ..TransferOptions::default()
+                };
+                let mut done = 0u64;
+                for rel in &tree.files {
+                    let from = rel
+                        .iter()
+                        .fold(remote.clone(), |acc, p| remote_join(&acc, p));
+                    let n = files
+                        .download(&from, &local_of(rel), opts, &cancel, |n| progress(done + n))
+                        .await?;
+                    done += n;
+                }
+                Ok(root.to_string_lossy().into_owned())
+            })
+        });
+        Ok(self.spawn(
+            Job {
+                op,
+                total: None,
                 meta: Some(meta),
             },
             sink,

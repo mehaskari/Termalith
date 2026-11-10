@@ -322,6 +322,22 @@
   .cmd-term .m{ color: var(--faint); }
 
   /* ---------- INSTALL ---------- */
+  /* downloads */
+  .dl-hero{ display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin: 8px 0 22px; }
+  .dl-main{ font-size:16px; padding: 14px 22px; }
+  .dl-note{ flex-basis:100%; color: var(--muted); font-size: 13.5px; margin: 4px 0 0; }
+  .dl-table{ border:1px solid var(--line); border-radius: 12px; overflow:hidden; background: var(--panel); }
+  .dl-row{ display:grid; grid-template-columns: 260px 1fr; gap: 12px; align-items:center; padding: 12px 18px; border-top:1px solid var(--line-soft); }
+  .dl-row:first-child{ border-top:none; }
+  .dl-sys{ font-weight:600; color: var(--ink); font-size:14px; }
+  .dl-files{ display:flex; flex-wrap:wrap; gap:8px; }
+  .dl-link{ display:inline-flex; gap:8px; align-items:baseline; border:1px solid var(--line); border-radius: 8px; padding: 7px 12px; color: var(--good); text-decoration:none; font-size: 13.5px; }
+  .dl-link:hover{ border-color: var(--good); background: var(--good-dim); }
+  .dl-link.mine{ border-color: var(--good); }
+  .dl-size{ color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
+  .dl-steps{ margin-top: 36px; }
+  .dl-h3{ font-family: var(--display); font-size: 17px; margin: 0 0 12px; }
+  @media (max-width: 700px){ .dl-row{ grid-template-columns: 1fr; } }
   .install-tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 18px; }
   .itab{
     font-family: var(--mono); font-size:12.5px; padding: 8px 14px; border-radius: 20px;
@@ -478,7 +494,7 @@
         <div class="install-pill">
           <span class="prompt">↓</span>
           <span class="cmd">Termalith 0.5.0 — free, MIT licensed</span>
-          <a class="copy-btn" href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener">download</a>
+          <a class="copy-btn" href="#install">download</a>
         </div>
 
         <div class="hero-ctas">
@@ -634,13 +650,23 @@
   <section id="install">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow">Install</span>
-        <h2>Pick your platform</h2>
-        <p>Version 0.5.0 is on the <a href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener">Releases page</a>, with a <code>SHA256SUMS.txt</code> to verify downloads. The installers are not code-signed with a developer certificate yet.</p>
+        <span class="eyebrow">Download</span>
+        <h2>Get Termalith — free, for every system</h2>
+        <p><span id="relInfo">The latest version</span> for macOS, Windows and Linux. Pick your system, install, connect. Need help choosing? <a href="guide/install/">Which file do I need?</a></p>
       </div>
 
-      <div class="install-grid">
+      <div class="dl-hero" id="dlHero">
+        <a class="btn btn-solid dl-main" id="dlMain" href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener">Download Termalith</a>
+        <a class="btn dl-alt" id="dlAlt" href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener" hidden></a>
+        <p class="dl-note" id="dlNote">Opens the latest release on GitHub. All files are listed below.</p>
+      </div>
+
+      <div class="dl-table" id="dlTable"><div class="dl-row"><div class="dl-sys">macOS 11+ · Apple Silicon (M1–M4)</div><div class="dl-files"><a class="dl-link" data-match="_aarch64\.dmg$" href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener"><span class="dl-fmt">DMG</span><span class="dl-size"></span></a></div></div><div class="dl-row"><div class="dl-sys">macOS 11+ · Intel</div><div class="dl-files"><a class="dl-link" data-match="_x64\.dmg$" href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener"><span class="dl-fmt">DMG</span><span class="dl-size"></span></a></div></div><div class="dl-row"><div class="dl-sys">Windows 10/11 · x64</div><div class="dl-files"><a class="dl-link" data-match="_x64-setup\.exe$" href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener"><span class="dl-fmt">Installer (.exe)</span><span class="dl-size"></span></a><a class="dl-link" data-match="_x64_en-US\.msi$" href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener"><span class="dl-fmt">MSI</span><span class="dl-size"></span></a></div></div><div class="dl-row"><div class="dl-sys">Windows 11 · ARM64</div><div class="dl-files"><a class="dl-link" data-match="_arm64-setup\.exe$" href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener"><span class="dl-fmt">Installer (.exe)</span><span class="dl-size"></span></a><a class="dl-link" data-match="_arm64_en-US\.msi$" href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener"><span class="dl-fmt">MSI</span><span class="dl-size"></span></a></div></div><div class="dl-row"><div class="dl-sys">Linux · x64</div><div class="dl-files"><a class="dl-link" data-match="_amd64\.deb$" href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener"><span class="dl-fmt">.deb (Ubuntu, Debian)</span><span class="dl-size"></span></a><a class="dl-link" data-match="_amd64\.AppImage$" href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener"><span class="dl-fmt">AppImage (any)</span><span class="dl-size"></span></a></div></div><div class="dl-row"><div class="dl-sys">Linux · ARM64</div><div class="dl-files"><a class="dl-link" data-match="_arm64\.deb$" href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener"><span class="dl-fmt">.deb</span><span class="dl-size"></span></a><a class="dl-link" data-match="_aarch64\.AppImage$" href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener"><span class="dl-fmt">AppImage</span><span class="dl-size"></span></a></div></div></div>
+      <p class="install-note">Every file is installed and started on its own system in an automated test before a release is published. Verify downloads with <a href="https://github.com/mehaskari/Termalith/releases/latest" target="_blank" rel="noopener"><code>SHA256SUMS.txt</code></a> (<a href="guide/install/#verify-the-download-optional">how</a>). Older versions: <a href="https://github.com/mehaskari/Termalith/releases" target="_blank" rel="noopener">all releases</a>.</p>
+
+      <div class="install-grid dl-steps">
         <div>
+          <h3 class="dl-h3">Then install it</h3>
           <div class="install-tabs" id="installTabs">
             <button class="itab active" data-i="mac">macOS</button>
             <button class="itab" data-i="win">Windows</button>
@@ -648,44 +674,50 @@
             <button class="itab" data-i="src">From source</button>
           </div>
           <div class="install-panel active" data-p="mac">
-            <div class="code-block"><span class="cm"># Apple Silicon / Intel (macOS 11+)</span>
-Termalith_0.5.0_aarch64.dmg
-Termalith_0.5.0_x64.dmg
-<span class="cm"># first launch: System Settings → Privacy &amp; Security → Open Anyway</span></div>
+            <ol class="steps">
+              <li>Open the <code>.dmg</code> and drag <b>Termalith</b> to <b>Applications</b>.</li>
+              <li>Open it. macOS refuses the first time because the app is not signed with a paid Apple certificate yet.</li>
+              <li><b>System Settings → Privacy &amp; Security → Open Anyway</b> (macOS 14 and older: right-click the app → <b>Open</b>).</li>
+              <li>Allow <b>local network</b> access when asked, to reach machines on your network.</li>
+            </ol>
           </div>
           <div class="install-panel" data-p="win">
-            <div class="code-block"><span class="cm"># Windows 10/11, x64 or ARM64, installer or MSI</span>
-Termalith_0.5.0_x64-setup.exe
-Termalith_0.5.0_arm64-setup.exe
-<span class="cm"># SmartScreen: More info → Run anyway</span></div>
+            <ol class="steps">
+              <li>Run the <code>-setup.exe</code> (or the <code>.msi</code> for managed deployment).</li>
+              <li>If SmartScreen warns, click <b>More info → Run anyway</b> (the installer is not signed with a paid certificate yet).</li>
+              <li>Start Termalith from the Start menu.</li>
+            </ol>
           </div>
           <div class="install-panel" data-p="linux">
-            <div class="code-block"><span class="cm"># AppImage (any distribution) or .deb</span>
-chmod +x Termalith_0.5.0_amd64.AppImage
-./Termalith_0.5.0_amd64.AppImage
-<span class="cm"># or (ARM64: aarch64.AppImage / arm64.deb)</span>
-sudo apt install ./Termalith_0.5.0_amd64.deb</div>
+            <div class="code-block"><span class="cm"># Ubuntu / Debian / Mint</span>
+sudo apt install ./Termalith_*_amd64.deb
+<span class="cm"># any distribution</span>
+chmod +x Termalith_*_amd64.AppImage
+./Termalith_*_amd64.AppImage</div>
+            <p class="install-note">Needs WebKitGTK 4.1 and glibc 2.35+ (Ubuntu 22.04, Debian 12, Fedora 36 or newer). Saved passwords need GNOME Keyring or KWallet.</p>
           </div>
           <div class="install-panel" data-p="src">
             <div class="code-block">git clone https://github.com/mehaskari/Termalith.git
 cd Termalith
-corepack pnpm install
+corepack pnpm install --frozen-lockfile
 corepack pnpm dev</div>
-            <p class="install-note">Needs Rust, Node.js 24 and the Tauri prerequisites for your system.</p>
+            <p class="install-note">Needs Rust, Node.js 24 and the Tauri prerequisites for your system. <a href="releasing/">Building and releasing</a></p>
           </div>
+          <p class="install-note"><a href="guide/install/">Full install guide →</a></p>
         </div>
         <div>
           <div class="platform-card">
-            <h3>First steps</h3>
+            <h3>Then connect</h3>
             <ol class="steps">
-              <li>Click <b>+</b> to save a session, or <b>Quick connect</b></li>
+              <li>Click <b>+</b> to save a server, or <b>Quick connect</b></li>
               <li>Confirm the server's host key once</li>
               <li>Open <b>Files</b> or <b>Tunnels</b> on the tab</li>
             </ol>
+            <p><a href="guide/first-steps/">Your first connection, step by step →</a></p>
           </div>
           <div class="platform-card">
             <h3>Coming from MobaXterm?</h3>
-            <p>Export your sessions there and paste the <code>.mxtsessions</code> file into <b>Import…</b> — folders come along. Hosts from <code>~/.ssh/config</code> import too.</p>
+            <p>Export your sessions there and paste the <code>.mxtsessions</code> file into <b>Import…</b> — folders come along. <a href="guide/mobaxterm/">Switching guide →</a></p>
           </div>
         </div>
       </div>
@@ -810,6 +842,33 @@ corepack pnpm dev</div>
     });
     block.appendChild(b);
   });
+
+  // ---- downloads: newest release from GitHub, the visitor's system first ----
+  (function(){
+    const ua = navigator.userAgent, p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+    const arm = /arm|aarch64/i.test(ua) || /arm/i.test(p);
+    let os = /Mac/i.test(p) || /Mac OS X/.test(ua) ? 'mac' : /Win/i.test(p) ? 'win' : /Linux|X11/i.test(p + ua) && !/Android/i.test(ua) ? 'linux' : null;
+    const picks = { mac: [['for macOS · Apple Silicon','_aarch64\\.dmg$'],['Intel Mac','_x64\\.dmg$']],
+      win: arm ? [['for Windows · ARM64','_arm64-setup\\.exe$'],['x64','_x64-setup\\.exe$']] : [['for Windows','_x64-setup\\.exe$'],['ARM64','_arm64-setup\\.exe$']],
+      linux: arm ? [['for Linux · ARM64 (.deb)','_arm64\\.deb$'],['AppImage','_aarch64\\.AppImage$']] : [['for Linux (.deb)','_amd64\\.deb$'],['AppImage','_amd64\\.AppImage$']] };
+    if (os) { const t = document.querySelector('#installTabs .itab[data-i="' + os + '"]'); if (t) t.click(); }
+    const mb = s => s >= 1048576 ? (s/1048576).toFixed(0) + ' MB' : (s/1024).toFixed(0) + ' KB';
+    fetch('https://api.github.com/repos/mehaskari/Termalith/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(rel => {
+        const find = re => rel.assets.find(a => new RegExp(re).test(a.name));
+        document.querySelectorAll('.dl-link').forEach(a => { const f = find(a.dataset.match); if (f) { a.href = f.browser_download_url; a.querySelector('.dl-size').textContent = mb(f.size); a.title = f.name; } });
+        const date = new Date(rel.published_at).toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' });
+        document.getElementById('relInfo').textContent = 'Version ' + rel.tag_name.replace(/^v/, '') + ', released ' + date + ',';
+        if (!os) return;
+        const [main, alt] = picks[os].map(([label, re]) => [label, find(re)]);
+        if (main[1]) { const m = document.getElementById('dlMain'); m.href = main[1].browser_download_url; m.textContent = 'Download ' + main[0] + ' (' + mb(main[1].size) + ')';
+          document.querySelectorAll('.dl-link').forEach(a => { if (a.href === main[1].browser_download_url) a.classList.add('mine'); }); }
+        if (alt[1]) { const b = document.getElementById('dlAlt'); b.href = alt[1].browser_download_url; b.textContent = alt[0]; b.hidden = false; }
+        document.getElementById('dlNote').textContent = 'Version ' + rel.tag_name.replace(/^v/, '') + ' · free, MIT licensed · other systems below';
+      })
+      .catch(() => {});
+  })();
 
   // ---- hero: an SSH session in the app ----
   (function(){

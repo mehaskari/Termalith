@@ -13,7 +13,21 @@ strict: true
 
 nav:
   - Home: index.md
-  - User Guide: guide.md
+  - User Guide:
+      - guide/index.md
+      - Download and install: guide/install.md
+      - Your first connection: guide/first-steps.md
+      - Sessions: guide/sessions.md
+      - SSH: guide/ssh.md
+      - Terminals: guide/terminals.md
+      - Files: guide/files.md
+      - Remote desktop: guide/remote-desktop.md
+      - Serial, Telnet and tools: guide/serial-telnet-tools.md
+      - Passwords and your data: guide/passwords-and-data.md
+      - Settings: guide/settings.md
+      - Keyboard shortcuts: guide/shortcuts.md
+      - Coming from MobaXterm: guide/mobaxterm.md
+      - Troubleshooting: guide/troubleshooting.md
   - Security: security.md
   - Changelog: changelog.md
   - Building and releasing: releasing.md
@@ -34,6 +48,9 @@ theme:
     - toc.follow
     - search.highlight
     - content.code.copy
+    - navigation.sections
+    - navigation.indexes
+    - navigation.footer
   palette:
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
@@ -61,6 +78,8 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.highlight
   - pymdownx.keys
+  - pymdownx.tabbed:
+      alternate_style: true
 
 validation:
   links:

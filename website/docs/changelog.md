@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **New user guide:** fourteen pages with screenshots: download and
+  install (which file for which computer), first connection, sessions, SSH,
+  terminals, files, remote desktop, serial/Telnet/tools, passwords and your
+  data, every setting, shortcuts, coming from MobaXterm, troubleshooting.
+- **Download page:** the website offers the right file for your computer
+  and lists every download with its size, always for the latest release.
+- **Documentation stays current:** CI checks that settings, session types,
+  versions and guide links match the app, and that user-facing changes come
+  with guide or changelog updates.
+
 ## 0.5.0 — first release (2026-11-10)
 
 The first stable release, after four release candidates. Free and open source

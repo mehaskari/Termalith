@@ -84,8 +84,9 @@ Argon2id). The key exists in memory only while unlocked.
 ## Current limitations
 
 - Installers are not code-signed yet.
-- RDP/VNC run in external clients; their security depends on those
-  clients.
+- RDP/VNC in external clients: their security depends on those clients.
+  Inside Termalith, RDP checks the server certificate you confirmed; VNC is
+  unencrypted unless it goes through an SSH tunnel.
 - HTTP proxies receive their password with Basic authentication, which is
   readable on the way to the proxy; SOCKS5 user/password is likewise
   unencrypted. Use a proxy on a network you trust.

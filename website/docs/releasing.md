@@ -69,7 +69,8 @@ dependency are pinned (`rust-toolchain.toml`, `Cargo.lock`,
 5. Merge, then tag the merge commit and push the tag:
    `git tag v0.5.0 && git push origin v0.5.0`.
 6. The workflow builds every installer and creates a **draft** GitHub
-   Release with the installers and `SHA256SUMS.txt`.
+   Release with the installers and `SHA256SUMS.txt`. Tags with a suffix
+   (`v0.5.0-rc.4`) become pre-releases; plain tags (`v0.5.0`) do not.
 7. Install at least the builds you can test, check the release notes, then
    publish the draft.
 

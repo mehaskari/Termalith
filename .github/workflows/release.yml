@@ -163,6 +163,12 @@ jobs:
           (cd dist && find . -type f -exec sha256sum {} + | sed 's|  \./.*/|  |; s|  \./|  |' | sort -k2) > SHA256SUMS.txt
           cat SHA256SUMS.txt
           files+=(SHA256SUMS.txt)
-          gh release create "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --draft --prerelease \
-            --title "Termalith $TAG (preview)" --generate-notes
+          # Tags with a suffix (v0.5.0-rc.4) are pre-releases; plain tags are not.
+          if [[ "$TAG" == *-* ]]; then
+            gh release create "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --draft --prerelease \
+              --title "Termalith ${TAG#v} (preview)" --generate-notes
+          else
+            gh release create "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --draft \
+              --title "Termalith ${TAG#v}" --generate-notes
+          fi
 

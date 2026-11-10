@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 — first release (2026-11-10)
+
+The first stable release, after four release candidates. Free and open source
+(MIT), for macOS, Windows and Linux. Added since the first preview builds:
 
 - **VNC inside Termalith:** VNC sessions can open in a tab too (experimental).
 - **Per-session look:** sessions can have their own terminal colors and font.
@@ -35,7 +38,7 @@
   supports resizing, otherwise by logging in again at the new size once
   you stop resizing (Windows reconnects to the same session).
 
-## 0.5.0 — first public preview
+### Included from the first preview
 
 The first public build. Installers for macOS (Apple Silicon and Intel),
 Windows (x64 and ARM64) and Linux (x64 and ARM64) are attached to the

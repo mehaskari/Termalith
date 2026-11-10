@@ -621,6 +621,9 @@ impl FtpClient {
             .await?;
         let mut report = |n: u64| progress(offset + n);
         let copied = copy(&mut src, &mut dst, cancel, &mut report).await;
+        // Written bytes reach the file before the partial file is left for
+        // a later attempt (tokio writes in the background otherwise).
+        let flushed = dst.flush().await;
         let n = match copied {
             Ok(n) => {
                 timed(src.finish()).await?;
@@ -631,6 +634,7 @@ impl FtpClient {
                 return Err(e);
             }
         };
+        flushed?;
         dst.sync_all().await?;
         drop(dst);
         tokio::fs::rename(partial, local).await?;

@@ -257,7 +257,12 @@ impl SftpClient {
             .open(partial)
             .await?;
         let mut report = |n: u64| progress(offset + n);
-        let n = copy(&mut src, &mut dst, opts.chunk_size, cancel, &mut report).await?;
+        let copied = copy(&mut src, &mut dst, opts.chunk_size, cancel, &mut report).await;
+        // Written bytes reach the file before the partial file is left for
+        // a later attempt (tokio writes in the background otherwise).
+        let flushed = dst.flush().await;
+        let n = copied?;
+        flushed?;
         dst.sync_all().await?;
         drop(dst);
         tokio::fs::rename(partial, local).await?;

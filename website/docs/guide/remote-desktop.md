@@ -18,6 +18,9 @@ With the setting on, RDP and VNC desktops open in a tab on every system:
   and Windows returns you to the same session. Meanwhile the desktop is
   scaled to the tab. On Retina and other high-density screens the desktop is
   requested in device pixels, so text stays sharp.
+- The pointer takes the remote computer's shapes (RDP), so the resize
+  arrows on a window's edge and the text beam show where they apply. Drags
+  keep going when the pointer leaves the tab.
 - Keyboard input uses the remote computer's layout. **Ctrl+Alt+Del** is on
   the tab's toolbar.
 - Copied text goes both ways: text copied on the remote computer lands on

@@ -9,6 +9,7 @@ import {
   isIpcError,
   openEmbedded,
 } from "../terminal/api";
+import { cssCursor } from "./rdpCursor";
 import { desktopSize } from "./rdpSize";
 import { scancode } from "./scancodes";
 
@@ -115,6 +116,9 @@ export function RdpViewer({ sessionId, name, askPassword, onPasswordSaved, onClo
                 c.height = e.height;
               }
               setStatus({ kind: "connected", width: e.width, height: e.height });
+            } else if (e.kind === "cursor") {
+              const c = canvasRef.current;
+              if (c) c.style.cursor = cssCursor(e, c);
             } else if (e.kind === "clipboard") {
               // Copied on the remote computer: put it on this one's clipboard.
               lastClipboard.current = e.text;
@@ -215,7 +219,7 @@ export function RdpViewer({ sessionId, name, askPassword, onPasswordSaved, onClo
   };
 
   /** Pointer position in remote desktop pixels. */
-  const remote = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const remote = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const c = e.currentTarget;
     const r = c.getBoundingClientRect();
     const scale = Math.min(r.width / c.width, r.height / c.height);
@@ -291,13 +295,16 @@ export function RdpViewer({ sessionId, name, askPassword, onPasswordSaved, onClo
           onKeyUp={(e) => key(e, false)}
           onBlur={() => send({ kind: "releaseAll" })}
           onFocus={offerClipboard}
-          onMouseMove={(e) => send({ kind: "move", ...remote(e) })}
-          onMouseDown={(e) => {
+          onPointerMove={(e) => send({ kind: "move", ...remote(e) })}
+          onPointerDown={(e) => {
             e.currentTarget.focus();
+            // Drags (resizing a window by its edge, selecting) keep going
+            // when the pointer leaves the tab.
+            e.currentTarget.setPointerCapture(e.pointerId);
             send({ kind: "move", ...remote(e) });
             send({ kind: "button", button: e.button, down: true });
           }}
-          onMouseUp={(e) => send({ kind: "button", button: e.button, down: false })}
+          onPointerUp={(e) => send({ kind: "button", button: e.button, down: false })}
           onContextMenu={(e) => e.preventDefault()}
           onWheel={(e) => {
             const vertical = Math.abs(e.deltaY) >= Math.abs(e.deltaX);

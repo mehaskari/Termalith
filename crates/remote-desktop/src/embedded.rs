@@ -129,8 +129,10 @@ fn config(username: &str, password: &str, size: DesktopSize) -> ironrdp_connecto
         license_cache: None,
         timezone_info: TimezoneInfo::default(),
         compression_type: None,
-        enable_server_pointer: false,
-        pointer_software_rendering: true,
+        // The server's pointer shapes (resize arrows, text beam) come as
+        // bitmaps and are shown as the viewer's cursor.
+        enable_server_pointer: true,
+        pointer_software_rendering: false,
         multitransport_flags: None,
         // The graphics pipeline (RDPEGFX, registered in `connect`): Windows
         // only offers Display Control (resizing) to clients that use it.
@@ -512,8 +514,43 @@ pub enum ViewerEvent {
     },
     /// The remote computer copied this text.
     Clipboard(String),
+    /// The remote pointer's shape changed.
+    Cursor(Cursor),
     /// The session ended; `reason` is set when it was not a normal close.
     Closed { reason: Option<String> },
+}
+
+/// The remote pointer's shape.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Cursor {
+    /// The viewer's normal arrow.
+    Default,
+    Hidden,
+    /// RGBA (not premultiplied), `width * height * 4` bytes; the hot spot is
+    /// the pixel that points.
+    Image {
+        width: u16,
+        height: u16,
+        hot_x: u16,
+        hot_y: u16,
+        rgba: Vec<u8>,
+    },
+}
+
+impl Cursor {
+    fn from_pointer(p: &ironrdp_graphics::pointer::DecodedPointer) -> Self {
+        let size = usize::from(p.width) * usize::from(p.height) * 4;
+        if p.width == 0 || p.height == 0 || p.bitmap_data.len() != size {
+            return Cursor::Default;
+        }
+        Cursor::Image {
+            width: p.width,
+            height: p.height,
+            hot_x: p.hotspot_x.min(p.width - 1),
+            hot_y: p.hotspot_y.min(p.height - 1),
+            rgba: p.bitmap_data.clone(),
+        }
+    }
 }
 
 /// Input from the viewer. Keys are PC/AT scan codes (`0xE0xx` = extended),
@@ -914,8 +951,8 @@ fn session(
         message_channel_id: result.message_channel_id,
         share_id: result.share_id,
         compression_type: result.compression_type,
-        enable_server_pointer: false,
-        pointer_software_rendering: true,
+        enable_server_pointer: true,
+        pointer_software_rendering: false,
     }
     .build();
     let mut input = ironrdp_input::Database::new();
@@ -936,6 +973,8 @@ fn session(
     let mut canvas: Option<Canvas> = None;
     // Display Control channel state, logged when it changes (diagnostics).
     let mut display_control = (false, false);
+    // The newest pointer shape not yet sent to the viewer.
+    let mut cursor: Option<Cursor> = None;
     /// What handling a batch of outputs asks the loop to do next.
     enum Next {
         Go,
@@ -944,7 +983,8 @@ fn session(
     }
     let write = |framed: &mut Framed<Tls>,
                  outputs: Vec<ActiveStageOutput>,
-                 dirty: &mut Option<_>|
+                 dirty: &mut Option<_>,
+                 cursor: &mut Option<Cursor>|
      -> Result<Next, String> {
         let mut next = Next::Go;
         for out in outputs {
@@ -960,6 +1000,9 @@ fn session(
                     next = Next::Reactivate
                 }
                 ActiveStageOutput::Terminate(_) => return Ok(Next::Stop),
+                ActiveStageOutput::PointerDefault => *cursor = Some(Cursor::Default),
+                ActiveStageOutput::PointerHidden => *cursor = Some(Cursor::Hidden),
+                ActiveStageOutput::PointerBitmap(p) => *cursor = Some(Cursor::from_pointer(&p)),
                 _ => {}
             }
         }
@@ -982,7 +1025,7 @@ fn session(
                         let outputs = stage
                             .process_fastpath_input(&mut image, &fp)
                             .map_err(|e| format!("input: {e}"))?;
-                        match write(&mut framed, outputs, &mut dirty)? {
+                        match write(&mut framed, outputs, &mut dirty, &mut cursor)? {
                             Next::Go => {}
                             Next::Stop => return Ok(Ended::Done),
                             Next::Reactivate => {
@@ -1020,7 +1063,7 @@ fn session(
                 Ok(Control::Ack) => in_flight = in_flight.saturating_sub(1),
                 Ok(Control::Close) | Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     if let Ok(outputs) = stage.graceful_shutdown() {
-                        let _ = write(&mut framed, outputs, &mut dirty);
+                        let _ = write(&mut framed, outputs, &mut dirty, &mut cursor);
                     }
                     return Ok(Ended::Done);
                 }
@@ -1032,7 +1075,7 @@ fn session(
                 let outputs = stage
                     .process(&mut image, action, &payload, None)
                     .map_err(|e| format!("decode: {e}"))?;
-                match write(&mut framed, outputs, &mut dirty)? {
+                match write(&mut framed, outputs, &mut dirty, &mut cursor)? {
                     Next::Go => {}
                     Next::Stop => return Ok(Ended::Done),
                     Next::Reactivate => {
@@ -1046,6 +1089,11 @@ fn session(
                             return Ok(Ended::Done);
                         }
                     }
+                }
+                if let Some(c) = cursor.take()
+                    && !sink(ViewerEvent::Cursor(c))
+                {
+                    return Ok(Ended::Done);
                 }
                 let state = stage
                     .get_dvc::<ironrdp_displaycontrol::client::DisplayControlClient>()
@@ -1100,7 +1148,7 @@ fn session(
                 // No (working) Display Control: log in again at the new
                 // size (Windows reconnects to the same session).
                 if let Ok(outputs) = stage.graceful_shutdown() {
-                    let _ = write(&mut framed, outputs, &mut dirty);
+                    let _ = write(&mut framed, outputs, &mut dirty, &mut cursor);
                 }
                 return Ok(Ended::Resize(wanted.0, wanted.1, s));
             }
@@ -1360,5 +1408,33 @@ mod tests {
             panic!("key")
         };
         assert_eq!(s.as_u8(), (true, 0x4B), "extended Left arrow");
+    }
+
+    #[test]
+    fn pointer_shapes_become_cursors() {
+        use ironrdp_graphics::pointer::DecodedPointer;
+        let p = DecodedPointer {
+            width: 2,
+            height: 1,
+            hotspot_x: 9,
+            hotspot_y: 0,
+            bitmap_data: vec![1; 8],
+        };
+        assert_eq!(
+            Cursor::from_pointer(&p),
+            Cursor::Image {
+                width: 2,
+                height: 1,
+                hot_x: 1,
+                hot_y: 0,
+                rgba: vec![1; 8]
+            },
+            "the hot spot stays inside the image"
+        );
+        let short = DecodedPointer {
+            bitmap_data: vec![1; 4],
+            ..p
+        };
+        assert_eq!(Cursor::from_pointer(&short), Cursor::Default);
     }
 }

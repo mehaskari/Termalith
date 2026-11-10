@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.3 (2026-11-10)
+
+- **Built-in VNC viewer and RealVNC Server or macOS Screen Sharing:** servers
+  that announce a newer protocol version (RealVNC 5.0, macOS 3.889) failed
+  with "no configured security type is supported for RFB protocol 3.3".
+  Termalith now answers them with protocol 3.8. If the server offers only
+  its own account login, the message says which setting enables a VNC
+  password.
+- **Windows: RealVNC Viewer** is used for VNC sessions when it is installed
+  (as well as TigerVNC).
+
 ## 0.5.2 (2026-11-10)
 
 - **Windows: finding Remote Desktop Connection** no longer depends on the

@@ -228,7 +228,24 @@ const CANDIDATES: &[(Os, Candidate)] = &[
             id: "tigervnc",
             name: "TigerVNC Viewer",
             protocol: Protocol::Vnc,
-            locations: &["vncviewer.exe", r"C:\Program Files\TigerVNC\vncviewer.exe"],
+            locations: &[
+                r"%ProgramFiles%\TigerVNC\vncviewer.exe",
+                r"C:\Program Files\TigerVNC\vncviewer.exe",
+                "vncviewer.exe",
+            ],
+        },
+    ),
+    (
+        Os::Windows,
+        Candidate {
+            id: "realvnc",
+            name: "RealVNC Viewer",
+            protocol: Protocol::Vnc,
+            locations: &[
+                r"%ProgramFiles%\RealVNC\VNC Viewer\vncviewer.exe",
+                r"%ProgramFiles(x86)%\RealVNC\VNC Viewer\vncviewer.exe",
+                r"C:\Program Files\RealVNC\VNC Viewer\vncviewer.exe",
+            ],
         },
     ),
     (
@@ -469,7 +486,8 @@ pub fn plan_for(
                 tracks_session: true,
             }
         }
-        (_, "vncviewer" | "tigervnc") => LaunchPlan {
+        // TigerVNC and RealVNC Viewer both take host::port.
+        (_, "vncviewer" | "tigervnc" | "realvnc") => LaunchPlan {
             program: client.program.clone(),
             args: vec![format!("{host}::{}", t.port)],
             password_via_stdin: false,
@@ -662,6 +680,31 @@ mod tests {
         )
         .unwrap();
         assert_eq!(l.args, vec!["srv.example.com::5900".to_string()]);
+        let r = plan_for(
+            Os::Windows,
+            &client("realvnc", Protocol::Vnc),
+            &target(Protocol::Vnc),
+            Path::new("/tmp"),
+            None,
+        )
+        .unwrap();
+        assert_eq!(r.args, vec!["srv.example.com::5900".to_string()]);
+    }
+
+    #[test]
+    fn realvnc_viewer_is_looked_for_on_windows() {
+        let (_, realvnc) = CANDIDATES
+            .iter()
+            .find(|(os, c)| *os == Os::Windows && c.id == "realvnc")
+            .expect("RealVNC Viewer is a Windows candidate");
+        assert_eq!(realvnc.protocol, Protocol::Vnc);
+        let first = expand_env(realvnc.locations[0], |v| {
+            (v == "ProgramFiles").then(|| r"D:\Apps".to_string())
+        });
+        assert_eq!(
+            first.as_deref(),
+            Some(r"D:\Apps\RealVNC\VNC Viewer\vncviewer.exe")
+        );
     }
 
     /// Windows ships Remote Desktop Connection; the CI runners (x64, ARM64)

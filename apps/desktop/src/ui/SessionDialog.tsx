@@ -13,7 +13,7 @@ import { type SessionFormState, allFolderPaths, emptyForm, formFromSession, isFt
 
 const INSTALL_HINT: Record<"rdp" | "vnc", string> = {
   rdp: "No RDP client is installed, so this session opens inside Termalith (no client needed). To use an external client, install Windows App (macOS) or FreeRDP (xfreerdp, Linux); Windows normally includes Remote Desktop Connection.",
-  vnc: "No VNC client is installed, so this session opens inside Termalith (no client needed). To use an external client: Screen Sharing on macOS, TigerVNC (vncviewer) on Linux or Windows.",
+  vnc: "No VNC client is installed, so this session opens inside Termalith (no client needed). To use an external client: Screen Sharing on macOS, TigerVNC or RealVNC Viewer on Windows, TigerVNC (vncviewer) on Linux.",
 };
 
 interface Props {

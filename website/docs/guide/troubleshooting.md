@@ -70,7 +70,7 @@ Remote Desktop Connection (`mstsc.exe`) is looked for in
 remove it; the Windows folder is read from the registry, and the error
 lists every place searched, which helps when you report it); on macOS install
 *Windows App*; on Linux install FreeRDP
-(`xfreerdp`), and for VNC TigerVNC.
+(`xfreerdp`), and for VNC TigerVNC (or RealVNC Viewer on Windows).
 
 **RDP/VNC does nothing.** With desktops in your own client, the session
 dialog says which client is used; install it if it is missing. On macOS the

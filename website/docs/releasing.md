@@ -79,3 +79,39 @@ certificate) and automatic updates are not set up yet. The app's
 **Check for updates** compares the running version with the latest
 published release and links to it; it never downloads or installs
 anything by itself.
+
+## Keeping the documentation current
+
+The user guide (`website/docs/guide/`), the README and the changelog are
+part of every change, and CI enforces it. `scripts/check-docs.py` runs in the
+required *cargo-deny* job on every pull request and on `main`, and fails
+when:
+
+- the version differs between `Cargo.toml`, `apps/desktop/package.json`,
+  `apps/desktop/src-tauri/tauri.conf.json` and the website's landing page, or
+  the changelog has no entry for it;
+- a setting in the Settings dialog is not described in `guide/settings.md`,
+  or a session type in the session dialog is missing from
+  `guide/sessions.md`;
+- a guide page is not in the site navigation, or links to a page or image
+  that does not exist;
+- a pull request changes user-facing code (`apps/desktop/src/`,
+  `apps/desktop/src-tauri/src/`) without touching the guide, the changelog
+  or the README. If users really see no difference, add the label
+  `no-docs-needed` before pushing, or write `[no docs]` in a commit
+  message.
+
+The website build (`mkdocs build --strict`) fails on broken links, and
+download links on the website and in the README point to the latest release
+instead of a version number, so they never go stale.
+
+**Screenshots** come from the UI mock and can be regenerated after UI
+changes:
+
+```bash
+corepack pnpm --filter @termalith/desktop dev     # serves the mock on :1420
+node scripts/docs-screenshots.mjs                 # Chrome required, no npm packages
+python3 scripts/optimize-screenshots.py           # optional, needs Pillow
+```
+
+Run locally before pushing: `python3 scripts/check-docs.py --base origin/main`.

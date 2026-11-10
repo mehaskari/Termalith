@@ -24,9 +24,22 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0  # the docs check compares the PR with its base
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         with:
           command: check
+      # Part of this required job on purpose: the user guide, README and
+      # changelog must move with the app (scripts/check-docs.py says what it checks).
+      - name: Documentation is up to date
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            python3 scripts/check-docs.py --base "origin/$BASE_REF"
+          else
+            python3 scripts/check-docs.py
+          fi
 
   build-test:
     name: ${{ matrix.name }}

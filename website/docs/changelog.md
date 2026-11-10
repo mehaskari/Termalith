@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Windows: finding Remote Desktop Connection** no longer depends on the
+  environment Termalith was started with: the Windows folder is read from
+  the registry. If no client is found, the message lists every place that
+  was searched.
 - **RDP and VNC without a client:** when no external client is installed
   (for example a Windows image without Remote Desktop Connection), the
   session opens in the built-in viewer with a notice, instead of failing

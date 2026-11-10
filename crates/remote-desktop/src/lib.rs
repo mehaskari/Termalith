@@ -25,9 +25,13 @@ pub enum DesktopError {
     #[error("invalid {field}: {reason}")]
     Invalid { field: &'static str, reason: String },
     #[error(
-        "no {0} client found; install one (see the session's help text), or turn on \"Show RDP and VNC sessions inside Termalith\" in Settings"
+        "no {protocol} client found (looked in: {checked}); install one, or turn on \"Show RDP and VNC sessions inside Termalith\" in Settings"
     )]
-    NoClient(&'static str),
+    NoClient {
+        protocol: &'static str,
+        /// The places searched, for the user's report.
+        checked: String,
+    },
     #[error("could not start {client}: {reason}")]
     Launch { client: String, reason: String },
     #[error("could not check the server certificate: {0}")]
@@ -207,6 +211,9 @@ const CANDIDATES: &[(Os, Candidate)] = &[
             // Windows may live outside C:\Windows; a 32-bit view of the
             // system needs Sysnative to see the 64-bit System32.
             locations: &[
+                // The System32 path Windows itself reports, independent of
+                // the environment the app was started with.
+                r"%:SYSTEM32%\mstsc.exe",
                 r"%SystemRoot%\System32\mstsc.exe",
                 r"%SystemRoot%\Sysnative\mstsc.exe",
                 r"%windir%\System32\mstsc.exe",
@@ -260,6 +267,71 @@ fn expand_env(location: &str, var: impl Fn(&str) -> Option<String>) -> Option<St
     Some(out)
 }
 
+/// `%:SYSTEM32%` is the system directory from the Windows API; other names
+/// are environment variables.
+fn lookup(name: &str) -> Option<String> {
+    if name == ":SYSTEM32" {
+        return system_directory();
+    }
+    std::env::var(name).ok()
+}
+
+/// The system directory from the registry (`SystemRoot` of the running
+/// Windows), independent of the environment the app was started with.
+/// `reg.exe` is found by Windows itself; no console window is shown.
+#[cfg(windows)]
+fn system_directory() -> Option<String> {
+    use std::os::windows::process::CommandExt;
+    use std::sync::OnceLock;
+    static DIR: OnceLock<Option<String>> = OnceLock::new();
+    DIR.get_or_init(|| {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let out = std::process::Command::new("reg")
+            .args([
+                "query",
+                r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion",
+                "/v",
+                "SystemRoot",
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .ok()?;
+        parse_reg_system_root(&String::from_utf8_lossy(&out.stdout))
+            .map(|root| format!(r"{root}\System32"))
+    })
+    .clone()
+}
+
+/// The value of `SystemRoot` in `reg query … /v SystemRoot` output.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn parse_reg_system_root(output: &str) -> Option<String> {
+    output.lines().find_map(|line| {
+        let (_, value) = line.trim().split_once("REG_SZ")?;
+        let value = value.trim();
+        (!value.is_empty()).then(|| value.to_string())
+    })
+}
+
+#[cfg(not(windows))]
+fn system_directory() -> Option<String> {
+    None
+}
+
+/// Every place searched for a `protocol` client on this system, expanded.
+pub fn searched_locations(protocol: Protocol) -> Vec<String> {
+    let os = Os::current();
+    CANDIDATES
+        .iter()
+        .filter(|(o, c)| *o == os && c.protocol == protocol)
+        .flat_map(|(_, c)| c.locations.iter())
+        .map(|l| match expand_env(l, lookup) {
+            Some(e) if Path::new(&e).is_absolute() => e,
+            Some(e) => format!("{e} on PATH"),
+            None => format!("{l} (not set)"),
+        })
+        .collect()
+}
+
 fn find_on_path(name: &str) -> Option<PathBuf> {
     let paths = std::env::var_os("PATH")?;
     std::env::split_paths(&paths)
@@ -275,7 +347,7 @@ pub fn available_clients(protocol: Protocol) -> Vec<Client> {
         .filter(|(o, c)| *o == os && c.protocol == protocol)
         .filter_map(|(_, c)| {
             let program = c.locations.iter().find_map(|l| {
-                let l = expand_env(l, |v| std::env::var(v).ok())?;
+                let l = expand_env(l, lookup)?;
                 let p = Path::new(&l);
                 if p.is_absolute() {
                     p.exists().then(|| p.to_path_buf())
@@ -404,7 +476,12 @@ pub fn plan_for(
             file: None,
             tracks_session: true,
         },
-        _ => return Err(DesktopError::NoClient(t.protocol.name())),
+        _ => {
+            return Err(DesktopError::NoClient {
+                protocol: t.protocol.name(),
+                checked: format!("no launch plan for {}", client.id),
+            });
+        }
     })
 }
 
@@ -600,6 +677,15 @@ mod tests {
             std::env::var("SystemRoot")
         );
         assert!(mstsc.unwrap().program.is_file());
+        assert!(system_directory().is_some(), "reg query SystemRoot failed");
+        assert!(searched_locations(Protocol::Rdp)[0].ends_with(r"\mstsc.exe"));
+    }
+
+    #[test]
+    fn system_root_is_read_from_reg_output() {
+        let out = "\r\nHKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\r\n    SystemRoot    REG_SZ    D:\\Windows\r\n\r\n";
+        assert_eq!(parse_reg_system_root(out).as_deref(), Some(r"D:\Windows"));
+        assert_eq!(parse_reg_system_root("ERROR: not found"), None);
     }
 
     #[test]

@@ -67,7 +67,9 @@ default, turn on *Show RDP and VNC sessions inside Termalith* in
 [Settings](settings.md). To use an external client instead: on Windows,
 Remote Desktop Connection (`mstsc.exe`) is looked for in
 `%SystemRoot%\System32` and on the `PATH` (some Windows editions and images
-remove it); on macOS install *Windows App*; on Linux install FreeRDP
+remove it; the Windows folder is read from the registry, and the error
+lists every place searched, which helps when you report it); on macOS install
+*Windows App*; on Linux install FreeRDP
 (`xfreerdp`), and for VNC TigerVNC.
 
 **RDP/VNC does nothing.** With desktops in your own client, the session

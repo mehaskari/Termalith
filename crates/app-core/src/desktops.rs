@@ -118,15 +118,15 @@ impl DesktopHub {
 
     /// The client that [`DesktopHub::open`] will use.
     pub fn preferred_client(protocol: Protocol) -> Result<Client, AppError> {
-        Self::clients(protocol)
-            .into_iter()
-            .next()
-            .ok_or(AppError::Desktop(remote_desktop::DesktopError::NoClient(
-                match protocol {
+        Self::clients(protocol).into_iter().next().ok_or_else(|| {
+            AppError::Desktop(remote_desktop::DesktopError::NoClient {
+                protocol: match protocol {
                     Protocol::Rdp => "RDP",
                     Protocol::Vnc => "VNC",
                 },
-            )))
+                checked: remote_desktop::searched_locations(protocol).join(", "),
+            })
+        })
     }
 
     /// Opens the session in the preferred client. Returns

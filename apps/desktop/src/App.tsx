@@ -62,6 +62,7 @@ import {
   localTerminal,
   listDesktops,
   openDesktop,
+  desktopClients,
 } from "./terminal/api";
 import { DesktopPane } from "./ui/DesktopPane";
 import { EditorPane } from "./ui/EditorPane";
@@ -97,7 +98,7 @@ import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
 import { resolveTheme } from "./ui/theme";
 import { isMacPlatform, matchShortcut } from "./ui/shortcuts";
 import { Sidebar } from "./ui/Sidebar";
-import { isDesktop, isFtp, targetLabel } from "./ui/sessionList";
+import { isFtp, targetLabel } from "./ui/sessionList";
 
 interface Tab {
   key: number;
@@ -519,15 +520,34 @@ export function App() {
         patchTab(key, { sessionId: s.id, reconnect: () => connectSaved(s) });
         return;
       }
-      if ((s.protocol === "rdp" || s.protocol === "vnc") && settings.embeddedRdp) {
-        const key = addTab(s.name, "rdp", openLocalTerminal);
-        patchTab(key, { sessionId: s.id });
-        return;
-      }
-      if (isDesktop(s)) {
-        const key = addTab(s.name, "desktop", openLocalTerminal);
-        patchTab(key, { sessionId: s.id });
-        void runDesktop(key, s);
+      if (s.protocol === "rdp" || s.protocol === "vnc") {
+        const protocol = s.protocol;
+        const embedded = () => {
+          const key = addTab(s.name, "rdp", openLocalTerminal);
+          patchTab(key, { sessionId: s.id });
+        };
+        if (settings.embeddedRdp) {
+          embedded();
+          return;
+        }
+        // Without an installed client the built-in viewer opens instead of
+        // an error: it works on every system and needs nothing installed.
+        void desktopClients()
+          .then((c) => (protocol === "rdp" ? c.rdp : c.vnc))
+          .catch(() => undefined)
+          .then((client) => {
+            if (client === null) {
+              setNotice(
+                `No ${protocol.toUpperCase()} client is installed, so ${s.name} opens inside Termalith. ` +
+                  "Settings → Show RDP and VNC sessions inside Termalith makes this the default.",
+              );
+              embedded();
+              return;
+            }
+            const key = addTab(s.name, "desktop", openLocalTerminal);
+            patchTab(key, { sessionId: s.id });
+            void runDesktop(key, s);
+          });
         return;
       }
       if (s.filesOnly || isFtp(s)) {

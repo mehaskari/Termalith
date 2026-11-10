@@ -109,7 +109,29 @@ jobs:
         run: corepack pnpm install --frozen-lockfile
 
       - name: Build installers
+        if: runner.os != 'macOS'
         run: corepack pnpm --filter @termalith/desktop tauri build --bundles ${{ matrix.bundles }}
+
+      # hdiutil on GitHub's macOS runners sometimes cannot eject the DMG it
+      # is building ("Resource busy"); Spotlight indexing the image is a
+      # known cause. Indexing is turned off and bundling retried (the
+      # compiled app is reused, so a retry only bundles again).
+      - name: Build installers (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          sudo mdutil -a -i off || true
+          for attempt in 1 2 3; do
+            if corepack pnpm --filter @termalith/desktop tauri build --bundles ${{ matrix.bundles }}; then
+              exit 0
+            fi
+            echo "::warning::bundling failed (attempt $attempt); detaching leftover disk images"
+            for volume in /Volumes/Termalith*; do
+              [ -e "$volume" ] && hdiutil detach "$volume" -force || true
+            done
+            rm -f target/release/bundle/dmg/rw.*.dmg target/release/bundle/macos/rw.*.dmg
+            sleep 15
+          done
+          exit 1
 
       # Install each installer like a user would and start the installed
       # app (it must open a terminal and clean up its shell).

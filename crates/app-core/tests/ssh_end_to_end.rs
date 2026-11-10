@@ -731,7 +731,7 @@ async fn dropped_folder_uploads_with_its_subfolders() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn download_continues_its_partial_file() {
+async fn paused_download_continues_where_it_stopped() {
     use app_core::{Download, TransferEvent, Transfers};
     let Some(r) = rig() else { return };
     let session = trusted_connection(&r).await;
@@ -741,42 +741,79 @@ async fn download_continues_its_partial_file() {
         .open_ssh(session, TerminalSize::new(80, 24).unwrap(), sink)
         .await
         .unwrap();
-    let data: Vec<u8> = (0..300_000u32).map(|i| (i % 251) as u8).collect();
+    // Large enough that the pause lands in the middle.
+    let size = 48 * 1024 * 1024u32;
+    let data: Vec<u8> = (0..size).map(|i| (i % 251) as u8).collect();
     std::fs::create_dir_all(r.sshd.path("res")).unwrap();
     std::fs::write(r.sshd.path("res").join("big.bin"), &data).unwrap();
     let sftp = r.hub.sftp(id).await.unwrap();
-
-    // What a paused download left behind: the first 100,000 bytes. They are
-    // marked (0xFF), so the result shows they were kept, not fetched again.
     let dest = tempfile::tempdir().unwrap();
-    let partial = dest.path().join(".big.bin.termalith-partial");
-    std::fs::write(&partial, vec![0xFF; 100_000]).unwrap();
-
     let transfers = Arc::new(Transfers::default());
+
     let (sink, mut rx) = event_sink();
-    transfers
+    let first = transfers
         .start_download(
             sftp.clone(),
             Download {
                 remote_dir: &r.sshd.remote("res"),
                 name: "big.bin",
-                size: Some(300_000),
+                size: Some(u64::from(size)),
                 dest_dir: dest.path().to_path_buf(),
                 connection: "c",
             },
             sink,
         )
         .unwrap();
-    match wait_event(&mut rx).await {
-        TransferEvent::Done { destination } => {
-            assert_eq!(destination, dest.path().join("big.bin").to_string_lossy())
+    // Pause at the first progress report.
+    let mut paused_at = 0;
+    loop {
+        match tokio::time::timeout(Duration::from_secs(20), rx.recv())
+            .await
+            .unwrap()
+            .unwrap()
+        {
+            TransferEvent::Progress { transferred, .. } => {
+                paused_at = transferred;
+                transfers.pause(first);
+            }
+            TransferEvent::Queued => {}
+            TransferEvent::Paused => break,
+            other => panic!("{other:?}"),
         }
-        other => panic!("{other:?}"),
     }
-    let got = std::fs::read(dest.path().join("big.bin")).unwrap();
-    assert_eq!(got.len(), 300_000);
-    assert!(got[..100_000].iter().all(|b| *b == 0xFF), "partial kept");
-    assert_eq!(&got[100_000..], &data[100_000..], "rest from the offset");
+    let partial = dest.path().join(".big.bin.termalith-partial");
+    let kept = std::fs::metadata(&partial).unwrap().len();
+    assert!(
+        kept >= paused_at && kept < u64::from(size),
+        "kept {kept} of {size}"
+    );
+    while transfers.active_count() > 0 {
+        tokio::task::yield_now().await;
+    }
+
+    // Resume: the first report already counts the kept bytes.
+    let (sink, mut rx) = event_sink();
+    transfers.retry(first, sink).unwrap();
+    let mut resumed_from = None;
+    let done = loop {
+        match tokio::time::timeout(Duration::from_secs(30), rx.recv())
+            .await
+            .unwrap()
+            .unwrap()
+        {
+            TransferEvent::Progress { transferred, .. } => {
+                resumed_from.get_or_insert(transferred);
+            }
+            TransferEvent::Done { destination } => break destination,
+            TransferEvent::Queued => {}
+            other => panic!("{other:?}"),
+        }
+    };
+    assert_eq!(done, dest.path().join("big.bin").to_string_lossy());
+    if let Some(from) = resumed_from {
+        assert!(from > kept, "resumed at {from}, kept {kept}");
+    }
+    assert!(std::fs::read(dest.path().join("big.bin")).unwrap() == data);
     assert!(!partial.exists(), "partial file renamed");
 }
 

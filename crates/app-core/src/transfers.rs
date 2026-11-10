@@ -131,6 +131,35 @@ pub fn remote_join(dir: &str, name: &str) -> String {
 }
 
 /// The hidden file a download of `dest` writes into until it is complete.
+/// A free destination for a download whose partial file is free too, with
+/// the partial file created so that no other download picks the same one
+/// (two downloads of one file at once each get their own name).
+fn reserve_destination(dir: &std::path::Path, name: &str) -> PathBuf {
+    let (stem, ext) = match name.rfind('.') {
+        Some(i) if i > 0 => (&name[..i], &name[i..]),
+        _ => (name, ""),
+    };
+    let candidates =
+        std::iter::once(name.to_owned()).chain((1..1000).map(|n| format!("{stem} ({n}){ext}")));
+    for candidate in candidates {
+        let dest = dir.join(&candidate);
+        if dest.exists() {
+            continue;
+        }
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(partial_path(&dest))
+        {
+            Ok(_) => return dest,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            // Not writable: the download reports the real error.
+            Err(_) => return dest,
+        }
+    }
+    unique_destination(dir, name)
+}
+
 fn stat_key(s: protocol_ssh::RemoteStat) -> (Option<u64>, Option<u32>) {
     (s.size, s.modified)
 }
@@ -246,7 +275,7 @@ impl Transfers {
             let dest = dest
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
-                .get_or_insert_with(|| unique_destination(&dest_dir, &name))
+                .get_or_insert_with(|| reserve_destination(&dest_dir, &name))
                 .clone();
             Box::pin(async move {
                 let partial = partial_path(&dest);
@@ -921,6 +950,21 @@ mod tests {
         ));
         let (s, _rx) = sink();
         assert!(matches!(t.retry(id, s), Err(AppError::NotFound)));
+    }
+
+    #[test]
+    fn concurrent_downloads_of_one_file_get_their_own_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = reserve_destination(dir.path(), "a.tar.gz");
+        let second = reserve_destination(dir.path(), "a.tar.gz");
+        assert_eq!(first, dir.path().join("a.tar.gz"));
+        assert_eq!(second, dir.path().join("a.tar (1).gz"));
+        assert!(partial_path(&first).exists() && partial_path(&second).exists());
+        std::fs::write(dir.path().join("b.txt"), b"x").unwrap();
+        assert_eq!(
+            reserve_destination(dir.path(), "b.txt"),
+            dir.path().join("b (1).txt")
+        );
     }
 
     #[tokio::test]

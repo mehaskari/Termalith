@@ -209,3 +209,95 @@ async fn ftps_certificate_is_asked_once_and_can_be_refused() {
         .unwrap();
     assert!(r.prompts.try_recv().is_err(), "asked twice");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn ftp_folder_downloads_with_its_subfolders() {
+    use app_core::{Download, RemoteFiles, TransferEvent, Transfers};
+    use protocol_ssh::{CancellationToken, TransferOptions};
+    let (Some(addr), Some(password)) = (
+        env("TERMALITH_TEST_FTP"),
+        env("TERMALITH_TEST_FTP_PASSWORD"),
+    ) else {
+        eprintln!("TERMALITH_TEST_FTP not set; skipped");
+        return;
+    };
+    let r = rig();
+    let id = r
+        .connector
+        .sessions
+        .create(&session(&addr, SessionProtocol::Ftp))
+        .unwrap()
+        .id;
+    let (client, _, _) = r
+        .connector
+        .connect_ftp(&id, typed(&password, false))
+        .await
+        .unwrap();
+    let files = RemoteFiles::Ftp(Arc::new(client));
+
+    // A folder on the server: /dl-<random>/{a.txt, sub/b.bin, empty/}.
+    let name = format!("dl-{}", random_password());
+    let root = format!("/{name}");
+    let local = tempfile::tempdir().unwrap();
+    std::fs::write(local.path().join("a.txt"), b"alpha").unwrap();
+    std::fs::write(local.path().join("b.bin"), vec![7u8; 150_000]).unwrap();
+    let cancel = CancellationToken::new();
+    for dir in [root.clone(), format!("{root}/sub"), format!("{root}/empty")] {
+        files.create_dir(&dir).await.unwrap();
+    }
+    let opts = TransferOptions::default();
+    files
+        .upload(
+            &local.path().join("a.txt"),
+            &format!("{root}/a.txt"),
+            opts,
+            &cancel,
+            |_| {},
+        )
+        .await
+        .unwrap();
+    files
+        .upload(
+            &local.path().join("b.bin"),
+            &format!("{root}/sub/b.bin"),
+            opts,
+            &cancel,
+            |_| {},
+        )
+        .await
+        .unwrap();
+
+    let dest = tempfile::tempdir().unwrap();
+    let transfers = Arc::new(Transfers::default());
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    transfers
+        .start_folder_download(
+            files,
+            Download {
+                remote_dir: "/",
+                name: &name,
+                size: None,
+                dest_dir: dest.path().to_path_buf(),
+                connection: "ftp",
+            },
+            move |e| {
+                let _ = tx.send(e);
+            },
+        )
+        .unwrap();
+    let got = loop {
+        match tokio::time::timeout(Duration::from_secs(30), rx.recv())
+            .await
+            .expect("transfer event")
+            .expect("channel open")
+        {
+            TransferEvent::Done { destination } => break std::path::PathBuf::from(destination),
+            TransferEvent::Progress { .. } | TransferEvent::Queued => {}
+            other => panic!("{other:?}"),
+        }
+    };
+    assert_eq!(got, dest.path().join(&name));
+    assert_eq!(std::fs::read(got.join("a.txt")).unwrap(), b"alpha");
+    assert_eq!(std::fs::read(got.join("sub/b.bin")).unwrap().len(), 150_000);
+    assert!(got.join("empty").is_dir());
+}

@@ -67,6 +67,7 @@ pub struct TransferStarted {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // one per IPC argument
 pub async fn sftp_download(
     state: State<'_, AppState>,
     terminal_id: u64,
@@ -74,22 +75,26 @@ pub async fn sftp_download(
     name: String,
     size: Option<u64>,
     connection: Option<String>,
+    // A folder is downloaded with everything in it.
+    folder: Option<bool>,
     on_event: Channel<TransferEvent>,
 ) -> Result<TransferStarted, IpcError> {
     let files = state.hub.files(terminal_id).await?;
-    let id = state.transfers.start_download(
-        files,
-        app_core::Download {
-            remote_dir: &dir,
-            name: &name,
-            size,
-            dest_dir: state.downloads_dir.clone(),
-            connection: connection.as_deref().unwrap_or(""),
-        },
-        move |e| {
-            let _ = on_event.send(e);
-        },
-    )?;
+    let req = app_core::Download {
+        remote_dir: &dir,
+        name: &name,
+        size,
+        dest_dir: state.downloads_dir.clone(),
+        connection: connection.as_deref().unwrap_or(""),
+    };
+    let sink = move |e| {
+        let _ = on_event.send(e);
+    };
+    let id = if folder == Some(true) {
+        state.transfers.start_folder_download(files, req, sink)?
+    } else {
+        state.transfers.start_download(files, req, sink)?
+    };
     Ok(TransferStarted {
         id,
         downloads_dir: state.downloads_dir.to_string_lossy().into_owned(),

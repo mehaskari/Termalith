@@ -92,7 +92,7 @@ pub struct DroppedFile {
 
 /// Most entries (files and folders) a dropped folder may contain.
 pub const MAX_FOLDER_ENTRIES: usize = 10_000;
-const MAX_FOLDER_LEVELS: usize = 32;
+pub const MAX_FOLDER_LEVELS: usize = 32;
 
 /// A local folder to upload, as paths relative to it. Folders come before
 /// their contents.

@@ -731,6 +731,61 @@ async fn dropped_folder_uploads_with_its_subfolders() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn remote_folder_downloads_with_its_subfolders() {
+    use app_core::{Download, TransferEvent, Transfers};
+    let Some(r) = rig() else { return };
+    let session = trusted_connection(&r).await;
+    let (sink, _c) = collector();
+    let id = r
+        .hub
+        .open_ssh(session, TerminalSize::new(80, 24).unwrap(), sink)
+        .await
+        .unwrap();
+    let site = r.sshd.path("down").join("site");
+    std::fs::create_dir_all(site.join("assets/img")).unwrap();
+    std::fs::create_dir(site.join("empty")).unwrap();
+    std::fs::write(site.join("index.html"), b"<p>hi</p>").unwrap();
+    std::fs::write(site.join("assets/img/logo.bin"), vec![3u8; 200_000]).unwrap();
+    let sftp = r.hub.sftp(id).await.unwrap();
+
+    let dest = tempfile::tempdir().unwrap();
+    let transfers = Arc::new(Transfers::default());
+    for expected in ["site", "site (1)"] {
+        let (sink, mut rx) = event_sink();
+        transfers
+            .start_folder_download(
+                sftp.clone(),
+                Download {
+                    remote_dir: &r.sshd.remote("down"),
+                    name: "site",
+                    size: None,
+                    dest_dir: dest.path().to_path_buf(),
+                    connection: "c",
+                },
+                sink,
+            )
+            .unwrap();
+        let got = loop {
+            match wait_event(&mut rx).await {
+                TransferEvent::Done { destination } => break std::path::PathBuf::from(destination),
+                TransferEvent::Progress { .. } | TransferEvent::Queued => {}
+                other => panic!("{other:?}"),
+            }
+        };
+        // A second download lands next to the first instead of merging.
+        assert_eq!(got, dest.path().join(expected));
+        assert_eq!(std::fs::read(got.join("index.html")).unwrap(), b"<p>hi</p>");
+        assert_eq!(
+            std::fs::read(got.join("assets/img/logo.bin"))
+                .unwrap()
+                .len(),
+            200_000
+        );
+        assert!(got.join("empty").is_dir());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn file_browser_transfers_over_the_terminal_connection() {
     use app_core::{TransferEvent, Transfers};
     let Some(r) = rig() else { return };

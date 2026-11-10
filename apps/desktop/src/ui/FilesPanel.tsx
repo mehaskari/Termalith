@@ -262,11 +262,20 @@ export function FilesPanel({
   function download(entry: RemoteEntry) {
     if (!path) return;
     const key = transferKey++;
+    const folder = entry.kind === "dir";
     setTransfers((ts) => [
-      { id: null, key, direction: "down", name: entry.name, transferred: 0, total: entry.size, state: "running" },
+      {
+        id: null,
+        key,
+        direction: "down",
+        name: folder ? `${entry.name}/` : entry.name,
+        transferred: 0,
+        total: folder ? null : entry.size,
+        state: "running",
+      },
       ...ts,
     ]);
-    sftpDownload(terminalId, path, entry.name, entry.size, onEvent(key, false), connection).then(
+    sftpDownload(terminalId, path, entry.name, folder ? null : entry.size, onEvent(key, false), connection, folder).then(
       (r) => update(key, { id: r.id }),
       (e) => update(key, { state: "failed", detail: message(e) }),
     );
@@ -401,6 +410,11 @@ export function FilesPanel({
               </button>
               {menuFor === e.name && (
                 <span className="menu" role="menu" ref={menuRef} onKeyDown={(ev) => menuKeyDown(ev, closeMenu)}>
+                  {e.kind === "dir" && (
+                    <button type="button" role="menuitem" onClick={() => { setMenuFor(null); download(e); }}>
+                      Download folder
+                    </button>
+                  )}
                   <button type="button" role="menuitem" onClick={() => { setMenuFor(null); setOp({ kind: "rename", entry: e }); }}>
                     Rename…
                   </button>

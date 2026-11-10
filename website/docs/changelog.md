@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.4 (2026-11-10)
 
 - **Download folders:** *⋯ → Download folder* in the file browser saves a
   remote folder with its subfolders, over SFTP, FTP and FTPS. Before, only

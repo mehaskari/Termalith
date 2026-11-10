@@ -96,7 +96,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "app-core"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "credential-store",
  "getrandom 0.3.4",
@@ -951,7 +951,7 @@ dependencies = [
 
 [[package]]
 name = "credential-store"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "apple-native-keyring-store",
  "argon2",
@@ -3426,7 +3426,7 @@ dependencies = [
 
 [[package]]
 name = "network-tools"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "serde",
  "thiserror 2.0.21",
@@ -4507,7 +4507,7 @@ dependencies = [
 
 [[package]]
 name = "protocol-ftp"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "sha2 0.10.9",
  "suppaftp",
@@ -4520,7 +4520,7 @@ dependencies = [
 
 [[package]]
 name = "protocol-ssh"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "rand 0.10.3",
  "russh",
@@ -4536,7 +4536,7 @@ dependencies = [
 
 [[package]]
 name = "protocol-telnet"
-version = "0.5.4"
+version = "0.5.5"
 
 [[package]]
 name = "quick-xml"
@@ -4719,7 +4719,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "remote-desktop"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "ironrdp-blocking",
  "ironrdp-cliprdr",
@@ -5378,7 +5378,7 @@ dependencies = [
 
 [[package]]
 name = "serial-console"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "nix 0.28.0",
  "serde",
@@ -6230,7 +6230,7 @@ dependencies = [
 
 [[package]]
 name = "termalith-desktop"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "app-core",
  "credential-store",
@@ -6250,7 +6250,7 @@ dependencies = [
 
 [[package]]
 name = "terminal-pty"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "nix 0.28.0",
  "portable-pty",
@@ -6259,7 +6259,7 @@ dependencies = [
 
 [[package]]
 name = "test-sshd"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "tempfile",
 ]

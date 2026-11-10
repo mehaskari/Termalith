@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.5 (2026-11-10)
 
 - **Pause and resume downloads:** ⏸ pauses a download and ▶ continues it
   where it stopped, like a download manager (SFTP, FTP and FTPS, files and

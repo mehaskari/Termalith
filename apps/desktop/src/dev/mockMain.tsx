@@ -45,6 +45,7 @@ const mockSettings: Record<string, unknown> = { theme: "system", fontSize: 13, f
 const logging = new Set<number>();
 let nextTunnel = 1;
 const tunnels: Array<Record<string, unknown> & { id: number; terminalId: number }> = [];
+const mockServers: Array<{ id: number; port: number; [k: string]: unknown }> = [];
 /** Running mock transfers that can be paused: id → pause. */
 const pausers = new Map<number, () => void>();
 /** Paused mock downloads: id → what a resume needs. */
@@ -719,6 +720,35 @@ mockIPC(
       case "tunnel_stop": {
         const i = tunnels.findIndex((t) => t.id === a.id);
         if (i >= 0) tunnels.splice(i, 1);
+        return i >= 0;
+      }
+      case "server_default_folder":
+        return "/Users/me/Downloads/Termalith Share";
+      case "server_open_folder":
+        return null;
+      case "server_start": {
+        const r = a.request as { kind: "tftp" | "http"; folderToken: number | null; lan: boolean; port: number | null; allowUploads: boolean };
+        const port = r.port ?? (r.kind === "tftp" ? 6969 : 8080);
+        if (mockServers.some((x) => x.port === port)) throw { code: "invalid", message: `invalid server: cannot listen on 0.0.0.0:${port}: Address already in use` };
+        const id = mockServers.length + 1;
+        const scheme = r.kind;
+        const urls = (r.lan ? ["192.168.1.23", "127.0.0.1"] : ["127.0.0.1"]).map((h) => `${scheme}://${h}:${port}/`);
+        const now = Math.floor(Date.now() / 1000);
+        const server = {
+          id, kind: r.kind, folder: "/Users/me/Downloads/Termalith Share", port, lan: r.lan, allowUploads: r.allowUploads, urls,
+          activity: [
+            { seq: 1, at: now, peer: "192.168.1.40", action: "download", path: "/fw/switch-9.3.bin", bytes: 48_234_496, error: null },
+            { seq: 2, at: now, peer: "192.168.1.40", action: "upload", path: "/backup.cfg", bytes: 0, error: "uploads are turned off" },
+          ],
+        };
+        mockServers.push(server);
+        return server;
+      }
+      case "server_list":
+        return mockServers.map((x) => ({ ...x }));
+      case "server_stop": {
+        const i = mockServers.findIndex((x) => x.id === a.id);
+        if (i >= 0) mockServers.splice(i, 1);
         return i >= 0;
       }
       case "transfer_cancel":

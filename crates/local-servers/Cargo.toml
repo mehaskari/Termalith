@@ -1,0 +1,26 @@
+[package]
+name = "local-servers"
+description = "Built-in file servers (TFTP, HTTP) that share one local folder. Independent of Tauri and React."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+bytes = "1"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+http-body-util = "0.1"
+hyper = { version = "1.12", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+tokio = { version = "1.54", features = ["fs", "io-util", "macros", "net", "rt", "sync", "time"] }
+tokio-util = { version = "0.7.20", default-features = false, features = ["io"] }
+
+[dev-dependencies]
+tempfile = "3.27"
+tokio = { version = "1.54", features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

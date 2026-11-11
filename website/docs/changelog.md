@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Built-in TFTP and HTTP servers:** *Tools → File servers* shares a
+  folder of this computer, e.g. to copy firmware to a switch over TFTP or to
+  let a server `curl` a file. Only this computer can connect unless you
+  allow other computers; uploads are off unless you turn them on, and never
+  replace a file. Each server shows its addresses and recent requests.
+
 ## 0.5.5 (2026-11-10)
 
 - **Pause and resume downloads:** ⏸ pauses a download and ▶ continues it

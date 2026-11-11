@@ -1,0 +1,254 @@
+//! The servers against a real client: curl speaks TFTP and HTTP. Skipped
+//! when curl is not installed (CI runners have it).
+
+use std::net::{IpAddr, Ipv4Addr};
+use std::path::Path;
+use std::process::Command;
+use std::sync::{Arc, Mutex};
+
+use local_servers::{Action, Activity, ServerConfig, ServerKind, start};
+
+fn curl() -> bool {
+    Command::new("curl")
+        .arg("--version")
+        .output()
+        .is_ok_and(|o| o.status.success())
+}
+
+/// Runs curl with `args` off the async runtime; returns (exit ok, stdout).
+async fn run_curl(args: Vec<String>) -> (bool, Vec<u8>) {
+    tokio::task::spawn_blocking(move || {
+        let o = Command::new("curl")
+            .args(["-s", "--max-time", "20"])
+            .args(&args)
+            .output()
+            .unwrap();
+        (o.status.success(), o.stdout)
+    })
+    .await
+    .unwrap()
+}
+
+fn data(n: usize) -> Vec<u8> {
+    (0..n).map(|i| (i % 251) as u8).collect()
+}
+
+fn folder() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("fw")).unwrap();
+    std::fs::write(dir.path().join("fw").join("image.bin"), data(300_000)).unwrap();
+    std::fs::write(dir.path().join("small.txt"), b"hello\n").unwrap();
+    dir
+}
+
+type Log = Arc<Mutex<Vec<Activity>>>;
+
+async fn server(kind: ServerKind, root: &Path, uploads: bool) -> (local_servers::Running, Log) {
+    let log: Log = Arc::default();
+    let l = Arc::clone(&log);
+    let running = start(
+        kind,
+        ServerConfig {
+            root: root.to_path_buf(),
+            bind: IpAddr::V4(Ipv4Addr::LOCALHOST),
+            port: 0,
+            allow_uploads: uploads,
+        },
+        Arc::new(move |a| l.lock().unwrap().push(a)),
+    )
+    .await
+    .unwrap();
+    (running, log)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn tftp_serves_files_to_curl() {
+    if !curl() {
+        eprintln!("curl not installed; skipped");
+        return;
+    }
+    let dir = folder();
+    let (srv, log) = server(ServerKind::Tftp, dir.path(), false).await;
+    let base = format!("tftp://{}", srv.local_addr);
+
+    // Default block size and a negotiated one (curl sends blksize/tsize).
+    for extra in [
+        vec![],
+        vec!["--tftp-blksize".to_string(), "1428".to_string()],
+    ] {
+        let mut args = extra;
+        args.push(format!("{base}/fw/image.bin"));
+        let (ok, out) = run_curl(args).await;
+        assert!(ok, "download failed");
+        assert_eq!(out, data(300_000));
+    }
+    // A file whose size is a multiple of the block size ends with an empty block.
+    std::fs::write(dir.path().join("exact.bin"), data(1024)).unwrap();
+    let (ok, out) = run_curl(vec![format!("{base}/exact.bin")]).await;
+    assert!(ok && out == data(1024));
+
+    let (ok, _) = run_curl(vec![format!("{base}/missing.bin")]).await;
+    assert!(!ok, "missing file must fail");
+    // Uploads are off.
+    let up = dir.path().join("up.bin");
+    std::fs::write(&up, b"x").unwrap();
+    let (ok, _) = run_curl(vec![
+        "-T".into(),
+        up.to_string_lossy().into(),
+        format!("{base}/new.bin"),
+    ])
+    .await;
+    assert!(!ok, "upload must be refused");
+    assert!(!dir.path().join("new.bin").exists());
+
+    let log = log.lock().unwrap().clone();
+    assert!(log.iter().any(|a| a.action == Action::Download
+        && a.path == "/fw/image.bin"
+        && a.bytes == 300_000
+        && a.error.is_none()));
+    assert!(
+        log.iter()
+            .any(|a| a.path == "/missing.bin" && a.error.is_some())
+    );
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn tftp_accepts_uploads_when_allowed() {
+    if !curl() {
+        return;
+    }
+    let dir = folder();
+    let (srv, _log) = server(ServerKind::Tftp, dir.path(), true).await;
+    let base = format!("tftp://{}", srv.local_addr);
+    let src = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(src.path(), data(70_000)).unwrap();
+    let path = src.path().to_string_lossy().into_owned();
+    let (ok, _) = run_curl(vec![
+        "-T".into(),
+        path.clone(),
+        format!("{base}/fw/backup.cfg"),
+    ])
+    .await;
+    assert!(ok, "upload failed");
+    assert_eq!(
+        std::fs::read(dir.path().join("fw").join("backup.cfg")).unwrap(),
+        data(70_000)
+    );
+    // Never replaces a file.
+    let (ok, _) = run_curl(vec!["-T".into(), path, format!("{base}/small.txt")]).await;
+    assert!(!ok);
+    assert_eq!(
+        std::fs::read(dir.path().join("small.txt")).unwrap(),
+        b"hello\n"
+    );
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn http_serves_files_ranges_and_listings() {
+    if !curl() {
+        return;
+    }
+    let dir = folder();
+    std::fs::write(dir.path().join("a b.txt"), b"spaced").unwrap();
+    let (srv, log) = server(ServerKind::Http, dir.path(), false).await;
+    let base = format!("http://{}", srv.local_addr);
+
+    let (ok, out) = run_curl(vec!["-f".into(), format!("{base}/fw/image.bin")]).await;
+    assert!(ok && out == data(300_000));
+    let (ok, out) = run_curl(vec![
+        "-f".into(),
+        "-r".into(),
+        "100-199".into(),
+        format!("{base}/fw/image.bin"),
+    ])
+    .await;
+    assert!(ok && out == data(300_000)[100..200]);
+    let (ok, out) = run_curl(vec!["-f".into(), format!("{base}/a%20b.txt")]).await;
+    assert!(ok && out == b"spaced");
+    // Listing, and a folder without its slash redirects.
+    let (ok, out) = run_curl(vec!["-f".into(), "-L".into(), format!("{base}/fw")]).await;
+    let html = String::from_utf8(out).unwrap();
+    assert!(ok && html.contains("href=\"image.bin\""), "{html}");
+    let (ok, out) = run_curl(vec!["-f".into(), format!("{base}/")]).await;
+    let html = String::from_utf8(out).unwrap();
+    assert!(
+        ok && html.contains("a%20b.txt") && html.contains("fw/"),
+        "{html}"
+    );
+
+    // Outside the folder, missing files and uploads are refused.
+    for (args, why) in [
+        (
+            vec![
+                "--path-as-is".to_string(),
+                format!("{base}/../../etc/passwd"),
+            ],
+            "traversal",
+        ),
+        (
+            vec![format!("{base}/%2e%2e/%2e%2e/etc/passwd")],
+            "encoded traversal",
+        ),
+        (vec![format!("{base}/missing")], "missing"),
+    ] {
+        let mut a = vec!["-f".to_string()];
+        a.extend(args);
+        let (ok, _) = run_curl(a).await;
+        assert!(!ok, "{why} must fail");
+    }
+    let src = tempfile::NamedTempFile::new().unwrap();
+    let (ok, _) = run_curl(vec![
+        "-f".into(),
+        "-T".into(),
+        src.path().to_string_lossy().into(),
+        format!("{base}/x.bin"),
+    ])
+    .await;
+    assert!(!ok, "uploads are off");
+
+    let log = log.lock().unwrap().clone();
+    assert!(
+        log.iter()
+            .any(|a| a.action == Action::Download && a.path == "/fw/image.bin" && a.bytes == 100)
+    );
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn http_accepts_put_uploads_when_allowed() {
+    if !curl() {
+        return;
+    }
+    let dir = folder();
+    let (srv, _log) = server(ServerKind::Http, dir.path(), true).await;
+    let base = format!("http://{}", srv.local_addr);
+    let src = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(src.path(), data(123_456)).unwrap();
+    let path = src.path().to_string_lossy().into_owned();
+    let (ok, _) = run_curl(vec![
+        "-f".into(),
+        "-T".into(),
+        path.clone(),
+        format!("{base}/fw/up.bin"),
+    ])
+    .await;
+    assert!(ok);
+    assert_eq!(
+        std::fs::read(dir.path().join("fw").join("up.bin")).unwrap(),
+        data(123_456)
+    );
+    let (ok, _) = run_curl(vec![
+        "-f".into(),
+        "-T".into(),
+        path,
+        format!("{base}/small.txt"),
+    ])
+    .await;
+    assert!(!ok, "existing file is not replaced");
+    srv.stop().await;
+    // Stopped: nothing listens any more.
+    let (ok, _) = run_curl(vec!["-f".into(), format!("{base}/small.txt")]).await;
+    assert!(!ok);
+}

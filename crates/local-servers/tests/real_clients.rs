@@ -334,6 +334,18 @@ async fn ftp_needs_the_password_and_serves_files() {
     .await;
     assert!(!ok, "traversal refused");
 
+    // Transfer notifications arrive just after the client is done.
+    let wanted = |log: &[Activity]| {
+        log.iter().any(|a| {
+            a.action == Action::Download && a.path == "/fw/image.bin" && a.bytes == 300_000
+        })
+    };
+    for _ in 0..50 {
+        if wanted(&log.lock().unwrap()) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
     let log = log.lock().unwrap().clone();
     assert!(
         log.iter()
@@ -343,11 +355,7 @@ async fn ftp_needs_the_password_and_serves_files() {
         log.iter()
             .any(|a| a.action == Action::Login && a.error.is_none())
     );
-    assert!(
-        log.iter().any(|a| a.action == Action::Download
-            && a.path == "/fw/image.bin"
-            && a.bytes == 300_000)
-    );
+    assert!(wanted(&log), "{log:?}");
     srv.stop().await;
 }
 

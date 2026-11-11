@@ -20,6 +20,7 @@ mod monitor;
 mod mosh;
 mod rdp_certs;
 mod remote_files;
+mod servers;
 mod sessions;
 mod settings;
 mod snippets;
@@ -52,6 +53,7 @@ pub use monitor::{ServerMonitor, ServerStats};
 pub use mosh::{find_mosh, mosh_command};
 pub use rdp_certs::{CertificateCheck, FTPS_CERT_ALGORITHM, RDP_CERT_ALGORITHM};
 pub use remote_files::RemoteFiles;
+pub use servers::{ActivityEntry, LocalServers, ServerInfo, ServerSpec, ServerState};
 pub use sessions::{
     Appearance, AuthMethod, SessionId, SessionInput, SessionProtocol, SessionRecord, SessionStore,
 };

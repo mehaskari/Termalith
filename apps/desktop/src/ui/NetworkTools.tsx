@@ -1,8 +1,10 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { cancelProbe, dnsLookup, isIpcError, startProbe, startScan, tcpCheck, wakeOnLan } from "../terminal/api";
+import type { DroppedFile } from "../terminal/api";
+import { ServersTool } from "./ServersTool";
 import { calcSubnet } from "./subnet";
 
-type Tool = "ping" | "traceroute" | "tcp" | "scan" | "dns" | "subnet" | "wol";
+type Tool = "ping" | "traceroute" | "tcp" | "scan" | "dns" | "subnet" | "wol" | "servers";
 const TOOLS: Array<[Tool, string]> = [
   ["ping", "Ping"],
   ["traceroute", "Traceroute"],
@@ -11,12 +13,18 @@ const TOOLS: Array<[Tool, string]> = [
   ["dns", "DNS lookup"],
   ["subnet", "Subnet calculator"],
   ["wol", "Wake-on-LAN"],
+  ["servers", "File servers (TFTP, HTTP)"],
 ];
 
 const msg = (e: unknown) => (isIpcError(e) ? e.message : String(e));
 
-export function NetworkTools() {
+/** `dropped`: a folder dropped onto the window while this tab is open (shared by the file servers). */
+export function NetworkTools({ dropped = null }: { dropped?: DroppedFile | null }) {
   const [tool, setTool] = useState<Tool>("ping");
+  // A dropped folder is meant for the file servers.
+  useEffect(() => {
+    if (dropped) setTool("servers");
+  }, [dropped]);
   return (
     <div className="tools">
       <nav className="tools-nav" aria-label="Network tools">
@@ -33,6 +41,7 @@ export function NetworkTools() {
         {tool === "subnet" && <SubnetTool />}
         {tool === "scan" && <ScanTool />}
         {tool === "wol" && <WolTool />}
+        {tool === "servers" && <ServersTool dropped={dropped} />}
       </div>
     </div>
   );

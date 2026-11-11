@@ -9,6 +9,7 @@ mod keys;
 mod links;
 mod nettools;
 mod portable;
+mod servers;
 mod sessions;
 mod ssh;
 mod state;
@@ -90,6 +91,11 @@ pub fn run() {
             terminal::tunnel_start,
             terminal::tunnel_list,
             terminal::tunnel_stop,
+            servers::server_default_folder,
+            servers::server_start,
+            servers::server_list,
+            servers::server_stop,
+            servers::server_open_folder,
             terminal::serial_ports,
             terminal::serial_open,
             nettools::net_tcp_check,

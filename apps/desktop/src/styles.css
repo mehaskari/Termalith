@@ -1952,3 +1952,40 @@ button.recording {
 .rdp-title {
   padding-left: 8px;
 }
+
+/* Built-in file servers (Network tools → File servers) */
+.servers .server {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.servers .server .row {
+  align-items: center;
+  gap: 10px;
+}
+.servers .server .row button {
+  margin-left: auto;
+}
+.server-urls {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.server-activity {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  table-layout: fixed;
+}
+.server-activity th,
+.server-activity td {
+  text-align: left;
+  padding: 2px 8px 2px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.server-activity tr.failed td {
+  color: var(--danger, #d9534f);
+}

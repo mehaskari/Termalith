@@ -29,6 +29,8 @@ pub struct AppState {
     pub secrets_available: bool,
     pub transfers: Arc<Transfers>,
     pub tunnels: Arc<Tunnels>,
+    /// Built-in TFTP/HTTP servers (ADR-036).
+    pub servers: Arc<app_core::LocalServers>,
     pub probes: Arc<crate::nettools::Probes>,
     /// Files dropped onto the window; uploads refer to them by token.
     pub dropped: Arc<DroppedFiles>,
@@ -174,6 +176,7 @@ impl AppState {
             secrets_available,
             transfers,
             tunnels: Arc::new(Tunnels::default()),
+            servers: Arc::new(app_core::LocalServers::default()),
             probes: Arc::new(crate::nettools::Probes::default()),
             dropped: Arc::new(DroppedFiles::default()),
             downloads_dir,

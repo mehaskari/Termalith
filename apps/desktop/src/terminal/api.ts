@@ -574,6 +574,50 @@ export function startScan(
 /** Sends a Wake-on-LAN magic packet. */
 export const wakeOnLan = (mac: string, broadcast: string | null) => invoke<void>("net_wake", { mac, broadcast });
 
+// ---------------------------------------------------------------- file servers
+
+export type ServerKind = "tftp" | "http";
+
+export interface ServerActivity {
+  seq: number;
+  /** Seconds since the Unix epoch. */
+  at: number;
+  peer: string;
+  action: "download" | "upload" | "list";
+  path: string;
+  bytes: number;
+  error: string | null;
+}
+
+export interface ServerInfo {
+  id: number;
+  kind: ServerKind;
+  folder: string;
+  port: number;
+  lan: boolean;
+  allowUploads: boolean;
+  urls: string[];
+}
+
+export interface ServerState extends ServerInfo {
+  activity: ServerActivity[];
+}
+
+/** The default shared folder ("Termalith Share" in Downloads), created if missing. */
+export const serverDefaultFolder = () => invoke<string>("server_default_folder");
+/** Starts a server for the default folder, or a dropped folder by token. */
+export const serverStart = (request: {
+  kind: ServerKind;
+  folderToken: number | null;
+  lan: boolean;
+  port: number | null;
+  allowUploads: boolean;
+}) => invoke<ServerInfo>("server_start", { request });
+export const serverList = () => invoke<ServerState[]>("server_list");
+export const serverStop = (id: number) => invoke<boolean>("server_stop", { id });
+/** Opens the default shared folder in Finder / Explorer / the file manager. */
+export const serverOpenFolder = () => invoke<void>("server_open_folder");
+
 /** Saves terminal text to a new file in the logs folder; resolves to its path. */
 export const saveTerminalOutput = (label: string, text: string) =>
   invoke<string>("terminal_save_output", { label, text });

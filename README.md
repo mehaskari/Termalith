@@ -96,7 +96,7 @@ through an SSH tunnel; RDP certificates checked like SSH host keys.
 
 **And** — serial consoles, Telnet (through a jump host if you like), ping,
 traceroute, port check and scan, DNS lookup, subnet calculator,
-Wake-on-LAN; folders, favorites, tags and search; import from MobaXterm and
+Wake-on-LAN, built-in TFTP and HTTP file servers; folders, favorites, tags and search; import from MobaXterm and
 `~/.ssh/config`; master password; portable mode on a USB stick; keyboard
 navigation and screen-reader labels.
 [All topics](https://mehaskari.github.io/Termalith/guide/)

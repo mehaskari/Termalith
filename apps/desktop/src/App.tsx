@@ -261,6 +261,8 @@ export function App() {
     [],
   );
   const [dropped, setDropped] = useState<DroppedFile[] | null>(null);
+  /** A folder dropped while the Network tools tab is active (for the file servers). */
+  const [toolsFolder, setToolsFolder] = useState<DroppedFile | null>(null);
   /** Files are being dragged over the window. */
   const [fileHover, setFileHover] = useState(false);
   const [confirmForget, setConfirmForget] = useState<Tab | null>(null);
@@ -646,6 +648,12 @@ export function App() {
     const unlistenAuth = listen<AuthPrompt>("auth-prompt", (e) => setAuthPrompts((q) => [...q, e.payload]));
     const unlistenDrop = listen<DroppedFile[]>("files-dropped", (e) => {
       const tab = activeRef.current;
+      if (tab?.kind === "tools") {
+        const folder = e.payload.find((f) => f.folder);
+        if (folder) setToolsFolder(folder);
+        else setNotice("Drop a folder to share it with the file servers.");
+        return;
+      }
       if (!(tab?.filesOpen || tab?.kind === "files") || tab.terminalId === undefined)
         setNotice("To upload, open Files on a connected SSH tab and drop the files again.");
       else if (e.payload.length === 0)
@@ -1056,7 +1064,7 @@ export function App() {
               aria-labelledby={`tab-${t.key}`}
             >
               {t.kind === "tools" ? (
-                <NetworkTools />
+                <NetworkTools dropped={toolsFolder} />
               ) : t.kind === "diff" && t.diff ? (
                 <DiffPane left={t.diff.left} right={t.diff.right} />
               ) : t.kind === "editor" && t.edit ? (

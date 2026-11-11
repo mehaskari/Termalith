@@ -9,7 +9,7 @@ packages via pnpm) and covers what ships in the app on all platforms.
 
 | License | Crates |
 |---|---|
-| MIT License | 528 |
+| MIT License | 534 |
 | Unicode License v3 | 19 |
 | Apache License 2.0 | 13 |
 | BSD 3-Clause "New" or "Revised" License | 8 |
@@ -2110,6 +2110,33 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
+Used by: `hyper 1.12.0`
+
+```text
+Copyright (c) 2014-2026 Sean McArthur
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+```
+
+### MIT License
+
 Used by: `serde_with 3.24.0`, `serde_with_macros 3.24.0`
 
 ```text
@@ -2659,6 +2686,33 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
+Used by: `httpdate 1.0.3`
+
+```text
+Copyright (c) 2016 Pyfisch
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 ```
 
@@ -4411,6 +4465,39 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
+Used by: `http-body-util 0.1.5`, `http-body 1.1.0`
+
+```text
+Copyright (c) 2019-2026 Sean McArthur & Hyper Contributors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
 Used by: `aes-gcm 0.11.1`, `chacha20 0.10.2`, `chacha20poly1305 0.11.0`, `ghash 0.6.0`, `polyval 0.7.3`, `zeroize_derive 1.5.0`
 
 ```text
@@ -5259,6 +5346,33 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+```
+
+### MIT License
+
+Used by: `hyper-util 0.1.21`
+
+```text
+Copyright (c) 2023-2025 Sean McArthur
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 ```
 
@@ -6962,7 +7076,7 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `termalith-desktop 0.5.0`, `app-core 0.5.0`, `credential-store 0.5.0`, `network-tools 0.5.0`, `protocol-ftp 0.5.0`, `protocol-ssh 0.5.0`, `protocol-telnet 0.5.0`, `remote-desktop 0.5.0`, `serial-console 0.5.0`, `terminal-pty 0.5.0`, `test-sshd 0.5.0`, `asn1-rs-impl 0.2.0`, `block2 0.6.2`, `brotli-decompressor 6.2.0`, `chrono 0.4.45`, `delegate 0.13.5`, `dispatch2 0.3.1`, `dlopen2 0.8.2`, `dlopen2_derive 0.4.3`, `dpi 0.1.2`, `ironrdp-bulk 0.2.0`, `ironrdp-rdpei 0.3.0`, `lazy-regex-proc_macros 3.6.2`, `md5 0.8.1`, `objc2-app-kit 0.3.2`, `objc2-core-foundation 0.3.2`, `objc2-core-graphics 0.3.2`, `objc2-encode 4.1.0`, `objc2-exception-helper 0.1.1`, `objc2-foundation 0.3.2`, `objc2-quartz-core 0.3.2`, `objc2-web-kit 0.3.2`, `objc2 0.6.5`, `suppaftp 12.2.1`, `webview2-com-macros 0.8.1`, `webview2-com-sys 0.39.1`, `webview2-com 0.39.1`, `wide 0.7.33`, `windows-collections 0.3.2`, `windows-core 0.62.2`, `windows-future 0.3.2`, `windows-implement 0.60.2`, `windows-interface 0.59.3`, `windows-link 0.2.1`, `windows-numerics 0.3.1`, `windows-registry 0.6.1`, `windows-result 0.4.1`, `windows-strings 0.5.1`, `windows-sys 0.52.0`, `windows-sys 0.61.2`, `windows-targets 0.52.6`, `windows-threading 0.2.1`, `windows-version 0.1.7`, `windows 0.62.2`, `windows_x86_64_gnu 0.52.6`, `windows_x86_64_msvc 0.52.6`, `winscard 0.4.0`
+Used by: `termalith-desktop 0.5.5`, `app-core 0.5.5`, `credential-store 0.5.5`, `local-servers 0.5.5`, `network-tools 0.5.5`, `protocol-ftp 0.5.5`, `protocol-ssh 0.5.5`, `protocol-telnet 0.5.5`, `remote-desktop 0.5.5`, `serial-console 0.5.5`, `terminal-pty 0.5.5`, `test-sshd 0.5.5`, `asn1-rs-impl 0.2.0`, `block2 0.6.2`, `brotli-decompressor 6.2.0`, `chrono 0.4.45`, `delegate 0.13.5`, `dispatch2 0.3.1`, `dlopen2 0.8.2`, `dlopen2_derive 0.4.3`, `dpi 0.1.2`, `ironrdp-bulk 0.2.0`, `ironrdp-rdpei 0.3.0`, `lazy-regex-proc_macros 3.6.2`, `md5 0.8.1`, `objc2-app-kit 0.3.2`, `objc2-core-foundation 0.3.2`, `objc2-core-graphics 0.3.2`, `objc2-encode 4.1.0`, `objc2-exception-helper 0.1.1`, `objc2-foundation 0.3.2`, `objc2-quartz-core 0.3.2`, `objc2-web-kit 0.3.2`, `objc2 0.6.5`, `suppaftp 12.2.1`, `webview2-com-macros 0.8.1`, `webview2-com-sys 0.39.1`, `webview2-com 0.39.1`, `wide 0.7.33`, `windows-collections 0.3.2`, `windows-core 0.62.2`, `windows-future 0.3.2`, `windows-implement 0.60.2`, `windows-interface 0.59.3`, `windows-link 0.2.1`, `windows-numerics 0.3.1`, `windows-registry 0.6.1`, `windows-result 0.4.1`, `windows-strings 0.5.1`, `windows-sys 0.52.0`, `windows-sys 0.61.2`, `windows-targets 0.52.6`, `windows-threading 0.2.1`, `windows-version 0.1.7`, `windows 0.62.2`, `windows_x86_64_gnu 0.52.6`, `windows_x86_64_msvc 0.52.6`, `winscard 0.4.0`
 
 ```text
 MIT License

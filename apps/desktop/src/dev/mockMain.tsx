@@ -727,8 +727,8 @@ mockIPC(
       case "server_open_folder":
         return null;
       case "server_start": {
-        const r = a.request as { kind: "tftp" | "http"; folderToken: number | null; lan: boolean; port: number | null; allowUploads: boolean };
-        const port = r.port ?? (r.kind === "tftp" ? 6969 : 8080);
+        const r = a.request as { kind: "tftp" | "http" | "ftp"; folderToken: number | null; lan: boolean; port: number | null; allowUploads: boolean };
+        const port = r.port ?? { tftp: 6969, http: 8080, ftp: 2121 }[r.kind];
         if (mockServers.some((x) => x.port === port)) throw { code: "invalid", message: `invalid server: cannot listen on 0.0.0.0:${port}: Address already in use` };
         const id = mockServers.length + 1;
         const scheme = r.kind;
@@ -736,6 +736,7 @@ mockIPC(
         const now = Math.floor(Date.now() / 1000);
         const server = {
           id, kind: r.kind, folder: "/Users/me/Downloads/Termalith Share", port, lan: r.lan, allowUploads: r.allowUploads, urls,
+          credentials: r.kind === "ftp" ? { user: "termalith", password: "k7Qm2xPa9TbN" } : null,
           activity: [
             { seq: 1, at: now, peer: "192.168.1.40", action: "download", path: "/fw/switch-9.3.bin", bytes: 48_234_496, error: null },
             { seq: 2, at: now, peer: "192.168.1.40", action: "upload", path: "/backup.cfg", bytes: 0, error: "uploads are turned off" },

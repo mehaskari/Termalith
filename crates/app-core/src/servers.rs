@@ -40,8 +40,17 @@ pub struct ServerInfo {
     pub port: u16,
     pub lan: bool,
     pub allow_uploads: bool,
-    /// Addresses to give to clients (`tftp://…`, `http://…`).
+    /// Addresses to give to clients (`tftp://…`, `http://…`, `ftp://…`).
     pub urls: Vec<String>,
+    /// FTP: the user name and this start's random password.
+    pub credentials: Option<FtpCredentials>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FtpCredentials {
+    pub user: String,
+    pub password: String,
 }
 
 /// One activity entry, numbered so the panel can show what is new.
@@ -126,6 +135,10 @@ impl LocalServers {
             lan: spec.lan,
             allow_uploads: spec.allow_uploads,
             urls: urls(spec.kind, running.local_addr, spec.lan),
+            credentials: running
+                .credentials
+                .clone()
+                .map(|(user, password)| FtpCredentials { user, password }),
         };
         self.servers
             .lock()
@@ -199,6 +212,7 @@ fn urls(kind: ServerKind, addr: SocketAddr, lan: bool) -> Vec<String> {
     let scheme = match kind {
         ServerKind::Tftp => "tftp",
         ServerKind::Http => "http",
+        ServerKind::Ftp => "ftp",
     };
     let port = addr.port();
     let mut hosts = vec!["127.0.0.1".to_owned()];
@@ -264,6 +278,23 @@ mod tests {
         assert!(hub.stop(info.id).await);
         assert!(hub.list().is_empty());
         assert!(!hub.stop(info.id).await);
+
+        let ftp = hub
+            .start(ServerSpec {
+                kind: ServerKind::Ftp,
+                root: dir.path().to_path_buf(),
+                lan: false,
+                port: Some(0),
+                allow_uploads: false,
+            })
+            .await
+            .unwrap();
+        let creds = ftp.credentials.clone().expect("FTP credentials");
+        assert_eq!(creds.user, "termalith");
+        assert_eq!(creds.password.len(), 12);
+        assert!(ftp.urls[0].starts_with("ftp://127.0.0.1:"));
+        hub.stop_all().await;
+        assert!(hub.list().is_empty());
 
         let missing = hub
             .start(ServerSpec {

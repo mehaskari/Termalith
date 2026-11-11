@@ -1,6 +1,6 @@
 [package]
 name = "local-servers"
-description = "Built-in file servers (TFTP, HTTP) that share one local folder. Independent of Tauri and React."
+description = "Built-in file servers (TFTP, HTTP, FTP) that share one local folder. Independent of Tauri and React."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -17,6 +17,12 @@ hyper = { version = "1.12", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 tokio = { version = "1.54", features = ["fs", "io-util", "macros", "net", "rt", "sync", "time"] }
 tokio-util = { version = "0.7.20", default-features = false, features = ["io"] }
+async-trait = "0.1"
+getrandom = "0.3"
+# Without Prometheus metrics and PROXY protocol support (not used).
+libunftp = { version = "0.24", default-features = false, features = ["aws_lc_rs"] }
+unftp-core = "0.1"
+unftp-sbe-fs = "0.4"
 
 [dev-dependencies]
 tempfile = "3.27"

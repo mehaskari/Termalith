@@ -13,7 +13,7 @@ const TOOLS: Array<[Tool, string]> = [
   ["dns", "DNS lookup"],
   ["subnet", "Subnet calculator"],
   ["wol", "Wake-on-LAN"],
-  ["servers", "File servers (TFTP, HTTP)"],
+  ["servers", "File servers (TFTP, HTTP, FTP)"],
 ];
 
 const msg = (e: unknown) => (isIpcError(e) ? e.message : String(e));

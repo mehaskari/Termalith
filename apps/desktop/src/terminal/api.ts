@@ -576,14 +576,14 @@ export const wakeOnLan = (mac: string, broadcast: string | null) => invoke<void>
 
 // ---------------------------------------------------------------- file servers
 
-export type ServerKind = "tftp" | "http";
+export type ServerKind = "tftp" | "http" | "ftp";
 
 export interface ServerActivity {
   seq: number;
   /** Seconds since the Unix epoch. */
   at: number;
   peer: string;
-  action: "download" | "upload" | "list";
+  action: "download" | "upload" | "list" | "login";
   path: string;
   bytes: number;
   error: string | null;
@@ -597,6 +597,8 @@ export interface ServerInfo {
   lan: boolean;
   allowUploads: boolean;
   urls: string[];
+  /** FTP: user name and this start's random password. */
+  credentials: { user: string; password: string } | null;
 }
 
 export interface ServerState extends ServerInfo {

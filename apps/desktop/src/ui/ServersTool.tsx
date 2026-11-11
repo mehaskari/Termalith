@@ -13,11 +13,11 @@ import {
 import { formatSize } from "./paths";
 
 const msg = (e: unknown) => (isIpcError(e) ? e.message : String(e));
-const DEFAULT_PORT: Record<ServerKind, number> = { tftp: 6969, http: 8080 };
-const LABEL: Record<ServerKind, string> = { tftp: "TFTP", http: "HTTP" };
+const DEFAULT_PORT: Record<ServerKind, number> = { tftp: 6969, http: 8080, ftp: 2121 };
+const LABEL: Record<ServerKind, string> = { tftp: "TFTP", http: "HTTP", ftp: "FTP" };
 
 /**
- * Built-in TFTP and HTTP servers sharing one folder: the default
+ * Built-in TFTP, HTTP and FTP servers sharing one folder: the default
  * "Termalith Share" folder, or a folder dropped onto the window.
  */
 export function ServersTool({ dropped }: { dropped: DroppedFile | null }) {
@@ -84,6 +84,7 @@ export function ServersTool({ dropped }: { dropped: DroppedFile | null }) {
             }}>
               <option value="tftp">TFTP</option>
               <option value="http">HTTP</option>
+              <option value="ftp">FTP</option>
             </select>
           </label>
           <label>
@@ -118,7 +119,7 @@ export function ServersTool({ dropped }: { dropped: DroppedFile | null }) {
           <input type="checkbox" checked={uploads} onChange={(e) => setUploads(e.target.checked)} />
           Allow uploads (new files only; existing files are never replaced)
         </label>
-        {kind === "tftp" && Number(port) < 1024 && Number(port) > 0 && (
+        {Number(port) < 1024 && Number(port) > 0 && (
           <p className="hint">Ports below 1024 need administrator rights on macOS and Linux.</p>
         )}
         {error && <p className="files-error" role="alert">{error}</p>}
@@ -139,6 +140,16 @@ export function ServersTool({ dropped }: { dropped: DroppedFile | null }) {
               </button>
             </div>
             <p className="hint"><code>{s.folder}</code></p>
+            {s.credentials && (
+              <p className="hint">
+                User <code>{s.credentials.user}</code> · password <code>{s.credentials.password}</code>{" "}
+                <button type="button" className="link"
+                  onClick={() => void navigator.clipboard.writeText(s.credentials?.password ?? "").catch(() => {})}>
+                  Copy password
+                </button>
+                <br />A new random password is made each time the server starts.
+              </p>
+            )}
             <ul className="server-urls">
               {s.urls.map((u) => (
                 <li key={u}>
@@ -161,7 +172,7 @@ export function ServersTool({ dropped }: { dropped: DroppedFile | null }) {
                       <td>{a.peer}</td>
                       <td>{a.action}</td>
                       <td title={a.path}>{a.path}</td>
-                      <td>{a.action === "list" ? "" : formatSize(a.bytes)}</td>
+                      <td>{a.action === "list" || a.action === "login" ? "" : formatSize(a.bytes)}</td>
                       <td>{a.error ?? "ok"}</td>
                     </tr>
                   ))}

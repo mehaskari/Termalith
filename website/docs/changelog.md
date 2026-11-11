@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Built-in FTP server:** *Tools → File servers* now also offers FTP
+  (port 2121), with user `termalith` and a new random password on every
+  start; read-only unless uploads are allowed, never deletes, renames or
+  replaces files.
 - **Built-in TFTP and HTTP servers:** *Tools → File servers* shares a
   folder of this computer, e.g. to copy firmware to a switch over TFTP or to
   let a server `curl` a file. Only this computer can connect unless you

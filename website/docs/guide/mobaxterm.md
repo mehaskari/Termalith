@@ -52,8 +52,8 @@ MobaXterm or Mobatek.
 
 - A built-in X server on Windows: use VcXsrv or Xming with *Forward X11*.
 - Built-in Unix tools on Windows (use WSL or Git Bash as the local shell).
-- Built-in FTP and NFS servers (TFTP and HTTP are in
-  [Tools → File servers](serial-telnet-tools.md#file-servers-tftp-http)),
+- A built-in NFS server (TFTP, HTTP and FTP are in
+  [Tools → File servers](serial-telnet-tools.md#file-servers-tftp-http-ftp)),
   and S3, RSH or XDMCP sessions.
 - Sound and drive sharing in embedded RDP.
 

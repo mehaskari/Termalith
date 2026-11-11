@@ -1,5 +1,5 @@
 ---
-description: Serial consoles, Telnet and the built-in network tools of Termalith — ping, traceroute, TCP port check, port scan, DNS lookup, subnet calculator, Wake-on-LAN and TFTP/HTTP file servers.
+description: Serial consoles, Telnet and the built-in network tools of Termalith — ping, traceroute, TCP port check, port scan, DNS lookup, subnet calculator, Wake-on-LAN and TFTP/HTTP/FTP file servers.
 ---
 
 # Serial, Telnet and network tools
@@ -35,32 +35,38 @@ through the proxy in [Settings](settings.md).
 | DNS lookup | The addresses a name resolves to. |
 | Subnet calculator | Network, netmask, wildcard, broadcast and host range for an IPv4 address and prefix. |
 | Wake-on-LAN | Sends a magic packet to a MAC address, optionally to a given broadcast address. |
-| File servers (TFTP, HTTP) | Shares a folder of this computer, see below. |
+| File servers (TFTP, HTTP, FTP) | Shares a folder of this computer, see below. |
 
-## File servers (TFTP, HTTP)
+## File servers (TFTP, HTTP, FTP)
 
-**Tools → File servers (TFTP, HTTP)** shares one folder of this computer for
+**Tools → File servers (TFTP, HTTP, FTP)** shares one folder of this computer for
 as long as you need it, for example to copy firmware or a configuration to a
-switch over TFTP, or to let a server fetch a file with `curl`.
+switch over TFTP, to let a server fetch a file with `curl`, or to give an
+older device or a file manager an FTP server.
 
 - **Shared folder:** *Termalith Share* in your Downloads folder (**Open
   folder** shows it; put the files there), or drop any folder onto the
   window while this tool is open to share that folder instead.
-- **Protocol and port:** TFTP on port 6969 or HTTP on port 8080 by default.
-  Ports below 1024 (69 for TFTP, 80 for HTTP) need administrator rights on
-  macOS and Linux; many devices let you give the port in the URL instead
+- **Protocol and port:** TFTP on port 6969, HTTP on port 8080 or FTP on port
+  2121 by default. Ports below 1024 (69 for TFTP, 80 for HTTP, 21 for FTP)
+  need administrator rights on macOS and Linux; many devices let you give the port in the URL instead
   (`tftp://192.168.1.23:6969/file.bin`).
 - **Allow other computers:** off by default, so only this computer can
   connect. Turn it on to serve devices on your network; the addresses to use
   are shown with each running server. Your firewall may ask to allow
   Termalith.
+- **FTP sign-in:** user `termalith` and a random password, shown with the
+  running server (**Copy password**); every start makes a new password.
+  Anonymous sign-in is not offered.
 - **Allow uploads:** off by default (read-only). When on, clients can upload
-  new files (TFTP write, HTTP `PUT`, e.g. `curl -T backup.cfg
-  http://192.168.1.23:8080/`); an existing file is never replaced.
+  new files and create folders (TFTP write, HTTP `PUT`, e.g. `curl -T
+  backup.cfg http://192.168.1.23:8080/`, FTP `put`); an existing file is
+  never replaced, and nothing is ever deleted or renamed.
 - Each running server lists its addresses (**Copy**) and the recent
   requests: client, file, size and result. **Stop** ends it; servers also
   stop when Termalith quits.
 - TFTP supports the block size, transfer size and timeout options; HTTP
-  supports directory listings and byte ranges (resumable downloads). Both
-  are unencrypted: share only what may be seen on the network, and only for
+  supports directory listings and byte ranges, FTP resumed downloads
+  (`REST`). All three are unencrypted (FTP sends its password in plain
+  text): share only what may be seen on the network, and only for
   as long as needed.

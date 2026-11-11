@@ -1,6 +1,6 @@
 //! Built-in file servers that share one local folder for a while: TFTP
-//! (firmware and configs for network devices) and HTTP (a file a server
-//! can `curl`). See ADR-036.
+//! (firmware and configs for network devices), HTTP (a file a server can
+//! `curl`) and FTP (older devices and file managers). See ADR-036.
 //!
 //! Every server is confined to its folder: request paths are checked
 //! component by component, and the resolved file must still be inside the
@@ -15,8 +15,11 @@ use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
+pub mod ftp;
 pub mod http;
 pub mod tftp;
+
+pub use ftp::FTP_USER;
 
 /// Which protocol a server speaks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -24,6 +27,7 @@ pub mod tftp;
 pub enum ServerKind {
     Tftp,
     Http,
+    Ftp,
 }
 
 impl ServerKind {
@@ -33,6 +37,7 @@ impl ServerKind {
         match self {
             ServerKind::Tftp => 6969,
             ServerKind::Http => 8080,
+            ServerKind::Ftp => 2121,
         }
     }
 }
@@ -67,6 +72,8 @@ pub enum Action {
     Download,
     Upload,
     List,
+    /// FTP sign-in (the client's address is known only here).
+    Login,
 }
 
 pub type ActivitySink = Arc<dyn Fn(Activity) + Send + Sync>;
@@ -87,6 +94,8 @@ pub enum ServerError {
 pub struct Running {
     pub kind: ServerKind,
     pub local_addr: SocketAddr,
+    /// FTP: the user name and the random password of this start.
+    pub credentials: Option<(String, String)>,
     stop: CancellationToken,
     task: JoinHandle<()>,
 }
@@ -124,13 +133,20 @@ pub async fn start(
     });
     let addr = SocketAddr::new(config.bind, config.port);
     let stop = CancellationToken::new();
+    let mut credentials = None;
     let (local_addr, task) = match kind {
         ServerKind::Tftp => tftp::serve(addr, shared, stop.clone()).await?,
         ServerKind::Http => http::serve(addr, shared, stop.clone()).await?,
+        ServerKind::Ftp => {
+            let password = ftp::random_password();
+            credentials = Some((FTP_USER.to_owned(), password.clone()));
+            ftp::serve(addr, shared, stop.clone(), password).await?
+        }
     };
     Ok(Running {
         kind,
         local_addr,
+        credentials,
         stop,
         task,
     })

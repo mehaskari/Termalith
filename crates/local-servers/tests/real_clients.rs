@@ -252,3 +252,152 @@ async fn http_accepts_put_uploads_when_allowed() {
     let (ok, _) = run_curl(vec!["-f".into(), format!("{base}/small.txt")]).await;
     assert!(!ok);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn ftp_needs_the_password_and_serves_files() {
+    if !curl() {
+        return;
+    }
+    let dir = folder();
+    let (srv, log) = server(ServerKind::Ftp, dir.path(), false).await;
+    let (user, password) = srv.credentials.clone().expect("FTP has credentials");
+    let base = format!("ftp://{}", srv.local_addr);
+    let auth = format!("{user}:{password}");
+
+    // Wrong password and anonymous are refused.
+    for who in [format!("{user}:wrong"), "anonymous:x".to_string()] {
+        let (ok, _) = run_curl(vec!["-u".into(), who, format!("{base}/small.txt")]).await;
+        assert!(!ok, "login must fail");
+    }
+    let (ok, out) = run_curl(vec![
+        "-u".into(),
+        auth.clone(),
+        format!("{base}/fw/image.bin"),
+    ])
+    .await;
+    assert!(ok && out == data(300_000), "download");
+    // Resumed download (REST).
+    let (ok, out) = run_curl(vec![
+        "-u".into(),
+        auth.clone(),
+        "-C".into(),
+        "299000".into(),
+        format!("{base}/fw/image.bin"),
+    ])
+    .await;
+    assert!(ok && out == data(300_000)[299_000..], "resume");
+    let (ok, out) = run_curl(vec![
+        "-u".into(),
+        auth.clone(),
+        "-l".into(),
+        format!("{base}/"),
+    ])
+    .await;
+    let names = String::from_utf8(out).unwrap();
+    assert!(
+        ok && names.contains("small.txt") && names.contains("fw"),
+        "{names}"
+    );
+    // Read-only: no upload, no delete, no rename.
+    let src = tempfile::NamedTempFile::new().unwrap();
+    let (ok, _) = run_curl(vec![
+        "-u".into(),
+        auth.clone(),
+        "-T".into(),
+        src.path().to_string_lossy().into(),
+        format!("{base}/new.bin"),
+    ])
+    .await;
+    assert!(
+        !ok && !dir.path().join("new.bin").exists(),
+        "upload refused"
+    );
+    let (ok, _) = run_curl(vec![
+        "-u".into(),
+        auth.clone(),
+        "-Q".into(),
+        "DELE small.txt".into(),
+        format!("{base}/"),
+    ])
+    .await;
+    assert!(
+        !ok && dir.path().join("small.txt").exists(),
+        "delete refused"
+    );
+    // Outside the folder.
+    let (ok, _) = run_curl(vec![
+        "-u".into(),
+        auth,
+        "--path-as-is".into(),
+        format!("{base}/../../etc/passwd"),
+    ])
+    .await;
+    assert!(!ok, "traversal refused");
+
+    // Transfer notifications arrive just after the client is done.
+    let wanted = |log: &[Activity]| {
+        log.iter().any(|a| {
+            a.action == Action::Download && a.path == "/fw/image.bin" && a.bytes == 300_000
+        })
+    };
+    for _ in 0..50 {
+        if wanted(&log.lock().unwrap()) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    let log = log.lock().unwrap().clone();
+    assert!(
+        log.iter()
+            .any(|a| a.action == Action::Login && a.error.is_some() && a.peer == "127.0.0.1")
+    );
+    assert!(
+        log.iter()
+            .any(|a| a.action == Action::Login && a.error.is_none())
+    );
+    assert!(wanted(&log), "{log:?}");
+    srv.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn ftp_accepts_new_files_when_allowed() {
+    if !curl() {
+        return;
+    }
+    let dir = folder();
+    let (srv, _log) = server(ServerKind::Ftp, dir.path(), true).await;
+    let (user, password) = srv.credentials.clone().unwrap();
+    let base = format!("ftp://{}", srv.local_addr);
+    let auth = format!("{user}:{password}");
+    let src = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(src.path(), data(90_000)).unwrap();
+    let path = src.path().to_string_lossy().into_owned();
+    let (ok, _) = run_curl(vec![
+        "-u".into(),
+        auth.clone(),
+        "--ftp-create-dirs".into(),
+        "-T".into(),
+        path.clone(),
+        format!("{base}/backups/sw1.cfg"),
+    ])
+    .await;
+    assert!(ok, "upload into a new folder");
+    assert_eq!(
+        std::fs::read(dir.path().join("backups").join("sw1.cfg")).unwrap(),
+        data(90_000)
+    );
+    let (ok, _) = run_curl(vec![
+        "-u".into(),
+        auth,
+        "-T".into(),
+        path,
+        format!("{base}/small.txt"),
+    ])
+    .await;
+    assert!(!ok, "existing file is not replaced");
+    assert_eq!(
+        std::fs::read(dir.path().join("small.txt")).unwrap(),
+        b"hello\n"
+    );
+    srv.stop().await;
+}

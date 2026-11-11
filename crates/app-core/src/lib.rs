@@ -53,7 +53,9 @@ pub use monitor::{ServerMonitor, ServerStats};
 pub use mosh::{find_mosh, mosh_command};
 pub use rdp_certs::{CertificateCheck, FTPS_CERT_ALGORITHM, RDP_CERT_ALGORITHM};
 pub use remote_files::RemoteFiles;
-pub use servers::{ActivityEntry, LocalServers, ServerInfo, ServerSpec, ServerState};
+pub use servers::{
+    ActivityEntry, FtpCredentials, LocalServers, ServerInfo, ServerSpec, ServerState,
+};
 pub use sessions::{
     Appearance, AuthMethod, SessionId, SessionInput, SessionProtocol, SessionRecord, SessionStore,
 };

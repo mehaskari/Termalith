@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.6 (2026-11-11)
 
 - **Built-in FTP server:** *Tools → File servers* now also offers FTP
   (port 2121), with user `termalith` and a new random password on every

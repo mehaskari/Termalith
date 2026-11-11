@@ -170,6 +170,8 @@ impl DataListener for Activity {
             DataEvent::MadeDir { path } => (Action::Upload, format!("{path}/"), 0),
             _ => return,
         };
+        // Windows paths come with backslashes; the list uses `/`.
+        let path = path.replace('\\', "/");
         let path = if path.starts_with('/') {
             path
         } else {

@@ -235,6 +235,7 @@ pub fn parse_ssh_config(text: &str, home: &Path, default_user: &str) -> Vec<Impo
                     files_only: false,
                     mosh: false,
                     appearance: None,
+                    icon: None,
                 },
                 alias,
                 warnings,

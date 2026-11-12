@@ -10,7 +10,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use protocol_ssh::{ForwardHandle, ForwardKind, SshSession, start_forward};
-use remote_desktop::embedded::{LoginParams, Viewer, ViewerEvent, ViewerInput};
+use remote_desktop::embedded::LoginParams;
+use remote_desktop::viewer::{Viewer, ViewerEvent, ViewerInput};
 use remote_desktop::{Client, DesktopTarget, LaunchPlan, Os, Protocol};
 use serde::Serialize;
 use zeroize::Zeroizing;
@@ -275,11 +276,7 @@ impl DesktopHub {
         Ok(self.keep(viewer, forward))
     }
 
-    fn keep(
-        &self,
-        viewer: remote_desktop::embedded::Viewer,
-        forward: Option<ForwardHandle>,
-    ) -> u64 {
+    fn keep(&self, viewer: remote_desktop::viewer::Viewer, forward: Option<ForwardHandle>) -> u64 {
         let id = self.next.fetch_add(1, Ordering::Relaxed);
         self.embedded_lock().insert(
             id,

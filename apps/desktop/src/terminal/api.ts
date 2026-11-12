@@ -142,6 +142,14 @@ export interface SessionInput {
   mosh?: boolean;
   /** The session's own terminal look; unset fields follow the settings. */
   appearance?: Appearance | null;
+  /** Icon in the session list and on tabs; null shows the protocol. */
+  icon?: SessionIcon | null;
+}
+
+/** A built-in picture (see ui/sessionIcons.tsx) and an optional #rrggbb color. */
+export interface SessionIcon {
+  name: string;
+  color?: string | null;
 }
 
 export interface SessionRecord extends SessionInput {
@@ -450,6 +458,9 @@ export const setFavorite = (id: string, favorite: boolean) => invoke<void>("sess
 
 /** Folders stored on their own; others exist only through their sessions. */
 export const listFolders = () => invoke<string[]>("folders_list");
+/** Folders that have an icon, as [path, icon]. */
+export const listFolderIcons = () => invoke<Array<[string, SessionIcon]>>("folder_icons_list");
+export const setFolderIcon = (path: string, icon: SessionIcon | null) => invoke<void>("folder_icon_set", { path, icon });
 /** Returns the normalized path ("A / B" becomes "A/B"). */
 export const createFolder = (path: string) => invoke<string>("folder_create", { path });
 /** Renames or moves a folder with its subfolders and sessions. */

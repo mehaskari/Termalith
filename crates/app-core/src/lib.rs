@@ -58,7 +58,8 @@ pub use servers::{
     ActivityEntry, LocalServers, LoginCredentials, ServerInfo, ServerSpec, ServerState,
 };
 pub use sessions::{
-    Appearance, AuthMethod, SessionId, SessionInput, SessionProtocol, SessionRecord, SessionStore,
+    Appearance, AuthMethod, Icon, SessionId, SessionInput, SessionProtocol, SessionRecord,
+    SessionStore,
 };
 pub use settings::{
     CursorStyle, ProxySetting, ProxyType, Settings, Theme, export_sessions, import_sessions,

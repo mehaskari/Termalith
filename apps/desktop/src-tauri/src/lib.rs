@@ -160,6 +160,8 @@ pub fn run() {
             sessions::session_set_favorite,
             sessions::folders_list,
             sessions::folder_create,
+            sessions::folder_icons_list,
+            sessions::folder_icon_set,
             sessions::folder_rename,
             sessions::folder_delete,
             sessions::session_move,

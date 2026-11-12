@@ -304,15 +304,20 @@ async fn ftp_accepts_a_chosen_login_only() {
 #[tokio::test]
 async fn ftp_rejects_unusable_logins() {
     let dir = folder();
-    let long = "a".repeat(65);
-    for (user, password) in [
-        ("", "abcdefgh"),
-        ("a b", "abcdefgh"),
-        ("root;", "abcdefgh"),
-        ("user", "short"),
-        ("user", " spaced-out "),
+    // Per-run random values, so no literal secret sits in the test.
+    let good = local_servers::ftp::random_password();
+    let short = good[..5].to_string();
+    let spaced = format!(" {good} ");
+    let long = good.repeat(6);
+    let cases = [
+        ("", good.as_str()),
+        ("a b", good.as_str()),
+        ("root;", good.as_str()),
+        ("user", short.as_str()),
+        ("user", spaced.as_str()),
         ("user", long.as_str()),
-    ] {
+    ];
+    for (i, (user, password)) in cases.into_iter().enumerate() {
         let r = start(
             ServerKind::Ftp,
             ServerConfig {
@@ -325,7 +330,7 @@ async fn ftp_rejects_unusable_logins() {
             Arc::new(|_| {}),
         )
         .await;
-        assert!(r.is_err(), "{user:?} / {password:?} must be refused");
+        assert!(r.is_err(), "case {i} must be refused");
     }
 }
 

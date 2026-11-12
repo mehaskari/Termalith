@@ -8,6 +8,7 @@ mod desktop;
 mod error;
 mod files;
 mod keys;
+mod launch;
 mod links;
 mod nettools;
 mod portable;
@@ -93,6 +94,7 @@ pub fn run() {
             terminal::tunnel_start,
             terminal::tunnel_list,
             terminal::tunnel_stop,
+            launch::launch_requests,
             servers::server_folder,
             servers::server_pick_folder,
             servers::server_use_dropped,

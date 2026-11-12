@@ -154,6 +154,8 @@ export interface SessionIcon {
 
 export interface SessionRecord extends SessionInput {
   id: string;
+  /** From a shared session file (its source id): read-only. */
+  shared?: string | null;
   hasSavedSecret: boolean;
   favorite?: boolean;
   updatedAt: number;
@@ -455,6 +457,23 @@ export const setFavorite = (id: string, favorite: boolean) => invoke<void>("sess
 
 /** Folders stored on their own; others exist only through their sessions. */
 export const listFolders = () => invoke<string[]>("folders_list");
+
+/** A shared (team) session file. */
+export interface SharedSource {
+  id: string;
+  label: string;
+  location: string;
+  syncedAt: number | null;
+  lastError: string | null;
+  sessions: number;
+}
+export const listSharedSources = () => invoke<SharedSource[]>("shared_sources_list");
+export const addSharedUrl = (label: string, url: string) => invoke<string>("shared_source_add_url", { label, url });
+/** Opens the system file dialog; null when cancelled. */
+export const addSharedFile = (label: string) => invoke<string | null>("shared_source_add_file", { label });
+export const removeSharedSource = (id: string) => invoke<void>("shared_source_remove", { id });
+export const syncShared = () =>
+  invoke<Array<{ label: string; sessions: number | null; error: string | null }>>("shared_sync");
 
 /** What the command line asked to open at startup (handed out once). */
 export type LaunchRequest =

@@ -127,6 +127,7 @@ seed({ name: "public mirror", host: "ftp.example.com", port: 21, username: "", a
 seed({ name: "lab vnc", host: "192.168.1.40", port: 5900, username: "", auth: { kind: "password" }, folder: null, protocol: "vnc" });
 
 const mockFolders = new Set<string>(["Lab/Switches"]);
+const mockShared: Array<{ id: string; label: string; location: string; syncedAt: number | null; lastError: string | null; sessions: number }> = [];
 const mockFolderIcons = new Map<string, { name: string; color?: string | null }>([["Network", { name: "router", color: "#2f9e44" }]]);
 
 const desktops = new Map<number, Record<string, unknown>>();
@@ -400,6 +401,30 @@ mockIPC(
         if (q.get("connect")) out.push({ kind: "connect", text: q.get("connect") });
         return out;
       }
+      case "shared_sources_list":
+        return mockShared.map((x) => ({ ...x }));
+      case "shared_source_add_url":
+      case "shared_source_add_file": {
+        const id = `src${mockShared.length + 1}`;
+        mockShared.push({ id, label: String(a.label), location: String(a.url ?? "/Volumes/Team/termalith-sessions.json"), syncedAt: null, lastError: null, sessions: 0 });
+        return id;
+      }
+      case "shared_source_remove": {
+        const i = mockShared.findIndex((x) => x.id === a.id);
+        if (i >= 0) mockShared.splice(i, 1);
+        return null;
+      }
+      case "shared_sync":
+        for (const src of mockShared) {
+          src.sessions = 1;
+          src.syncedAt = Math.floor(Date.now() / 1000);
+          if (![...sessions.values()].some((x) => x.name === `${src.label} jump`)) {
+            seed({ name: `${src.label} jump`, host: "10.9.0.1", port: 22, username: "ops", auth: { kind: "agent" }, folder: src.label });
+            const rec = [...sessions.values()].find((x) => x.name === `${src.label} jump`);
+            if (rec) rec.shared = src.id;
+          }
+        }
+        return mockShared.map((x) => ({ label: x.label, sessions: x.sessions, error: null }));
       case "folders_list":
         return [...mockFolders];
       case "folder_icons_list":

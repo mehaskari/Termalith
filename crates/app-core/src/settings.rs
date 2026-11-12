@@ -334,6 +334,27 @@ pub fn export_sessions(store: &SessionStore) -> Result<String, AppError> {
 
 /// Imports sessions from [`export_sessions`] output. Existing names are
 /// skipped; every entry is validated like a manually created session.
+/// The sessions of an export file as inputs, with each one's jump host by
+/// name (for shared session files; same checks as an import).
+pub(crate) fn parse_export(json: &str) -> Result<Vec<(SessionInput, Option<String>)>, AppError> {
+    if json.len() > MAX_IMPORT_BYTES {
+        return Err(AppError::invalid("session file", "file is too large"));
+    }
+    let file: ExportFile = serde_json::from_str(json)
+        .map_err(|e| AppError::invalid("session file", format!("not a Termalith export: {e}")))?;
+    if file.format != EXPORT_FORMAT || file.version > EXPORT_VERSION {
+        return Err(AppError::invalid(
+            "session file",
+            "not a Termalith session export this version can read",
+        ));
+    }
+    Ok(file
+        .sessions
+        .iter()
+        .map(|s| (to_input(s), s.jump_via.clone()))
+        .collect())
+}
+
 pub fn import_sessions(store: &SessionStore, json: &str) -> Result<ImportReport, AppError> {
     if json.len() > MAX_IMPORT_BYTES {
         return Err(AppError::invalid("import", "file is too large"));

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Shared session files.** *Settings → Shared sessions* reads a team's
+  session export from a shared folder or an https:// address; its sessions
+  appear read-only under their own folder and refresh at every start.
 - **Command-line switches.** `--session NAME`, `--folder PATH`,
   `--connect "ssh …"` or a URL such as `ssh://me@host` open sessions when
   Termalith starts, e.g. from a desktop shortcut or a script.

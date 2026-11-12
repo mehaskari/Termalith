@@ -217,6 +217,28 @@ mockIPC(
         setTimeout(() => window.__TAURI_INTERNALS__.runCallback(done.id, { index: 0, message: { address: "10.0.0.5", error: null, cancelled: false } }), 30 * ports.length + 50);
         return 7;
       }
+      case "net_bandwidth_start": {
+        const onSample = a.onSample as { onmessage?: (m: unknown) => void } | undefined;
+        const onDone = a.onDone as { onmessage?: (m: unknown) => void } | undefined;
+        const n = Number(a.seconds) || 5;
+        for (let i = 1; i <= n; i++) setTimeout(() => onSample?.onmessage?.({ second: i, bitsPerSecond: (800 + Math.random() * 150) * 1e6 }), 150 * i);
+        setTimeout(() => onDone?.onmessage?.({ result: { bytes: n * 110e6, seconds: n, bitsPerSecond: 880e6, download: !!a.download }, error: null, cancelled: false }), 150 * n + 100);
+        return 78;
+      }
+      case "net_local_subnet":
+        return "192.168.1.0/24";
+      case "net_lan_scan_start": {
+        const onHost = a.onHost as { onmessage?: (m: unknown) => void } | undefined;
+        const onDone = a.onDone as { onmessage?: (m: unknown) => void } | undefined;
+        const found = [
+          { address: "192.168.1.1", openPorts: [22, 80, 443] },
+          { address: "192.168.1.20", openPorts: [3389, 445] },
+          { address: "192.168.1.40", openPorts: [] },
+        ];
+        found.forEach((h, i) => setTimeout(() => onHost?.onmessage?.(h), 200 * (i + 1)));
+        setTimeout(() => onDone?.onmessage?.({ macs: { "192.168.1.1": "a4:2b:b0:01:02:03" }, cancelled: false }), 900);
+        return 77;
+      }
       case "net_wake":
         return null;
       case "terminal_log_start":

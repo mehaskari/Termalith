@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Icons for sessions and folders.** Pick a picture (server, router,
+  switch, firewall, database, cloud and more) and a color in the session
+  dialog, or right-click a folder → *Icon…*. Session icons also show on
+  their tabs.
 - **Broadcast to a whole folder, side by side.** Right-click a folder →
   *Open all and type into them at once…* opens its SSH and Telnet sessions
   and broadcasts your typing to all of them. The terminals can be shown

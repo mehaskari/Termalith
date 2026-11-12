@@ -185,6 +185,27 @@ pub fn folder_create(state: State<'_, AppState>, path: String) -> Result<String,
     Ok(state.connector.sessions.create_folder(&path)?)
 }
 
+/// Folders that have an icon.
+#[tauri::command]
+pub fn folder_icons_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<(String, app_core::Icon)>, IpcError> {
+    Ok(state.connector.sessions.folder_icons()?)
+}
+
+/// Sets or clears a folder's icon.
+#[tauri::command]
+pub fn folder_icon_set(
+    state: State<'_, AppState>,
+    path: String,
+    icon: Option<app_core::Icon>,
+) -> Result<(), IpcError> {
+    Ok(state
+        .connector
+        .sessions
+        .set_folder_icon(&path, icon.as_ref())?)
+}
+
 /// Renames or moves a folder with everything in it.
 #[tauri::command]
 pub fn folder_rename(

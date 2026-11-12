@@ -23,6 +23,9 @@ import {
   type SshTarget,
   appInfo,
   listFolders,
+  listFolderIcons,
+  setFolderIcon,
+  type SessionIcon,
   createFolder,
   renameFolder,
   deleteFolder,
@@ -95,6 +98,7 @@ import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
 import { type Tab, useTabs } from "./app/tabs";
 import { useMasterPassword } from "./app/useMasterPassword";
 import { useTheme } from "./app/useTheme";
+import { SessionIconGlyph } from "./ui/sessionIcons";
 import { isMacPlatform, matchShortcut } from "./ui/shortcuts";
 import { Sidebar } from "./ui/Sidebar";
 import { isFtp, targetLabel } from "./ui/sessionList";
@@ -216,9 +220,11 @@ export function App() {
   const activeRef = useRef<Tab | undefined>(undefined);
 
   const [folders, setFolders] = useState<string[]>([]);
+  const [folderIcons, setFolderIcons] = useState<Map<string, SessionIcon>>(new Map());
   const refresh = useCallback(() => {
     listSessions().then(setSessions, (e) => setNotice(`Could not load sessions: ${String(e?.message ?? e)}`));
     listFolders().then(setFolders, () => {});
+    listFolderIcons().then((list) => setFolderIcons(new Map(list.map(([p, i]) => [p.toLowerCase(), i]))), () => {});
   }, []);
   const failed = useCallback((e: unknown) => setNotice(String((e as { message?: string })?.message ?? e)), []);
 
@@ -796,6 +802,8 @@ export function App() {
       <Sidebar
         sessions={sessions}
         folders={folders}
+        folderIcons={folderIcons}
+        onSetFolderIcon={(path, icon) => void setFolderIcon(path, icon).then(refresh, failed)}
         onConnect={connectSaved}
         onOpenAndBroadcast={openAndBroadcast}
         onOpenFiles={openFilesTab}
@@ -880,7 +888,14 @@ export function App() {
                   onDoubleClick={() => setRenaming(t.key)}
                   onKeyDown={(e) => tabKey(e, t)}
                 >
-                  <span className={`tab-kind ${t.kind}`} aria-hidden="true" />
+                  {(() => {
+                    const icon = t.sessionId ? sessions.find((x) => x.id === t.sessionId)?.icon : null;
+                    return icon ? (
+                      <SessionIconGlyph icon={icon} size={13} className="tab-icon" />
+                    ) : (
+                      <span className={`tab-kind ${t.kind}`} aria-hidden="true" />
+                    );
+                  })()}
                   {t.title}
                 </button>
               )}

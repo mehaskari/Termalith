@@ -195,6 +195,12 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     "ALTER TABLE sessions ADD COLUMN mosh INTEGER NOT NULL DEFAULT 0;",
     // v20: per-session terminal appearance (JSON).
     "ALTER TABLE sessions ADD COLUMN appearance TEXT;",
+    // v21: icons for sessions (JSON) and folders.
+    "ALTER TABLE sessions ADD COLUMN icon TEXT;
+     CREATE TABLE folder_icons (
+        path TEXT PRIMARY KEY NOT NULL COLLATE NOCASE,
+        icon TEXT NOT NULL
+     );",
 ];
 
 pub(crate) fn migrate(conn: &mut Connection) -> Result<(), AppError> {

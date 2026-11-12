@@ -10,7 +10,8 @@ import {
 import { Dialog } from "./Dialog";
 import { IconPicker } from "./sessionIcons";
 import { TERMINAL_SCHEMES } from "./theme";
-import { type SessionFormState, allFolderPaths, emptyForm, formFromSession, isFtp, parseForm, withProtocol } from "./sessionList";
+import { parseTypedConnection } from "./commandLine";
+import { type SessionFormState, allFolderPaths, applyTypedConnection, emptyForm, formFromSession, isFtp, parseForm, withProtocol } from "./sessionList";
 
 const INSTALL_HINT: Record<"rdp" | "vnc", string> = {
   rdp: "No RDP client is installed, so this session opens inside Termalith (no client needed). To use an external client, install Windows App (macOS) or FreeRDP (xfreerdp, Linux); Windows normally includes Remote Desktop Connection.",
@@ -54,9 +55,23 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
   }, [desktop, clients]);
   const client = !desktop || !clients ? undefined : clients[form.protocol as "rdp" | "vnc"];
 
+  /** A command typed into Host (`ssh -p 2222 me@host`) fills the form. */
+  function readTypedHost(f: SessionFormState): SessionFormState | null {
+    const typed = parseTypedConnection(f.host);
+    if (!typed) return f;
+    if (mode === "quick" && (typed.protocol !== "ssh" || typed.mosh || typed.filesOnly)) {
+      setError({ field: "host", message: "Quick connect opens SSH terminals; use New session for other types." });
+      return null;
+    }
+    return applyTypedConnection(f, typed);
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const parsed = parseForm(form, { requireName: mode !== "quick" });
+    const read = readTypedHost(form);
+    if (!read) return;
+    if (read !== form) setForm(read);
+    const parsed = parseForm(read, { requireName: mode !== "quick" });
     if (!parsed.ok) {
       setError({ field: parsed.field, message: parsed.message });
       return;
@@ -145,7 +160,11 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
           <input
             autoFocus={mode === "quick"}
             value={form.host}
-            placeholder="server.example.com or 10.0.0.5"
+            placeholder={mode === "quick" ? "host, user@host:port or ssh -p 2222 user@host" : "server.example.com or 10.0.0.5"}
+            onBlur={() => {
+              const read = readTypedHost(form);
+              if (read && read !== form) setForm(read);
+            }}
             spellCheck={false}
             autoCapitalize="off"
             aria-invalid={invalid("host")}

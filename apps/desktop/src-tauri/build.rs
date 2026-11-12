@@ -75,6 +75,7 @@ fn main() {
             "sftp_download",
             "sftp_upload",
             "transfer_cancel",
+            "launch_requests",
             "server_folder",
             "server_pick_folder",
             "server_use_dropped",

@@ -5,6 +5,7 @@ import {
   dnsLookup,
   isIpcError,
   localSubnet,
+  startBandwidth,
   startLanScan,
   startProbe,
   startScan,
@@ -15,13 +16,14 @@ import type { DroppedFile } from "../terminal/api";
 import { ServersTool } from "./ServersTool";
 import { calcSubnet } from "./subnet";
 
-type Tool = "ping" | "traceroute" | "tcp" | "scan" | "lan" | "dns" | "subnet" | "wol" | "servers";
+type Tool = "ping" | "traceroute" | "tcp" | "scan" | "lan" | "bandwidth" | "dns" | "subnet" | "wol" | "servers";
 const TOOLS: Array<[Tool, string]> = [
   ["ping", "Ping"],
   ["traceroute", "Traceroute"],
   ["tcp", "TCP port check"],
   ["scan", "Port scan"],
   ["lan", "LAN scan"],
+  ["bandwidth", "Bandwidth (iperf3)"],
   ["dns", "DNS lookup"],
   ["subnet", "Subnet calculator"],
   ["wol", "Wake-on-LAN"],
@@ -53,6 +55,7 @@ export function NetworkTools({ dropped = null }: { dropped?: DroppedFile | null 
         {tool === "subnet" && <SubnetTool />}
         {tool === "scan" && <ScanTool />}
         {tool === "lan" && <LanTool />}
+        {tool === "bandwidth" && <BandwidthTool />}
         {tool === "wol" && <WolTool />}
         {tool === "servers" && <ServersTool dropped={dropped} />}
       </div>
@@ -356,6 +359,100 @@ function LanTool() {
           </tbody>
         </table>
       )}
+    </form>
+  );
+}
+
+const mbit = (bps: number) => `${(bps / 1e6).toFixed(bps < 1e7 ? 2 : 0)} Mbit/s`;
+
+/** Measures throughput to an iperf3 server (iperf3 -s), up or down, one TCP stream. */
+function BandwidthTool() {
+  const [host, setHost] = useState("");
+  const [port, setPort] = useState("5201");
+  const [seconds, setSeconds] = useState("10");
+  const [download, setDownload] = useState(false);
+  const [samples, setSamples] = useState<number[]>([]);
+  const [running, setRunning] = useState<number | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const runningRef = useRef<number | null>(null);
+  runningRef.current = running;
+  useEffect(() => () => {
+    if (runningRef.current !== null) void cancelProbe(runningRef.current);
+  }, []);
+
+  async function run(e: FormEvent) {
+    e.preventDefault();
+    setSamples([]);
+    setStatus("Testing…");
+    const p = Number(port);
+    try {
+      const id = await startBandwidth(
+        host.trim(),
+        Number.isInteger(p) && p > 0 && p < 65536 ? p : null,
+        Math.min(60, Math.max(1, Number(seconds) || 10)),
+        download,
+        (s) => setSamples((list) => [...list, s.bitsPerSecond]),
+        (d) => {
+          setRunning(null);
+          if (d.error) setStatus(d.error);
+          else if (d.result)
+            setStatus(
+              `${d.cancelled ? "Stopped. " : ""}${d.result.download ? "Download" : "Upload"}: ${mbit(d.result.bitsPerSecond)} (${(d.result.bytes / 1e6).toFixed(1)} MB in ${d.result.seconds.toFixed(1)} s)`,
+            );
+        },
+      );
+      setRunning(id);
+    } catch (err) {
+      setStatus(msg(err));
+    }
+  }
+
+  const peak = Math.max(1, ...samples);
+  return (
+    <form className="tool-form" onSubmit={run}>
+      <div className="row">
+        <input value={host} placeholder="iperf3 server, e.g. 10.0.0.5" spellCheck={false} autoFocus aria-label="Server"
+          onChange={(e) => setHost(e.target.value)} />
+        <input className="port" value={port} inputMode="numeric" aria-label="Port"
+          onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ""))} />
+        {running === null ? (
+          <button type="submit" className="primary" disabled={!host.trim()}>
+            Start
+          </button>
+        ) : (
+          <button type="button" onClick={() => void cancelProbe(running)}>
+            Stop
+          </button>
+        )}
+      </div>
+      <div className="row">
+        <label>
+          Seconds{" "}
+          <input className="port" value={seconds} inputMode="numeric" aria-label="Seconds"
+            onChange={(e) => setSeconds(e.target.value.replace(/[^0-9]/g, ""))} />
+        </label>
+        <label className="checkbox">
+          <input type="radio" name="direction" checked={!download} onChange={() => setDownload(false)} />
+          Upload (this computer sends)
+        </label>
+        <label className="checkbox">
+          <input type="radio" name="direction" checked={download} onChange={() => setDownload(true)} />
+          Download (the server sends)
+        </label>
+      </div>
+      <p className="hint">
+        Needs an iperf3 server on the other side (<code>iperf3 -s</code>, port 5201). One TCP stream.
+      </p>
+      {samples.length > 0 && (
+        <ol className="bandwidth-bars" aria-label="Throughput per second">
+          {samples.map((b, i) => (
+            <li key={i} title={`second ${i + 1}: ${mbit(b)}`}>
+              <span style={{ height: `${Math.round((b / peak) * 100)}%` }} />
+            </li>
+          ))}
+        </ol>
+      )}
+      {status && <p className="tool-result">{status}</p>}
     </form>
   );
 }

@@ -2176,3 +2176,27 @@ button.recording {
   border-radius: 999px;
   font-size: 11px;
 }
+
+/* Bandwidth test: one bar per second */
+.bandwidth-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 80px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bandwidth-bars li {
+  flex: 1;
+  max-width: 24px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+.bandwidth-bars span {
+  display: block;
+  width: 100%;
+  background: var(--accent);
+  border-radius: 2px 2px 0 0;
+}

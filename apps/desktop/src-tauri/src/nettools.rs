@@ -206,6 +206,71 @@ pub fn net_lan_scan_start(
     Ok(id)
 }
 
+/// The end of a bandwidth test.
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BandwidthDone {
+    result: Option<network_tools::BandwidthResult>,
+    error: Option<String>,
+    cancelled: bool,
+}
+
+/// Runs a bandwidth test against an iperf3 server; each second streams to
+/// `on_sample`. Cancel with `net_probe_cancel`.
+#[tauri::command]
+pub fn net_bandwidth_start(
+    state: State<'_, AppState>,
+    host: String,
+    port: Option<u16>,
+    seconds: u32,
+    download: bool,
+    on_sample: Channel<network_tools::BandwidthSample>,
+    on_done: Channel<BandwidthDone>,
+) -> Result<u64, IpcError> {
+    network_tools::validate_host(&host).map_err(tool_err)?;
+    let id = state.probes.next.fetch_add(1, Ordering::Relaxed) + 1;
+    let cancel = CancellationToken::new();
+    state
+        .probes
+        .running
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(id, cancel.clone());
+    let probes = state.probes.clone();
+    tauri::async_runtime::spawn(async move {
+        let r = network_tools::bandwidth_test(
+            &host,
+            port.unwrap_or(network_tools::IPERF_PORT),
+            seconds,
+            download,
+            &cancel,
+            |s| {
+                let _ = on_sample.send(s);
+            },
+        )
+        .await;
+        let cancelled = cancel.is_cancelled();
+        let _ = on_done.send(match r {
+            Ok(result) => BandwidthDone {
+                result: Some(result),
+                error: None,
+                cancelled,
+            },
+            Err(e) => BandwidthDone {
+                result: None,
+                error: Some(e.to_string()),
+                cancelled,
+            },
+        });
+        probes
+            .running
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&id);
+    });
+    Ok(id)
+}
+
 /// Sends a Wake-on-LAN magic packet.
 #[tauri::command]
 pub async fn net_wake(mac: String, broadcast: Option<String>) -> Result<(), IpcError> {

@@ -25,6 +25,7 @@ fn main() {
             "net_probe_start",
             "net_probe_cancel",
             "net_scan_start",
+            "net_bandwidth_start",
             "net_local_subnet",
             "net_lan_scan_start",
             "net_wake",

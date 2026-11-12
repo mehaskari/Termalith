@@ -611,6 +611,29 @@ export function startLanScan(
   return invoke<number>("net_lan_scan_start", { subnet, onHost: host, onDone: done });
 }
 
+export interface BandwidthResult {
+  bytes: number;
+  seconds: number;
+  bitsPerSecond: number;
+  download: boolean;
+}
+
+/** Bandwidth test against an iperf3 server; cancel with `cancelProbe`. */
+export function startBandwidth(
+  host: string,
+  port: number | null,
+  seconds: number,
+  download: boolean,
+  onSample: (s: { second: number; bitsPerSecond: number }) => void,
+  onDone: (d: { result: BandwidthResult | null; error: string | null; cancelled: boolean }) => void,
+): Promise<number> {
+  const sample = new Channel<{ second: number; bitsPerSecond: number }>();
+  sample.onmessage = onSample;
+  const done = new Channel<{ result: BandwidthResult | null; error: string | null; cancelled: boolean }>();
+  done.onmessage = onDone;
+  return invoke<number>("net_bandwidth_start", { host, port, seconds, download, onSample: sample, onDone: done });
+}
+
 /** Sends a Wake-on-LAN magic packet. */
 export const wakeOnLan = (mac: string, broadcast: string | null) => invoke<void>("net_wake", { mac, broadcast });
 

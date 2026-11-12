@@ -110,6 +110,7 @@ pub fn run() {
             nettools::net_probe_start,
             nettools::net_probe_cancel,
             nettools::net_scan_start,
+            nettools::net_bandwidth_start,
             nettools::net_local_subnet,
             nettools::net_lan_scan_start,
             nettools::net_wake,

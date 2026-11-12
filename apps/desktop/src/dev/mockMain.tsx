@@ -217,6 +217,14 @@ mockIPC(
         setTimeout(() => window.__TAURI_INTERNALS__.runCallback(done.id, { index: 0, message: { address: "10.0.0.5", error: null, cancelled: false } }), 30 * ports.length + 50);
         return 7;
       }
+      case "net_bandwidth_start": {
+        const onSample = a.onSample as { onmessage?: (m: unknown) => void } | undefined;
+        const onDone = a.onDone as { onmessage?: (m: unknown) => void } | undefined;
+        const n = Number(a.seconds) || 5;
+        for (let i = 1; i <= n; i++) setTimeout(() => onSample?.onmessage?.({ second: i, bitsPerSecond: (800 + Math.random() * 150) * 1e6 }), 150 * i);
+        setTimeout(() => onDone?.onmessage?.({ result: { bytes: n * 110e6, seconds: n, bitsPerSecond: 880e6, download: !!a.download }, error: null, cancelled: false }), 150 * n + 100);
+        return 78;
+      }
       case "net_local_subnet":
         return "192.168.1.0/24";
       case "net_lan_scan_start": {

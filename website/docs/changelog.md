@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Bandwidth test.** *Tools → Bandwidth (iperf3)* measures upload or
+  download speed to any iperf3 server.
 - **LAN scan.** *Tools → LAN scan* lists the hosts on your subnet with
   their open common ports and hardware addresses; no administrator rights
   needed.

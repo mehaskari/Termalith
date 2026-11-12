@@ -32,6 +32,8 @@ through the proxy in [Settings](settings.md).
 | Traceroute | The route to a host, hop by hop. |
 | TCP port check | Whether one port on a host accepts connections. |
 | Port scan | Open TCP ports on a host (up to 1024 ports, 64 at a time). Only scan hosts you are allowed to test. |
+| Bandwidth (iperf3) | Measures throughput to an iperf3 server (`iperf3 -s` on the other side, port 5201): **Upload** (this computer sends) or **Download** (the server sends), 1–60 seconds, one TCP stream; a bar per second and the total. Works with standard iperf3 servers; nothing is installed. |
+| LAN scan | Finds the hosts on a subnet (`192.168.1.0/24`, filled in with your own; /22 to /30) by trying common ports (SSH, Telnet, HTTP, HTTPS, SMB, RDP, VNC, 8080, 8443); a host that accepts or refuses a connection is listed with its open ports and, when the system knows it, its hardware (MAC) address. Hosts whose firewall drops everything stay hidden. Needs no administrator rights. |
 | DNS lookup | The addresses a name resolves to. |
 | Subnet calculator | Network, netmask, wildcard, broadcast and host range for an IPv4 address and prefix. |
 | Wake-on-LAN | Sends a magic packet to a MAC address, optionally to a given broadcast address. |

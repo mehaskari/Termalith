@@ -94,7 +94,14 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
             libayatana-appindicator3-dev libssl-dev build-essential \
-            xvfb openssh-server gnome-keyring dbus freerdp3-x11
+            xvfb openssh-server gnome-keyring dbus freerdp3-x11 iperf3
+
+      # A real iperf3 server for the bandwidth test client (localhost).
+      - name: Start iperf3 server (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          iperf3 -s -D -B 127.0.0.1
+          echo "TERMALITH_TEST_IPERF=127.0.0.1" >> "$GITHUB_ENV"
 
       # A real root-run sshd and a throwaway account so password
       # authentication can be tested (an unprivileged sshd cannot verify

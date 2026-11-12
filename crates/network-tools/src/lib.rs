@@ -2,8 +2,15 @@
 //! the OS programs with a fixed argument list, and the target is validated
 //! first so it can never be read as an option.
 
+mod iperf;
+mod lan;
 mod scan;
 
+pub use iperf::{BandwidthResult, BandwidthSample, IPERF_PORT, MAX_IPERF_SECONDS, bandwidth_test};
+pub use lan::{
+    LAN_PORTS, LanHost, MIN_LAN_PREFIX, arp_table, local_subnet_guess, parse_arp, scan_lan,
+    subnet_hosts,
+};
 pub use scan::{
     MAX_SCAN_PORTS, SCAN_CONCURRENCY, magic_packet, parse_mac, parse_ports, scan_ports, wake_on_lan,
 };

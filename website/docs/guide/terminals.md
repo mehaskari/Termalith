@@ -31,10 +31,23 @@ second login.
 
 ## Broadcast typing
 
-**Broadcast…** types into several terminals at once, e.g. to run the same
-command on a group of servers. Pick the target terminals; the source shows
+**Broadcast…** types into several terminals at once, e.g. to run
+`sudo apt update && sudo apt upgrade -y` on five servers by typing it once.
+Pick the target terminals (**Select all** ticks every one); the source shows
 a red banner and every target is marked, so you always know where your
-keystrokes go.
+keystrokes go. Type in the terminal with the red *BROADCASTING* banner.
+
+- **A whole folder at once:** right-click a folder in the sidebar →
+  **Open all and type into them at once…** opens its SSH and Telnet
+  sessions and asks which of them to type into, all ticked. Terminals that
+  are still connecting are listed as *connecting…* and receive what you type
+  once they are connected.
+- **Side by side:** tick **Show the terminals side by side** (on by default
+  for a folder) to see the source and every target together, so you can
+  watch each server's output. **Show as tabs** in the red banner switches
+  back, **Show side by side** switches again.
+- **Stop broadcast** on the source ends it; it also ends when the source
+  tab closes or its connection ends.
 
 ## Snippets
 

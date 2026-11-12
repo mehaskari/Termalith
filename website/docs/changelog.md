@@ -7,6 +7,11 @@
   again). The startup check is now on by default for everyone, including
   existing installs; turn it off in *Settings → Tell me when a new version
   is available*. Nothing is downloaded automatically.
+- **Broadcast to a whole folder, side by side.** Right-click a folder →
+  *Open all and type into them at once…* opens its SSH and Telnet sessions
+  and broadcasts your typing to all of them. The terminals can be shown
+  side by side while broadcasting, and the broadcast dialog has
+  **Select all**.
 
 ## 0.5.8 (2026-11-12)
 

@@ -15,6 +15,7 @@ import {
   joinFolder,
   moveTargets,
   normalizeFolder,
+  opensTerminal,
   parentFolder,
   targetLabel,
 } from "./sessionList";
@@ -45,6 +46,8 @@ interface Props {
   /** Folders stored on their own (may be empty). */
   folders: string[];
   onConnect: (s: SessionRecord) => void;
+  /** Opens the sessions and offers to broadcast typing to all of them. */
+  onOpenAndBroadcast: (sessions: SessionRecord[]) => void;
   /** SSH sessions: a file browser tab without a shell. */
   onOpenFiles: (s: SessionRecord) => void;
   onEdit: (s: SessionRecord) => void;
@@ -256,6 +259,14 @@ export function Sidebar(p: Props) {
       { label: "New subfolder", run: () => startNewFolder(node.path) },
       ...(inside.length > 0
         ? [{ label: `Open all (${inside.length})`, run: () => inside.forEach((x) => p.onConnect(x)) }]
+        : []),
+      ...(inside.filter(opensTerminal).length > 1
+        ? [
+            {
+              label: `Open all and type into them at once (${inside.filter(opensTerminal).length})…`,
+              run: () => p.onOpenAndBroadcast(inside.filter(opensTerminal)),
+            },
+          ]
         : []),
       "sep",
       { label: "Rename", run: () => setEditing({ kind: "rename", path: node.path }) },

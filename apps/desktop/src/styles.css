@@ -1217,6 +1217,31 @@ button.icon.starred {
   letter-spacing: 0.02em;
   flex: none;
 }
+.broadcast-banner .banner-action {
+  margin-left: 12px;
+  padding: 0 8px;
+  font-size: 12px;
+  background: transparent;
+  color: inherit;
+  border: 1px solid currentColor;
+}
+/* Broadcasting side by side: the source and its targets share the view. */
+.panes.tiled {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 4px;
+  background: var(--line);
+}
+.panes.tiled > .pane {
+  position: relative;
+  inset: auto;
+  min-height: 0;
+  background: var(--bg);
+}
+.panes.tiled > .pane[hidden] {
+  display: none;
+}
 .broadcast-banner.receiving {
   background: color-mix(in srgb, var(--danger) 70%, var(--panel));
   font-weight: 500;

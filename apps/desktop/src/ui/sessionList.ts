@@ -1,4 +1,4 @@
-import type { SessionInput, SessionProtocol, SessionRecord } from "../terminal/api";
+import type { SessionIcon, SessionInput, SessionProtocol, SessionRecord } from "../terminal/api";
 
 export interface SessionGroup {
   folder: string | null;
@@ -220,6 +220,7 @@ export interface SessionFormState {
   lookScheme: string;
   lookFontSize: string;
   lookFont: string;
+  icon: SessionIcon | null;
 }
 
 /** Switches protocol, moving the port along if it was the old default. */
@@ -249,6 +250,7 @@ export function emptyForm(): SessionFormState {
     lookScheme: "",
     lookFontSize: "",
     lookFont: "",
+    icon: null,
   };
 }
 
@@ -273,6 +275,7 @@ export function formFromSession(s: SessionInput): SessionFormState {
     lookScheme: s.appearance?.terminalScheme ?? "",
     lookFontSize: s.appearance?.fontSize ? String(s.appearance.fontSize) : "",
     lookFont: s.appearance?.fontFamily ?? "",
+    icon: s.icon ?? null,
   };
 }
 
@@ -376,6 +379,7 @@ export function parseForm(
       filesOnly: !desktop && f.filesOnly,
       mosh,
       appearance,
+      icon: f.icon,
     },
   };
 }

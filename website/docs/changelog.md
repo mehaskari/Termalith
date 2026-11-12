@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Icons for sessions and folders.** Pick a picture (server, router,
+  switch, firewall, database, cloud and more) and a color in the session
+  dialog, or right-click a folder → *Icon…*. Session icons also show on
+  their tabs.
+
 ## 0.5.8 (2026-11-12)
 
 - **File servers: login for HTTP, shown for every protocol.** The new

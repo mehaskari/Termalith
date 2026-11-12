@@ -8,6 +8,7 @@ import {
   isIpcError,
 } from "../terminal/api";
 import { Dialog } from "./Dialog";
+import { IconPicker } from "./sessionIcons";
 import { TERMINAL_SCHEMES } from "./theme";
 import { type SessionFormState, allFolderPaths, emptyForm, formFromSession, isFtp, parseForm, withProtocol } from "./sessionList";
 
@@ -317,6 +318,12 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
                 />
               </label>
             </div>
+          </fieldset>
+        )}
+        {mode !== "quick" && (
+          <fieldset className="span-2 session-icon-field">
+            <legend>Icon</legend>
+            <IconPicker value={form.icon} onChange={(icon) => set({ icon })} automaticLabel="By type" />
           </fieldset>
         )}
         {mode !== "quick" && (

@@ -1,8 +1,10 @@
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
-import type { SessionRecord, ShellChoice } from "../terminal/api";
+import type { SessionIcon, SessionRecord, ShellChoice } from "../terminal/api";
+import { Dialog } from "./Dialog";
 import { Icon, ProtocolBadge } from "./icons";
 import { focusFirstItem, menuKeyDown } from "./menuKeys";
 import { MoveDialog } from "./MoveDialog";
+import { IconPicker, SessionIconGlyph } from "./sessionIcons";
 import {
   type FolderNode,
   allFolderPaths,
@@ -44,6 +46,9 @@ interface Props {
   sessions: SessionRecord[];
   /** Folders stored on their own (may be empty). */
   folders: string[];
+  /** Folder icons by path (case-insensitive paths, lower-cased keys). */
+  folderIcons: Map<string, SessionIcon>;
+  onSetFolderIcon: (path: string, icon: SessionIcon | null) => void;
   onConnect: (s: SessionRecord) => void;
   /** SSH sessions: a file browser tab without a shell. */
   onOpenFiles: (s: SessionRecord) => void;
@@ -171,6 +176,7 @@ export function Sidebar(p: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [moving, setMoving] = useState<DragItem | null>(null);
+  const [iconFor, setIconFor] = useState<string | null>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -258,6 +264,7 @@ export function Sidebar(p: Props) {
         ? [{ label: `Open all (${inside.length})`, run: () => inside.forEach((x) => p.onConnect(x)) }]
         : []),
       "sep",
+      { label: "Icon…", run: () => setIconFor(node.path) },
       { label: "Rename", run: () => setEditing({ kind: "rename", path: node.path }) },
       { label: "Move to folder…", run: () => setMoving({ kind: "folder", path: node.path }) },
       {
@@ -353,7 +360,13 @@ export function Sidebar(p: Props) {
           title={`Connect to ${targetLabel(s)}`}
           aria-label={`${s.name}, ${protocol.toUpperCase()} ${targetLabel(s)}${extras.length ? `, ${extras.join(", ")}` : ""}`}
         >
-          <ProtocolBadge protocol={protocol} />
+          {s.icon ? (
+            <span className="session-icon-box" title={protocol.toUpperCase()}>
+              <SessionIconGlyph icon={s.icon} size={18} />
+            </span>
+          ) : (
+            <ProtocolBadge protocol={protocol} />
+          )}
           <span className="session-text">
             <span className="session-name">
               {s.name}
@@ -501,6 +514,8 @@ export function Sidebar(p: Props) {
               <Icon name="chevron" size={12} className={`caret ${open ? "open" : ""}`} />
               {favorites ? (
                 <Icon name="star" className="folder-icon fav" />
+              ) : p.folderIcons.get(node.path.toLowerCase()) ? (
+                <SessionIconGlyph icon={p.folderIcons.get(node.path.toLowerCase())!} className="folder-icon" />
               ) : (
                 <Icon name={open ? "folderOpen" : "folder"} className="folder-icon" />
               )}
@@ -741,6 +756,17 @@ export function Sidebar(p: Props) {
           }}
         />
       )}
+      {iconFor !== null && (
+        <FolderIconDialog
+          name={folderPath(iconFor).at(-1) ?? iconFor}
+          initial={p.folderIcons.get(iconFor.toLowerCase()) ?? null}
+          onCancel={() => setIconFor(null)}
+          onSave={(icon) => {
+            p.onSetFolderIcon(iconFor, icon);
+            setIconFor(null);
+          }}
+        />
+      )}
       {drag && (
         <div className="drag-ghost" style={{ left: drag.x + 12, top: drag.y + 8 }} aria-hidden="true">
           {drag.item.kind === "folder" ? <Icon name="folder" size={13} /> : <ProtocolBadge protocol={drag.item.session.filesOnly ? "sftp" : (drag.item.session.protocol ?? "ssh")} />}
@@ -751,5 +777,37 @@ export function Sidebar(p: Props) {
         </div>
       )}
     </aside>
+  );
+}
+
+function FolderIconDialog({
+  name,
+  initial,
+  onCancel,
+  onSave,
+}: {
+  name: string;
+  initial: SessionIcon | null;
+  onCancel: () => void;
+  onSave: (icon: SessionIcon | null) => void;
+}) {
+  const [icon, setIcon] = useState<SessionIcon | null>(initial);
+  return (
+    <Dialog
+      title={`Icon for "${name}"`}
+      onCancel={onCancel}
+      actions={
+        <>
+          <button type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="button" className="primary" onClick={() => onSave(icon)}>
+            Save
+          </button>
+        </>
+      }
+    >
+      <IconPicker value={icon} onChange={setIcon} automaticLabel="Folder" />
+    </Dialog>
   );
 }

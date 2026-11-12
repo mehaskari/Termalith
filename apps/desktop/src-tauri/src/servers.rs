@@ -132,10 +132,13 @@ pub struct ServerStart {
     lan: bool,
     port: Option<u16>,
     allow_uploads: bool,
-    /// FTP: a chosen user name; empty or `None` is "termalith".
-    ftp_user: Option<String>,
-    /// FTP: a chosen password; empty or `None` makes a random one.
-    ftp_password: Option<String>,
+    /// HTTP: ask clients for a user name and password (FTP always asks,
+    /// TFTP cannot).
+    require_login: bool,
+    /// A chosen user name; empty or `None` is "termalith".
+    user: Option<String>,
+    /// A chosen password; empty or `None` makes a random one.
+    password: Option<String>,
 }
 
 /// Starts a server for the folder [`server_folder`] reports.
@@ -145,13 +148,18 @@ pub async fn server_start(
     request: ServerStart,
 ) -> Result<ServerInfo, IpcError> {
     let (root, _) = current(&state)?;
-    let ftp_login = if request.kind == ServerKind::Ftp {
+    let wants_login = match request.kind {
+        ServerKind::Ftp => true,
+        ServerKind::Http => request.require_login,
+        ServerKind::Tftp => false,
+    };
+    let login = if wants_login {
         let user = request
-            .ftp_user
+            .user
             .filter(|u| !u.is_empty())
             .unwrap_or_else(|| local_servers::FTP_USER.to_owned());
         let password = request
-            .ftp_password
+            .password
             .filter(|p| !p.is_empty())
             .unwrap_or_else(local_servers::ftp::random_password);
         Some((user, password))
@@ -166,7 +174,7 @@ pub async fn server_start(
             lan: request.lan,
             port: request.port,
             allow_uploads: request.allow_uploads,
-            ftp_login,
+            login,
         })
         .await?)
 }

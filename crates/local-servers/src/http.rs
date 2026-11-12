@@ -1,6 +1,7 @@
 //! HTTP file server: GET/HEAD with directory listings and single byte
 //! ranges (so downloads can resume), and PUT uploads when allowed (`curl -T
-//! file http://host:port/`). Plain HTTP: the guide says so.
+//! file http://host:port/`), optionally behind a Basic login. Plain HTTP:
+//! the guide says so.
 
 use std::convert::Infallible;
 use std::net::SocketAddr;
@@ -20,7 +21,12 @@ use tokio::task::JoinHandle;
 use tokio_util::io::ReaderStream;
 use tokio_util::sync::CancellationToken;
 
-use crate::{Action, PathError, ServerError, Shared, display_path, resolve_existing, resolve_new};
+use base64::Engine;
+
+use crate::{
+    Action, PathError, ServerError, Shared, constant_time_eq, display_path, resolve_existing,
+    resolve_new,
+};
 
 type Body = BoxBody<Bytes, std::io::Error>;
 
@@ -33,7 +39,14 @@ pub(crate) async fn serve(
     addr: SocketAddr,
     shared: Arc<Shared>,
     stop: CancellationToken,
+    login: Option<(String, String)>,
 ) -> Result<(SocketAddr, JoinHandle<()>), ServerError> {
+    // The credentials as a Basic token, compared with what clients send.
+    let token: Option<Arc<str>> = login.map(|(user, password)| {
+        base64::engine::general_purpose::STANDARD
+            .encode(format!("{user}:{password}"))
+            .into()
+    });
     let listener = TcpListener::bind(addr)
         .await
         .map_err(|source| ServerError::Listen { addr, source })?;
@@ -54,12 +67,30 @@ pub(crate) async fn serve(
                 drop(stream);
                 continue;
             };
-            let (shared, stop) = (Arc::clone(&shared), stop.clone());
+            let (shared, stop, token) = (Arc::clone(&shared), stop.clone(), token.clone());
             tokio::spawn(async move {
                 let _permit = permit;
                 let service = hyper::service::service_fn(move |req| {
-                    let shared = Arc::clone(&shared);
-                    async move { Ok::<_, Infallible>(handle(req, peer, &shared).await) }
+                    let (shared, token) = (Arc::clone(&shared), token.clone());
+                    async move {
+                        let resp = match authorize(&req, token.as_deref()) {
+                            Auth::Ok => handle(req, peer, &shared).await,
+                            Auth::Missing => unauthorized(),
+                            Auth::Wrong => {
+                                let shown = decode_path(req.uri().path())
+                                    .map_or_else(|| "/".to_owned(), |p| display_path(&p));
+                                shared.report(
+                                    peer,
+                                    Action::Login,
+                                    &shown,
+                                    0,
+                                    Some("wrong user name or password".into()),
+                                );
+                                unauthorized()
+                            }
+                        };
+                        Ok::<_, Infallible>(resp)
+                    }
                 });
                 let conn = hyper::server::conn::http1::Builder::new()
                     .serve_connection(TokioIo::new(stream), service);
@@ -71,6 +102,45 @@ pub(crate) async fn serve(
         }
     });
     Ok((local, task))
+}
+
+enum Auth {
+    Ok,
+    /// No credentials yet (a browser's first request): ask for them.
+    Missing,
+    Wrong,
+}
+
+/// Checks the `Authorization: Basic …` header against the expected token.
+fn authorize<B>(req: &Request<B>, token: Option<&str>) -> Auth {
+    let Some(token) = token else {
+        return Auth::Ok;
+    };
+    let Some(value) = req
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+    else {
+        return Auth::Missing;
+    };
+    match value.trim().split_once(' ') {
+        Some((scheme, given))
+            if scheme.eq_ignore_ascii_case("basic")
+                && constant_time_eq(given.trim().as_bytes(), token.as_bytes()) =>
+        {
+            Auth::Ok
+        }
+        _ => Auth::Wrong,
+    }
+}
+
+fn unauthorized() -> Response<Body> {
+    let mut r = full(StatusCode::UNAUTHORIZED, "user name and password needed");
+    r.headers_mut().insert(
+        header::WWW_AUTHENTICATE,
+        HeaderValue::from_static("Basic realm=\"Termalith\", charset=\"UTF-8\""),
+    );
+    r
 }
 
 fn full(status: StatusCode, text: &str) -> Response<Body> {

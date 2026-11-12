@@ -19,7 +19,7 @@ use unftp_core::auth::{AuthenticationError, Authenticator, Credentials, DefaultU
 use unftp_core::storage::{Error, ErrorKind, Fileinfo, Result, StorageBackend};
 use unftp_sbe_fs::{Filesystem, Meta};
 
-use crate::{Action, ServerError, Shared};
+use crate::{Action, ServerError, Shared, constant_time_eq};
 
 /// The default FTP user name; the password is random per start unless the
 /// user chooses one.
@@ -149,10 +149,6 @@ impl Authenticator for OneUser {
             Err(AuthenticationError::BadPassword)
         }
     }
-}
-
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 /// Successful downloads and uploads for the activity list (libunftp

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **File servers: login for HTTP, shown for every protocol.** The new
+  server form always has a *Login* section: FTP asks for a user name and
+  password, HTTP can now require one (**Require a user name and password**),
+  and TFTP explains that the protocol has none. Running servers show their
+  login, or *none*.
+
 ## 0.5.7 (2026-11-12)
 
 - **File servers: choose the folder and the FTP login.** The folder to share

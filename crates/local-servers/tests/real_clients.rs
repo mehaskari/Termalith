@@ -51,7 +51,7 @@ async fn server_with_login(
     kind: ServerKind,
     root: &Path,
     uploads: bool,
-    ftp_login: Option<(String, String)>,
+    login: Option<(String, String)>,
 ) -> (local_servers::Running, Log) {
     let log: Log = Arc::default();
     let l = Arc::clone(&log);
@@ -62,7 +62,7 @@ async fn server_with_login(
             bind: IpAddr::V4(Ipv4Addr::LOCALHOST),
             port: 0,
             allow_uploads: uploads,
-            ftp_login,
+            login,
         },
         Arc::new(move |a| l.lock().unwrap().push(a)),
     )
@@ -301,6 +301,70 @@ async fn ftp_accepts_a_chosen_login_only() {
     srv.stop().await;
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn http_login_is_required_when_set() {
+    if !curl() {
+        return;
+    }
+    let dir = folder();
+    let password = local_servers::ftp::random_password();
+    let (srv, log) = server_with_login(
+        ServerKind::Http,
+        dir.path(),
+        false,
+        Some(("fw".into(), password.clone())),
+    )
+    .await;
+    assert_eq!(srv.credentials, Some(("fw".to_string(), password.clone())));
+    let url = format!("http://{}/small.txt", srv.local_addr);
+    // No login, and a wrong one: refused.
+    let (ok, _) = run_curl(vec!["-f".into(), url.clone()]).await;
+    assert!(!ok, "no login");
+    let (ok, _) = run_curl(vec![
+        "-f".into(),
+        "-u".into(),
+        format!("fw:{password}x"),
+        url.clone(),
+    ])
+    .await;
+    assert!(!ok, "wrong login");
+    let (ok, out) = run_curl(vec![
+        "-f".into(),
+        "-u".into(),
+        format!("fw:{password}"),
+        url.clone(),
+    ])
+    .await;
+    assert!(ok && out == b"hello\n", "right login");
+    let entries = log.lock().unwrap().clone();
+    assert!(
+        entries
+            .iter()
+            .any(|a| a.action == Action::Login && a.error.is_some()),
+        "the wrong login is listed"
+    );
+    srv.stop().await;
+}
+
+#[tokio::test]
+async fn tftp_has_no_login() {
+    let dir = folder();
+    let password = local_servers::ftp::random_password();
+    let r = start(
+        ServerKind::Tftp,
+        ServerConfig {
+            root: dir.path().to_path_buf(),
+            bind: IpAddr::V4(Ipv4Addr::LOCALHOST),
+            port: 0,
+            allow_uploads: false,
+            login: Some(("user".into(), password)),
+        },
+        Arc::new(|_| {}),
+    )
+    .await;
+    assert!(r.is_err());
+}
+
 #[tokio::test]
 async fn ftp_rejects_unusable_logins() {
     let dir = folder();
@@ -325,7 +389,7 @@ async fn ftp_rejects_unusable_logins() {
                 bind: IpAddr::V4(Ipv4Addr::LOCALHOST),
                 port: 0,
                 allow_uploads: false,
-                ftp_login: Some((user.into(), password.into())),
+                login: Some((user.into(), password.into())),
             },
             Arc::new(|_| {}),
         )

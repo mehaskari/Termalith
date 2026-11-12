@@ -737,7 +737,7 @@ mockIPC(
       case "server_open_folder":
         return null;
       case "server_start": {
-        const r = a.request as { kind: "tftp" | "http" | "ftp"; lan: boolean; port: number | null; allowUploads: boolean; ftpUser: string | null; ftpPassword: string | null };
+        const r = a.request as { kind: "tftp" | "http" | "ftp"; lan: boolean; port: number | null; allowUploads: boolean; requireLogin: boolean; user: string | null; password: string | null };
         const port = r.port ?? { tftp: 6969, http: 8080, ftp: 2121 }[r.kind];
         if (mockServers.some((x) => x.port === port)) throw { code: "invalid", message: `invalid server: cannot listen on 0.0.0.0:${port}: Address already in use` };
         const id = mockServers.length + 1;
@@ -746,7 +746,7 @@ mockIPC(
         const now = Math.floor(Date.now() / 1000);
         const server = {
           id, kind: r.kind, folder: mockShareFolder.path, port, lan: r.lan, allowUploads: r.allowUploads, urls,
-          credentials: r.kind === "ftp" ? { user: r.ftpUser || "termalith", password: r.ftpPassword || "k7Qm2xPa9TbN" } : null,
+          credentials: r.kind === "ftp" || (r.kind === "http" && r.requireLogin) ? { user: r.user || "termalith", password: r.password || "k7Qm2xPa9TbN" } : null,
           activity: [
             { seq: 1, at: now, peer: "192.168.1.40", action: "download", path: "/fw/switch-9.3.bin", bytes: 48_234_496, error: null },
             { seq: 2, at: now, peer: "192.168.1.40", action: "upload", path: "/backup.cfg", bytes: 0, error: "uploads are turned off" },

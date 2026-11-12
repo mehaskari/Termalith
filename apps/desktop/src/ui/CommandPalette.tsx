@@ -11,6 +11,8 @@ export interface PaletteItem {
 
 interface Props {
   items: PaletteItem[];
+  /** Items made from what was typed (e.g. "Connect: ssh me@host"), listed first. */
+  typed?: (query: string) => PaletteItem[];
   onClose: () => void;
 }
 
@@ -25,10 +27,13 @@ export function filterPalette(items: PaletteItem[], query: string): PaletteItem[
 }
 
 /** Quick search over tabs, sessions and actions (Cmd/Ctrl+K). */
-export function CommandPalette({ items, onClose }: Props) {
+export function CommandPalette({ items, typed, onClose }: Props) {
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
-  const shown = useMemo(() => filterPalette(items, query).slice(0, 50), [items, query]);
+  const shown = useMemo(
+    () => [...(typed?.(query) ?? []), ...filterPalette(items, query)].slice(0, 50),
+    [items, query, typed],
+  );
   const current = Math.min(index, Math.max(0, shown.length - 1));
 
   function run(item: PaletteItem | undefined) {
@@ -59,7 +64,7 @@ export function CommandPalette({ items, onClose }: Props) {
         <input
           autoFocus
           value={query}
-          placeholder="Search tabs, sessions and actions…"
+          placeholder="Search tabs, sessions and actions, or type ssh user@host…"
           spellCheck={false}
           aria-label="Search"
           aria-controls="palette-list"

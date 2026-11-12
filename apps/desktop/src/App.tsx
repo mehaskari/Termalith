@@ -101,12 +101,13 @@ import { useTheme } from "./app/useTheme";
 import { SessionIconGlyph } from "./ui/sessionIcons";
 import { isMacPlatform, matchShortcut } from "./ui/shortcuts";
 import { Sidebar } from "./ui/Sidebar";
-import { isFtp, targetLabel } from "./ui/sessionList";
+import { type TypedConnection, parseTypedConnection } from "./ui/commandLine";
+import { applyTypedConnection, emptyForm, isFtp, parseForm, targetLabel } from "./ui/sessionList";
 
 const RECONNECT_DELAY_MS = 5000;
 
 type SessionDialogState =
-  | { mode: "create"; folder?: string }
+  | { mode: "create"; folder?: string; prefill?: SessionInput }
   | { mode: "edit"; session: SessionRecord }
   | { mode: "quick" };
 
@@ -571,6 +572,25 @@ export function App() {
       void unlistenAuth.then((f) => f());
     };
   }, [refresh, openLocal]);
+
+  /** A connection typed in the palette: SSH opens at once, others prefill New session. */
+  function connectTyped(t: TypedConnection) {
+    const form = applyTypedConnection({ ...emptyForm(), name: t.host }, t);
+    const parsed = parseForm(form, { requireName: false });
+    if (!parsed.ok) {
+      setNotice(parsed.message);
+      return;
+    }
+    if (t.protocol === "ssh" && !t.mosh && !t.filesOnly) {
+      connect({ quick: parsed.value }, targetLabel(parsed.value), {
+        canSave: false,
+        keyAuth: parsed.value.auth.kind === "keyFile",
+        savedSecret: false,
+      });
+    } else {
+      setSessionDialog({ mode: "create", prefill: parsed.value });
+    }
+  }
 
   async function submitSession(value: SessionInput) {
     const d = sessionDialog;
@@ -1330,7 +1350,13 @@ export function App() {
       {sessionDialog && (
         <SessionDialog
           mode={sessionDialog.mode}
-          initial={sessionDialog.mode === "edit" ? sessionDialog.session : undefined}
+          initial={
+            sessionDialog.mode === "edit"
+              ? sessionDialog.session
+              : sessionDialog.mode === "create"
+                ? sessionDialog.prefill
+                : undefined
+          }
           editingId={sessionDialog.mode === "edit" ? sessionDialog.session.id : undefined}
           defaultFolder={sessionDialog.mode === "create" ? sessionDialog.folder : undefined}
           sessions={sessions}
@@ -1503,6 +1529,19 @@ export function App() {
       {paletteOpen && (
         <CommandPalette
           onClose={() => setPaletteOpen(false)}
+          typed={(q) => {
+            const t = parseTypedConnection(q);
+            if (!t) return [];
+            return [
+              {
+                id: "typed-connection",
+                label: `Connect: ${q.trim()}`,
+                detail: t.protocol === "ssh" && !t.mosh && !t.filesOnly ? "SSH, not saved" : "opens New session",
+                group: "Actions",
+                run: () => connectTyped(t),
+              },
+            ];
+          }}
           items={[
             ...tabs.map(
               (t): PaletteItem => ({ id: `tab-${t.key}`, label: t.title, detail: t.kind, group: "Tabs", run: () => setActive(t.key) }),

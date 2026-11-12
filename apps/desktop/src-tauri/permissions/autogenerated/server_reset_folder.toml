@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-server-reset-folder"
+description = "Enables the server_reset_folder command without any pre-configured scope."
+commands.allow = ["server_reset_folder"]
+
+[[permission]]
+identifier = "deny-server-reset-folder"
+description = "Denies the server_reset_folder command without any pre-configured scope."
+commands.deny = ["server_reset_folder"]

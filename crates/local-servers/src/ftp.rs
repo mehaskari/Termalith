@@ -21,13 +21,15 @@ use unftp_sbe_fs::{Filesystem, Meta};
 
 use crate::{Action, ServerError, Shared};
 
-/// The FTP user name; the password is random per start.
+/// The default FTP user name; the password is random per start unless the
+/// user chooses one.
 pub const FTP_USER: &str = "termalith";
 
 pub(crate) async fn serve(
     addr: SocketAddr,
     shared: Arc<Shared>,
     stop: CancellationToken,
+    user: String,
     password: String,
 ) -> std::result::Result<(SocketAddr, JoinHandle<()>), ServerError> {
     // libunftp binds by itself, so a free port picked for 0 can be taken by
@@ -35,7 +37,7 @@ pub(crate) async fn serve(
     let attempts = if addr.port() == 0 { 5 } else { 1 };
     let mut last = None;
     for _ in 0..attempts {
-        match try_serve(addr, &shared, &stop, &password).await {
+        match try_serve(addr, &shared, &stop, &user, &password).await {
             Ok(started) => return Ok(started),
             Err(e) => last = Some(e),
         }
@@ -47,6 +49,7 @@ async fn try_serve(
     addr: SocketAddr,
     shared: &Arc<Shared>,
     stop: &CancellationToken,
+    user: &str,
     password: &str,
 ) -> std::result::Result<(SocketAddr, JoinHandle<()>), ServerError> {
     // Check the address first (and pick a free port for 0), so a busy port
@@ -61,6 +64,7 @@ async fn try_serve(
         uploads,
     };
     let auth = Arc::new(OneUser {
+        user: user.to_owned(),
         password: password.to_owned(),
         shared: Arc::clone(shared),
     });
@@ -105,6 +109,7 @@ async fn try_serve(
 
 /// The one user of this server.
 struct OneUser {
+    user: String,
     password: String,
     shared: Arc<Shared>,
 }
@@ -123,7 +128,7 @@ impl Authenticator for OneUser {
         creds: &Credentials,
     ) -> std::result::Result<Principal, AuthenticationError> {
         let peer = SocketAddr::new(creds.source_ip, 0);
-        let ok = username == FTP_USER
+        let ok = username == self.user
             && creds
                 .password
                 .as_deref()
@@ -297,7 +302,7 @@ impl StorageBackend<DefaultUser> for Guarded {
 }
 
 /// A random password for one server start (letters and digits, easy to type).
-pub(crate) fn random_password() -> String {
+pub fn random_password() -> String {
     const ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let mut bytes = [0u8; 12];
     getrandom::fill(&mut bytes).expect("system random number generator");

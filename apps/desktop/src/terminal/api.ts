@@ -597,7 +597,7 @@ export interface ServerInfo {
   lan: boolean;
   allowUploads: boolean;
   urls: string[];
-  /** FTP: user name and this start's random password. */
+  /** FTP: user name and password of this start. */
   credentials: { user: string; password: string } | null;
 }
 
@@ -605,20 +605,34 @@ export interface ServerState extends ServerInfo {
   activity: ServerActivity[];
 }
 
-/** The default shared folder ("Termalith Share" in Downloads), created if missing. */
-export const serverDefaultFolder = () => invoke<string>("server_default_folder");
-/** Starts a server for the default folder, or a dropped folder by token. */
+/** The folder the next file server shares, kept by the backend. */
+export interface SharedFolder {
+  path: string;
+  /** True for the default "Termalith Share" folder in Downloads. */
+  isDefault: boolean;
+}
+
+export const serverFolder = () => invoke<SharedFolder>("server_folder");
+/** Shows the system folder dialog; cancelling keeps the current folder. */
+export const serverPickFolder = () => invoke<SharedFolder>("server_pick_folder");
+/** Shares a folder dropped onto the window (by token). */
+export const serverUseDropped = (token: number) => invoke<SharedFolder>("server_use_dropped", { token });
+export const serverResetFolder = () => invoke<SharedFolder>("server_reset_folder");
+/** Starts a server for the folder `serverFolder` reports. */
 export const serverStart = (request: {
   kind: ServerKind;
-  folderToken: number | null;
   lan: boolean;
   port: number | null;
   allowUploads: boolean;
+  /** FTP: empty or null is "termalith". */
+  ftpUser: string | null;
+  /** FTP: empty or null makes a random password. */
+  ftpPassword: string | null;
 }) => invoke<ServerInfo>("server_start", { request });
 export const serverList = () => invoke<ServerState[]>("server_list");
 export const serverStop = (id: number) => invoke<boolean>("server_stop", { id });
-/** Opens the default shared folder in Finder / Explorer / the file manager. */
-export const serverOpenFolder = () => invoke<void>("server_open_folder");
+/** Opens a running server's folder (by id), or the folder the next server shares. */
+export const serverOpenFolder = (id: number | null) => invoke<void>("server_open_folder", { id });
 
 /** Saves terminal text to a new file in the logs folder; resolves to its path. */
 export const saveTerminalOutput = (label: string, text: string) =>

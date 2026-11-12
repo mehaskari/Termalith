@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **File servers: choose the folder and the FTP login.** The folder to share
+  is shown in full before you start, with **Choose folder…** (the system
+  folder dialog) and **Use default folder**; each running server shows the
+  folder it shares. For FTP you can set the user name and password (empty
+  password: a random one), and the running server shows both. Protocol and
+  port fields line up.
+
 ## 0.5.6 (2026-11-11)
 
 - **Built-in FTP server:** *Tools → File servers* now also offers FTP

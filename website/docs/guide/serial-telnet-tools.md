@@ -44,9 +44,12 @@ as long as you need it, for example to copy firmware or a configuration to a
 switch over TFTP, to let a server fetch a file with `curl`, or to give an
 older device or a file manager an FTP server.
 
-- **Shared folder:** *Termalith Share* in your Downloads folder (**Open
-  folder** shows it; put the files there), or drop any folder onto the
-  window while this tool is open to share that folder instead.
+- **Shared folder:** shown in full before you start. It is *Termalith
+  Share* in your Downloads folder (marked *default*) until you click
+  **Choose folder…** and pick another folder, or drop a folder onto the
+  window while this tool is open. **Use default folder** goes back;
+  **Open folder** shows the folder in Finder, Explorer or your file
+  manager. Each running server shows the folder it shares.
 - **Protocol and port:** TFTP on port 6969, HTTP on port 8080 or FTP on port
   2121 by default. Ports below 1024 (69 for TFTP, 80 for HTTP, 21 for FTP)
   need administrator rights on macOS and Linux; many devices let you give the port in the URL instead
@@ -55,9 +58,11 @@ older device or a file manager an FTP server.
   connect. Turn it on to serve devices on your network; the addresses to use
   are shown with each running server. Your firewall may ask to allow
   Termalith.
-- **FTP sign-in:** user `termalith` and a random password, shown with the
-  running server (**Copy password**); every start makes a new password.
-  Anonymous sign-in is not offered.
+- **FTP login:** for FTP, set the **User name** (default `termalith`;
+  letters, digits, `.`, `_` and `-`) and the **Password** before you start.
+  Leave the password empty for a new random one; a chosen password needs at
+  least 6 characters. The running server shows both (**Copy**). Anonymous
+  sign-in is not offered.
 - **Allow uploads:** off by default (read-only). When on, clients can upload
   new files and create folders (TFTP write, HTTP `PUT`, e.g. `curl -T
   backup.cfg http://192.168.1.23:8080/`, FTP `put`); an existing file is

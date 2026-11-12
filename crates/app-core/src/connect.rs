@@ -434,6 +434,21 @@ impl Connector {
         Ok(())
     }
 
+    /// Removes a shared session source, its sessions and their saved
+    /// passwords.
+    pub async fn remove_shared_source(&self, id: &str) -> Result<(), AppError> {
+        let creds = self.sessions.remove_shared_source(id)?;
+        let secrets = Arc::clone(&self.secrets);
+        tokio::task::spawn_blocking(move || {
+            for c in creds {
+                let _ = secrets.delete(&c);
+            }
+        })
+        .await
+        .map_err(|e| AppError::Db(e.to_string()))?;
+        Ok(())
+    }
+
     /// Removes the recorded host key(s) for `host:port` from the app's
     /// known-hosts file, after the user verified a changed key out of band.
     pub fn forget_host_key(

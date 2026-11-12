@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shared-sync"
+description = "Enables the shared_sync command without any pre-configured scope."
+commands.allow = ["shared_sync"]
+
+[[permission]]
+identifier = "deny-shared-sync"
+description = "Denies the shared_sync command without any pre-configured scope."
+commands.deny = ["shared_sync"]

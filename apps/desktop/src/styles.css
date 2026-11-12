@@ -2176,6 +2176,46 @@ button.recording {
   padding: 8px 10px 10px;
 }
 
+/* Shared (team) sessions */
+.session-shared {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.shared-sources {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.shared-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.shared-list li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.shared-list code {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shared-list button {
+  margin-left: auto;
+}
 /* LAN scan results */
 .lan-hosts {
   width: 100%;

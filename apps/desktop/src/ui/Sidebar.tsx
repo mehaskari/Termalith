@@ -249,13 +249,12 @@ export function Sidebar(p: Props) {
     { label: "Connect", run: () => p.onConnect(s) },
     ...((s.protocol ?? "ssh") === "ssh" && !s.filesOnly ? [{ label: "Browse files (SFTP)", run: () => p.onOpenFiles(s) }] : []),
     "sep",
-    { label: "Edit…", run: () => p.onEdit(s) },
-    { label: "Duplicate", run: () => p.onDuplicate(s) },
+    ...(s.shared ? [] : [{ label: "Edit…", run: () => p.onEdit(s) }]),
+    { label: s.shared ? "Duplicate as my session" : "Duplicate", run: () => p.onDuplicate(s) },
     { label: s.favorite ? "Remove from favorites" : "Add to favorites", run: () => p.onToggleFavorite(s) },
-    { label: "Move to folder…", run: () => setMoving({ kind: "session", session: s }) },
+    ...(s.shared ? [] : [{ label: "Move to folder…", run: () => setMoving({ kind: "session", session: s }) }]),
     ...(s.hasSavedSecret ? [{ label: "Forget saved password", run: () => p.onForgetSecret(s) }] : []),
-    "sep",
-    { label: "Delete…", run: () => p.onDelete(s), danger: true },
+    ...(s.shared ? [] : ["sep" as const, { label: "Delete…", run: () => p.onDelete(s), danger: true }]),
   ];
 
   const folderMenu = (node: FolderNode): MenuItem[] => {
@@ -382,6 +381,7 @@ export function Sidebar(p: Props) {
             <span className="session-name">
               {s.name}
               {s.favorite && !inFavorites && <Icon name="star" size={11} className="session-star" />}
+              {s.shared && <span className="session-shared" title="From a shared session file (read-only)">shared</span>}
             </span>
             <span className="session-target">
               {targetLabel(s)}
@@ -413,9 +413,11 @@ export function Sidebar(p: Props) {
               <Icon name="files" size={14} />
             </button>
           )}
-          <button type="button" className="icon" onClick={() => p.onEdit(s)} aria-label={`Edit ${s.name}`} title="Edit">
-            <Icon name="edit" size={14} />
-          </button>
+          {!s.shared && (
+            <button type="button" className="icon" onClick={() => p.onEdit(s)} aria-label={`Edit ${s.name}`} title="Edit">
+              <Icon name="edit" size={14} />
+            </button>
+          )}
           <button
             type="button"
             className="icon"

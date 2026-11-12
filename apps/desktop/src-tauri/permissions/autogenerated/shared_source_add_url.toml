@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shared-source-add-url"
+description = "Enables the shared_source_add_url command without any pre-configured scope."
+commands.allow = ["shared_source_add_url"]
+
+[[permission]]
+identifier = "deny-shared-source-add-url"
+description = "Denies the shared_source_add_url command without any pre-configured scope."
+commands.deny = ["shared_source_add_url"]

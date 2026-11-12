@@ -201,6 +201,15 @@ pub(crate) const MIGRATIONS: &[&str] = &[
         path TEXT PRIMARY KEY NOT NULL COLLATE NOCASE,
         icon TEXT NOT NULL
      );",
+    // v22: shared (team) session files; their sessions are marked read-only.
+    "CREATE TABLE shared_sources (
+        id TEXT PRIMARY KEY NOT NULL,
+        label TEXT NOT NULL,
+        location TEXT NOT NULL,
+        synced_at INTEGER,
+        last_error TEXT
+     );
+     ALTER TABLE sessions ADD COLUMN shared_source TEXT;",
 ];
 
 pub(crate) fn migrate(conn: &mut Connection) -> Result<(), AppError> {

@@ -8,6 +8,7 @@ import {
 } from "../terminal/api";
 import { Dialog } from "./Dialog";
 import { MasterPasswordSettings } from "./MasterPassword";
+import { SharedSessionsSettings } from "./SharedSessions";
 import { TERMINAL_SCHEMES } from "./theme";
 
 interface Props {
@@ -256,6 +257,7 @@ export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvail
         {error && <p className="form-error span-2" role="alert">{error}</p>}
       </form>
       {/* Outside the form: it acts at once and has its own buttons. */}
+      <SharedSessionsSettings onChanged={() => onSecretsReset?.()} />
       <MasterPasswordSettings secretsAvailable={secretsAvailable} onReset={onSecretsReset} portable={portable} />
     </Dialog>
   );

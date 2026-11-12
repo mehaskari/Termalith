@@ -78,6 +78,7 @@ fn key_session(r: &Rig) -> app_core::SessionRecord {
             files_only: false,
             mosh: false,
             appearance: None,
+            icon: None,
         })
         .unwrap()
 }
@@ -193,6 +194,7 @@ async fn password_sessions_without_secret_ask_for_one() {
             files_only: false,
             mosh: false,
             appearance: None,
+            icon: None,
         })
         .unwrap();
     let res = r
@@ -461,6 +463,7 @@ async fn secret_is_saved_only_after_a_successful_connection() {
             files_only: false,
             mosh: false,
             appearance: None,
+            icon: None,
         })
         .unwrap();
     let provided = |s: &str| PasswordInput::Provided {
@@ -1121,6 +1124,7 @@ async fn agent_session_without_an_agent_explains_why() {
             files_only: false,
             mosh: false,
             appearance: None,
+            icon: None,
         })
         .unwrap();
     // The rig's connector has `agent: None`.
@@ -1163,6 +1167,7 @@ async fn saved_session_behind_a_jump_host() {
         files_only: false,
         mosh: false,
         appearance: None,
+        icon: None,
     };
     let target = r.connector.sessions.create(&behind).unwrap();
 
@@ -1218,6 +1223,7 @@ async fn saved_session_behind_a_jump_host() {
             files_only: false,
             mosh: false,
             appearance: None,
+            icon: None,
         })
         .unwrap();
     behind.jump_via = Some(pw_bastion.id);

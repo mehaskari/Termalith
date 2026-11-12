@@ -100,6 +100,8 @@ fn main() {
             "session_set_favorite",
             "folders_list",
             "folder_create",
+            "folder_icons_list",
+            "folder_icon_set",
             "folder_rename",
             "folder_delete",
             "session_move",

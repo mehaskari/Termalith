@@ -98,6 +98,7 @@ mod tests {
             files_only: false,
             mosh: true,
             appearance: None,
+            icon: None,
         }
     }
 

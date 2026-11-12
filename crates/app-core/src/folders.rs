@@ -5,7 +5,7 @@
 use rusqlite::params;
 
 use crate::AppError;
-use crate::sessions::{SessionId, SessionStore};
+use crate::sessions::{Icon, SessionId, SessionStore};
 
 pub const MAX_FOLDER_LEN: usize = 200;
 pub const MAX_FOLDER_DEPTH: usize = 10;
@@ -67,6 +67,48 @@ impl SessionStore {
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
+    /// Folders with an icon, as `(path, icon)`.
+    pub fn folder_icons(&self) -> Result<Vec<(String, Icon)>, AppError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT path, icon FROM folder_icons")?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (path, json) = row?;
+            // An unreadable icon falls back to the folder picture.
+            if let Some(icon) = Icon::from_json(Some(json)) {
+                out.push((path, icon));
+            }
+        }
+        Ok(out)
+    }
+
+    /// Sets or clears (`None`) a folder's icon; the folder is kept on its
+    /// own so the icon survives when its sessions move away.
+    pub fn set_folder_icon(&self, path: &str, icon: Option<&Icon>) -> Result<(), AppError> {
+        let path = normalize_folder(path)?;
+        let conn = self.conn();
+        match icon {
+            Some(icon) => {
+                icon.validate()?;
+                let json = serde_json::to_string(icon).map_err(|e| AppError::Db(e.to_string()))?;
+                conn.execute(
+                    "INSERT OR IGNORE INTO folders (path) VALUES (?1)",
+                    params![path],
+                )?;
+                conn.execute(
+                    "INSERT INTO folder_icons (path, icon) VALUES (?1, ?2)
+                     ON CONFLICT(path) DO UPDATE SET icon = excluded.icon",
+                    params![path, json],
+                )?;
+            }
+            None => {
+                conn.execute("DELETE FROM folder_icons WHERE path = ?1", params![path])?;
+            }
+        }
+        Ok(())
+    }
+
     /// Creates a folder (parents are implied). Returns the normalized path.
     pub fn create_folder(&self, path: &str) -> Result<String, AppError> {
         let path = normalize_folder(path)?;
@@ -124,6 +166,19 @@ impl SessionStore {
                 changed = true;
             }
         }
+        let icons: Vec<String> = {
+            let mut stmt = tx.prepare("SELECT path FROM folder_icons")?;
+            let rows = stmt.query_map([], |r| r.get(0))?;
+            rows.collect::<Result<_, _>>()?
+        };
+        for path in icons {
+            if let Some(new) = moved(&path, &from, &to) {
+                tx.execute(
+                    "UPDATE OR REPLACE folder_icons SET path = ?2 WHERE path = ?1",
+                    params![path, new],
+                )?;
+            }
+        }
         if !changed {
             return Err(AppError::NotFound);
         }
@@ -158,6 +213,14 @@ impl SessionStore {
         };
         for p in stored.into_iter().filter(|p| inside(p, &path)) {
             tx.execute("DELETE FROM folders WHERE path = ?1", params![p])?;
+        }
+        let icons: Vec<String> = {
+            let mut stmt = tx.prepare("SELECT path FROM folder_icons")?;
+            let rows = stmt.query_map([], |r| r.get(0))?;
+            rows.collect::<Result<_, _>>()?
+        };
+        for p in icons.into_iter().filter(|p| inside(p, &path)) {
+            tx.execute("DELETE FROM folder_icons WHERE path = ?1", params![p])?;
         }
         tx.commit()?;
         Ok(())
@@ -201,6 +264,7 @@ mod tests {
                 files_only: false,
                 mosh: false,
                 appearance: None,
+                icon: None,
             })
             .unwrap()
             .id
@@ -293,5 +357,44 @@ mod tests {
         s.move_session(&a, None).unwrap();
         assert_eq!(folder_of(&s, &a), None);
         assert!(s.move_session(&a, Some("/")).is_err());
+    }
+
+    #[test]
+    fn folder_icons_follow_renames_and_go_with_the_folder() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let router = Icon {
+            name: "router".into(),
+            color: Some("#2f9e44".into()),
+        };
+        store.set_folder_icon("Net/Core", Some(&router)).unwrap();
+        assert_eq!(
+            store.folder_icons().unwrap(),
+            vec![("Net/Core".to_string(), router.clone())]
+        );
+        assert!(
+            store
+                .set_folder_icon(
+                    "Net",
+                    Some(&Icon {
+                        name: "Bad Name".into(),
+                        color: None
+                    })
+                )
+                .is_err()
+        );
+        store.rename_folder("Net", "Network").unwrap();
+        assert_eq!(
+            store.folder_icons().unwrap(),
+            vec![("Network/Core".to_string(), router)]
+        );
+        store.set_folder_icon("Network/Core", None).unwrap();
+        assert!(store.folder_icons().unwrap().is_empty());
+        let fw = Icon {
+            name: "firewall".into(),
+            color: None,
+        };
+        store.set_folder_icon("Edge", Some(&fw)).unwrap();
+        store.delete_folder("Edge").unwrap();
+        assert!(store.folder_icons().unwrap().is_empty());
     }
 }

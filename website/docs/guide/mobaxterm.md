@@ -30,6 +30,7 @@ MobaXterm or Mobatek.
 | SFTP / FTP session | SSH session with *Files only*, or an FTPS/FTP session |
 | RDP, VNC sessions | RDP/VNC sessions, inside a tab or in your client ([Remote desktop](remote-desktop.md)) |
 | MobaSSHTunnel | **Tunnels** on an SSH tab ([Tunnels](ssh.md#tunnels)) |
+| Session icons | **Icon** in the session dialog; folder → *Icon…* ([Sessions](sessions.md#icons)) |
 | Multi-execution | **Broadcast…**, or a folder's *Open all and type into them at once*, side by side ([Terminals](terminals.md#broadcast-typing)) |
 | Macros | **Macro** ([Terminals](terminals.md#macros)) |
 | Split terminals | Split side by side, top and bottom, or four panes |

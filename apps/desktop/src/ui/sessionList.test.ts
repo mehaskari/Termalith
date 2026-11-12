@@ -66,7 +66,7 @@ describe("parseForm", () => {
     const r = parseForm(base, { requireName: true });
     expect(r).toEqual({
       ok: true,
-      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null },
+      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null, icon: null },
     });
   });
 
@@ -103,7 +103,7 @@ describe("parseForm", () => {
     const rec = s("web", "prod");
     const r = parseForm(formFromSession(rec), { requireName: true });
     expect(r.ok && r.value).toEqual({
-      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null,
+      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null, icon: null,
     });
   });
 });
@@ -214,7 +214,7 @@ describe("startup command", () => {
       ok: true,
       value: { mosh: true, jumpVia: null, forwardAgent: false, x11Forward: false },
     });
-    expect(parseForm({ ...f, filesOnly: true }, { requireName: true })).toMatchObject({ ok: true, value: { mosh: false, appearance: null } });
+    expect(parseForm({ ...f, filesOnly: true }, { requireName: true })).toMatchObject({ ok: true, value: { mosh: false, appearance: null, icon: null } });
   });
 
   it("connects FTP sessions directly", () => {
@@ -228,7 +228,7 @@ describe("startup command", () => {
       ok: true,
       value: { filesOnly: true, startupCommand: null, forwardAgent: false, x11Forward: false },
     });
-    expect(parseForm({ ...f, protocol: "telnet", port: "23" }, { requireName: true })).toMatchObject({ ok: true, value: { filesOnly: false, mosh: false, appearance: null } });
+    expect(parseForm({ ...f, protocol: "telnet", port: "23" }, { requireName: true })).toMatchObject({ ok: true, value: { filesOnly: false, mosh: false, appearance: null, icon: null } });
   });
 });
 

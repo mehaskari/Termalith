@@ -61,6 +61,7 @@ async fn a_command_runs_through_mosh() {
         files_only: false,
         mosh: true,
         appearance: None,
+        icon: None,
     };
     let spec = mosh_command(&session, &mosh)
         .unwrap()

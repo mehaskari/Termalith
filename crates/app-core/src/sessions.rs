@@ -144,6 +144,50 @@ pub struct SessionInput {
     /// Terminal look for this session; unset fields follow the settings.
     #[serde(default)]
     pub appearance: Option<Appearance>,
+    /// Icon in the session list and on tabs; `None` shows the protocol.
+    #[serde(default)]
+    pub icon: Option<Icon>,
+}
+
+/// A session's or folder's icon: one of the app's built-in pictures and an
+/// optional color. Unknown names show the default picture in the UI.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Icon {
+    pub name: String,
+    #[serde(default)]
+    pub color: Option<String>,
+}
+
+impl Icon {
+    pub fn validate(&self) -> Result<(), AppError> {
+        let name_ok = (1..=32).contains(&self.name.len())
+            && self.name.starts_with(|c: char| c.is_ascii_lowercase())
+            && self
+                .name
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+        if !name_ok {
+            return Err(AppError::invalid("icon", "unknown icon"));
+        }
+        if let Some(c) = &self.color {
+            let hex =
+                c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|x| x.is_ascii_hexdigit());
+            if !hex {
+                return Err(AppError::invalid("icon color", "use #rrggbb"));
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn to_json(icon: &Option<Icon>) -> Option<String> {
+        icon.as_ref().and_then(|i| serde_json::to_string(i).ok())
+    }
+
+    pub(crate) fn from_json(json: Option<String>) -> Option<Icon> {
+        json.and_then(|j| serde_json::from_str::<Icon>(&j).ok())
+            .filter(|i| i.validate().is_ok())
+    }
 }
 
 /// A session's own terminal font and colors (M-012).
@@ -327,6 +371,9 @@ impl SessionInput {
         if let Some(a) = &self.appearance {
             a.validate()?;
         }
+        if let Some(i) = &self.icon {
+            i.validate()?;
+        }
         if self.mosh {
             if self.protocol != SessionProtocol::Ssh || self.files_only {
                 return Err(AppError::invalid("Mosh", "only for SSH terminal sessions"));
@@ -405,7 +452,7 @@ impl SessionStore {
     pub fn list(&self) -> Result<Vec<SessionRecord>, AppError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon
              FROM sessions ORDER BY folder IS NOT NULL, folder COLLATE NOCASE, name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], row_to_record)?;
@@ -416,7 +463,7 @@ impl SessionStore {
     pub fn get(&self, id: &SessionId) -> Result<SessionRecord, AppError> {
         let conn = self.conn();
         conn.query_row(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon
              FROM sessions WHERE id = ?1",
             [id.as_str()],
             row_to_record,
@@ -432,8 +479,8 @@ impl SessionStore {
         let (kind, key) = auth_columns(&input.auth);
         let t = now();
         self.conn().execute(
-            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
+            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
             params![
                 id.as_str(),
                 input.name.trim(),
@@ -453,7 +500,8 @@ impl SessionStore {
                 input.startup_command,
                 input.files_only,
                 input.mosh,
-                appearance_json(&input.appearance)
+                appearance_json(&input.appearance),
+                Icon::to_json(&input.icon)
             ],
         )?;
         self.get(&id)
@@ -516,7 +564,7 @@ impl SessionStore {
             "UPDATE sessions SET name = ?2, host = ?3, port = ?4, username = ?5, auth_kind = ?6,
              key_path = ?7, folder = ?8, credential_ref = ?9, updated_at = ?10, jump_session_id = ?11,
              protocol = ?12, domain = ?13, tags = ?14, forward_agent = ?15,
-             x11_forward = ?16, startup_command = ?17, files_only = ?18, mosh = ?19, appearance = ?20
+             x11_forward = ?16, startup_command = ?17, files_only = ?18, mosh = ?19, appearance = ?20, icon = ?21
              WHERE id = ?1",
             params![
                 id.as_str(),
@@ -538,7 +586,8 @@ impl SessionStore {
                 input.startup_command,
                 input.files_only,
                 input.mosh,
-                appearance_json(&input.appearance)
+                appearance_json(&input.appearance),
+                Icon::to_json(&input.icon)
             ],
         )?;
         Ok((self.get(id)?, stale))
@@ -641,6 +690,8 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
             appearance: r
                 .get::<_, Option<String>>(20)?
                 .and_then(|j| serde_json::from_str(&j).ok()),
+            // An unreadable icon shows the protocol instead.
+            icon: Icon::from_json(r.get(21)?),
         },
         updated_at: r.get(9)?,
     }))
@@ -668,6 +719,7 @@ mod tests {
             files_only: false,
             mosh: false,
             appearance: None,
+            icon: None,
         }
     }
 
@@ -860,6 +912,7 @@ mod tests {
             files_only: false,
             mosh: false,
             appearance: None,
+            icon: None,
         };
         let rec = store.create(&rdp).unwrap();
         assert_eq!(store.get(&rec.id).unwrap().input, rdp);
@@ -918,6 +971,36 @@ mod tests {
             )
             .unwrap();
         assert!(store.get(&rec.id).unwrap().input.tags.is_empty());
+    }
+
+    #[test]
+    fn icons_round_trip_are_checked_and_never_hide_a_session() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let mut s = input();
+        s.icon = Some(Icon {
+            name: "database".into(),
+            color: Some("#1971c2".into()),
+        });
+        let rec = store.create(&s).unwrap();
+        assert_eq!(store.get(&rec.id).unwrap().input.icon, s.icon);
+        s.icon = Some(Icon {
+            name: "../x".into(),
+            color: None,
+        });
+        assert!(s.validate().is_err());
+        s.icon = Some(Icon {
+            name: "router".into(),
+            color: Some("red".into()),
+        });
+        assert!(s.validate().is_err());
+        store
+            .conn()
+            .execute(
+                "UPDATE sessions SET icon = '{bad' WHERE id = ?1",
+                [rec.id.as_str()],
+            )
+            .unwrap();
+        assert_eq!(store.get(&rec.id).unwrap().input.icon, None);
     }
 
     #[test]

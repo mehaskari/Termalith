@@ -7,8 +7,9 @@
 
 use std::time::{Duration, Instant};
 
-use remote_desktop::embedded::{LoginParams, ViewerEvent, capture, start};
+use remote_desktop::embedded::{LoginParams, capture, start};
 use remote_desktop::read_certificate;
+use remote_desktop::viewer::ViewerEvent;
 use zeroize::Zeroizing;
 
 fn env(key: &str) -> Option<String> {

@@ -119,7 +119,7 @@ seed({ name: "lab router", host: "192.168.1.1", port: 22, username: "admin", aut
 
 seed({ name: "win-jump", host: "10.0.5.20", port: 3389, username: "", auth: { kind: "password" }, folder: "Production", jumpVia: "ses-000000000000000000000001", protocol: "rdp", domain: "CORP" });
 seed({ name: "core switch", host: "10.0.0.254", port: 23, username: "", auth: { kind: "password" }, folder: "Network", protocol: "telnet" });
-seed({ name: "edge-fw", host: "10.0.0.1", port: 22, username: "admin", auth: { kind: "password" }, folder: "Network / Firewalls" });
+seed({ name: "edge-fw", host: "10.0.0.1", port: 22, username: "admin", auth: { kind: "password" }, folder: "Network / Firewalls", icon: { name: "firewall", color: "#e03131" } });
 seed({ name: "replica-2", host: "10.0.0.12", port: 22, username: "postgres", auth: { kind: "agent" }, folder: "Production / DB" });
 seed({ name: "backups", host: "10.0.1.30", port: 22, username: "admin", auth: { kind: "password" }, folder: null, filesOnly: true });
 seed({ name: "file drop", host: "files.example.com", port: 21, username: "admin", auth: { kind: "password" }, folder: null, protocol: "ftps" });
@@ -127,6 +127,7 @@ seed({ name: "public mirror", host: "ftp.example.com", port: 21, username: "", a
 seed({ name: "lab vnc", host: "192.168.1.40", port: 5900, username: "", auth: { kind: "password" }, folder: null, protocol: "vnc" });
 
 const mockFolders = new Set<string>(["Lab/Switches"]);
+const mockFolderIcons = new Map<string, { name: string; color?: string | null }>([["Network", { name: "router", color: "#2f9e44" }]]);
 
 const desktops = new Map<number, Record<string, unknown>>();
 let nextDesktop = 1;
@@ -392,6 +393,12 @@ mockIPC(
         return [...sessions.values()];
       case "folders_list":
         return [...mockFolders];
+      case "folder_icons_list":
+        return [...mockFolderIcons.entries()];
+      case "folder_icon_set":
+        if (a.icon) mockFolderIcons.set(String(a.path), a.icon as { name: string; color?: string | null });
+        else mockFolderIcons.delete(String(a.path));
+        return null;
       case "folder_create": {
         const path = String(a.path).split("/").map((x) => x.trim()).filter(Boolean).join("/");
         if (!path) throw { code: "invalid", message: "invalid folder: must not be empty" };

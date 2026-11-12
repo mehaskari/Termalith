@@ -51,6 +51,21 @@ of the sidebar and are not saved as sessions.
 - In the session dialog, the **Folder** field suggests existing folders;
   `/` makes subfolders, e.g. `Production/DB`.
 
+## Icons
+
+Give sessions and folders an icon so servers, switches, firewalls and the
+rest are easy to tell apart in the list and on tabs.
+
+- **Session:** in the session dialog, **Icon** offers pictures such as
+  server, router, switch, firewall, access point, database, storage, cloud,
+  web, container, virtual machine, printer, camera and more, plus a color.
+  **By type** (the default) shows the protocol badge (SSH, RDP…) instead.
+- **Folder:** right-click a folder → **Icon…**, pick a picture and a color,
+  **Save**. **Folder** goes back to the plain folder picture. A folder icon
+  follows the folder when it is renamed or moved.
+- Tabs of a session show its icon. Session icons are included in exported
+  session files; folder icons are not.
+
 ## Favorites, tags and search
 
 - **☆** pins a session to *Favorites* at the top.

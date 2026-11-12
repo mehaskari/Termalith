@@ -15,6 +15,7 @@ mod keys;
 mod logs;
 mod macros;
 mod master;
+mod migrations;
 mod mobaxterm;
 mod monitor;
 mod mosh;

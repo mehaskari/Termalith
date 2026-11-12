@@ -89,7 +89,7 @@ import { ServerMonitor } from "./ui/ServerMonitor";
 import { SnippetsPanel } from "./ui/SnippetsPanel";
 import { NetworkTools } from "./ui/NetworkTools";
 import { BroadcastDialog } from "./ui/BroadcastDialog";
-import { type BroadcastState, eligibleTargets, resolveTargets } from "./ui/broadcast";
+import { type BroadcastState, pickableTargets, resolveTargets } from "./ui/broadcast";
 import { SerialQueue, chunkInput } from "./terminal/flow";
 import { SettingsDialog } from "./ui/SettingsDialog";
 import { UnlockDialog } from "./ui/MasterPassword";
@@ -212,6 +212,8 @@ export function App() {
   const [serialOpen, setSerialOpen] = useState(false);
   const [broadcast, setBroadcast] = useState<BroadcastState | null>(null);
   const [broadcastPicker, setBroadcastPicker] = useState<number | null>(null);
+  /** Tabs just opened from a folder to broadcast to (ticked in the dialog, may still be connecting). */
+  const [broadcastGroup, setBroadcastGroup] = useState<number[] | null>(null);
   const broadcastQueues = useRef(new Map<number, SerialQueue>());
   const [transferMode, setTransferMode] = useState<"export" | "import" | null>(null);
   const theme = useTheme(settings.theme);
@@ -345,6 +347,7 @@ export function App() {
         startup: opts.startup ?? undefined,
         sessionId: "sessionId" in target ? target.sessionId : undefined,
       });
+      return tabKey;
     },
     [addTab, withLogin, renameTab, patchTab],
   );
@@ -397,12 +400,13 @@ export function App() {
     [askPassword, patchTab],
   );
 
+  /** Opens a saved session; returns the tab key when it opened a terminal tab. */
   const connectSaved = useCallback(
-    (s: SessionRecord) => {
+    (s: SessionRecord): number | undefined => {
       if (s.protocol === "telnet") {
         const key = addTab(s.name, "telnet", telnetTerminal(s.id));
         patchTab(key, { sessionId: s.id, reconnect: () => connectSaved(s) });
-        return;
+        return key;
       }
       if (s.protocol === "rdp" || s.protocol === "vnc") {
         const protocol = s.protocol;
@@ -441,9 +445,9 @@ export function App() {
       if (s.mosh) {
         const key = addTab(s.name, "local", moshTerminal(s.id));
         patchTab(key, { sessionId: s.id, startup: s.startupCommand ?? undefined });
-        return;
+        return key;
       }
-      connect({ sessionId: s.id }, s.name, {
+      return connect({ sessionId: s.id }, s.name, {
         canSave,
         keyAuth: s.auth.kind === "keyFile",
         savedSecret: s.hasSavedSecret,
@@ -451,6 +455,23 @@ export function App() {
       });
     },
     [addTab, canSave, connect, openFilesTab, patchTab, runDesktop, settings.embeddedRdp],
+  );
+
+  /** Opens the sessions of a folder and offers to type into all of them at once. */
+  const openAndBroadcast = useCallback(
+    (list: SessionRecord[]) => {
+      if (broadcast) {
+        setNotice("Stop the current broadcast first.");
+        return;
+      }
+      const keys = list.map((s) => connectSaved(s)).filter((k): k is number => k !== undefined);
+      const [first, ...rest] = keys;
+      if (first === undefined || rest.length === 0) return;
+      setActive(first);
+      setBroadcastGroup(rest);
+      setBroadcastPicker(first);
+    },
+    [broadcast, connectSaved, setActive],
   );
 
   // Remote desktop status: poll while a client is running.
@@ -681,6 +702,10 @@ export function App() {
     if (dirty.length) setNotice(`Kept ${dirty.map((t) => t.title).join(", ")}: unsaved changes.`);
   }
 
+  const tiled = broadcast?.tiled ?? false;
+  const inBroadcast = (key: number) =>
+    broadcast !== null && (broadcast.source === key || broadcast.targets.includes(key));
+
   // Stop broadcasting when the source tab closes or its session ends.
   useEffect(() => {
     if (!broadcast) return;
@@ -780,6 +805,7 @@ export function App() {
         folderIcons={folderIcons}
         onSetFolderIcon={(path, icon) => void setFolderIcon(path, icon).then(refresh, failed)}
         onConnect={connectSaved}
+        onOpenAndBroadcast={openAndBroadcast}
         onOpenFiles={openFilesTab}
         onEdit={(s) => setSessionDialog({ mode: "edit", session: s })}
         onDelete={setConfirmDelete}
@@ -938,7 +964,7 @@ export function App() {
             </button>
           </div>
         )}
-        <div className="panes">
+        <div className={`panes ${tiled ? "tiled" : ""}`}>
           {tabs.length === 0 && (
             <div className="placeholder">
               <p>No open terminals.</p>
@@ -950,7 +976,7 @@ export function App() {
               key={t.key}
               id={`pane-${t.key}`}
               className="pane"
-              hidden={t.key !== active}
+              hidden={tiled ? !inBroadcast(t.key) : t.key !== active}
               role="tabpanel"
               aria-labelledby={`tab-${t.key}`}
             >
@@ -1173,7 +1199,14 @@ export function App() {
                 <div className="broadcast-banner" role="status">
                   BROADCASTING to {resolveTargets(broadcast, tabs).live.map((x) => tabs.find((y) => y.key === x.key)?.title).join(", ") || "no live terminals"}
                   {resolveTargets(broadcast, tabs).skipped.length > 0 &&
-                    ` · skipped (not connected): ${resolveTargets(broadcast, tabs).skipped.map((x) => x.title).join(", ")}`}
+                    ` · waiting (not connected): ${resolveTargets(broadcast, tabs).skipped.map((x) => x.title).join(", ")}`}
+                  <button
+                    type="button"
+                    className="banner-action"
+                    onClick={() => setBroadcast({ ...broadcast, tiled: !broadcast.tiled })}
+                  >
+                    {broadcast.tiled ? "Show as tabs" : "Show side by side"}
+                  </button>
                 </div>
               )}
               {broadcast?.targets.includes(t.key) && broadcast.source !== t.key && (
@@ -1372,12 +1405,17 @@ export function App() {
       {broadcastPicker !== null && tabs.find((t) => t.key === broadcastPicker) && (
         <BroadcastDialog
           source={tabs.find((t) => t.key === broadcastPicker)!}
-          candidates={eligibleTargets(tabs, broadcastPicker)}
-          onCancel={() => setBroadcastPicker(null)}
-          onStart={(targets) => {
-            broadcastQueues.current.clear();
-            setBroadcast({ source: broadcastPicker, targets });
+          candidates={pickableTargets(tabs, broadcastPicker, broadcastGroup ?? [])}
+          preselected={broadcastGroup ?? []}
+          onCancel={() => {
             setBroadcastPicker(null);
+            setBroadcastGroup(null);
+          }}
+          onStart={(targets, tiled) => {
+            broadcastQueues.current.clear();
+            setBroadcast({ source: broadcastPicker, targets, tiled });
+            setBroadcastPicker(null);
+            setBroadcastGroup(null);
           }}
         />
       )}

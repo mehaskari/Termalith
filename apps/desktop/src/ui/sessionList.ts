@@ -64,6 +64,12 @@ export function isFtp(s: Pick<SessionInput, "protocol">): boolean {
   return s.protocol === "ftp" || s.protocol === "ftps";
 }
 
+/** Opens a terminal (SSH shell, Telnet or Mosh), so it can take broadcast input. */
+export function opensTerminal(s: Pick<SessionInput, "protocol" | "filesOnly">): boolean {
+  const protocol = s.protocol ?? "ssh";
+  return (protocol === "ssh" && !s.filesOnly) || protocol === "telnet";
+}
+
 export function isDesktop(s: Pick<SessionInput, "protocol">): boolean {
   return s.protocol === "rdp" || s.protocol === "vnc";
 }

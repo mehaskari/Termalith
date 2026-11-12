@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Browse files as root.** On SSH, **root** in the Files panel switches
+  file access to root through sudo (password asked once, never saved).
 - **Icons for sessions and folders.** Pick a picture (server, router,
   switch, firewall, database, cloud and more) and a color in the session
   dialog, or right-click a folder → *Icon…*. Session icons also show on

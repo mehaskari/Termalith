@@ -108,6 +108,10 @@ jobs:
           echo "termalith-test:$PW" | sudo chpasswd
           printf 'Match User termalith-test Address 127.0.0.1\n  PasswordAuthentication yes\n' \
             | sudo tee /etc/ssh/sshd_config.d/00-termalith-test.conf >/dev/null
+          # Password-protected sudo for the SFTP-as-root test.
+          echo 'termalith-test ALL=(ALL) ALL' | sudo tee /etc/sudoers.d/termalith-test >/dev/null
+          sudo chmod 0440 /etc/sudoers.d/termalith-test
+          sudo visudo -cf /etc/sudoers.d/termalith-test
           # Not created yet on images where ssh is socket-activated (arm64).
           sudo mkdir -p /run/sshd
           sudo sshd -t
@@ -117,6 +121,7 @@ jobs:
             echo "TERMALITH_TEST_SSH_PORT=22"
             echo "TERMALITH_TEST_SSH_USER=termalith-test"
             echo "TERMALITH_TEST_SSH_PASSWORD=$PW"
+            echo "TERMALITH_TEST_SUDO=1"
           } >> "$GITHUB_ENV"
 
       # The Windows ARM image ships without Rust.

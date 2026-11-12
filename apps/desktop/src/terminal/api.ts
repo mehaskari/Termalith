@@ -326,6 +326,10 @@ export interface DroppedFile {
 }
 
 export const sftpHome = (terminalId: TerminalId) => invoke<string>("sftp_home", { terminalId });
+/** Browse files as root through sudo; rejects with `password_required` when sudo needs one. */
+export const sftpSudoStart = (terminalId: TerminalId, password: string | null) =>
+  invoke<void>("sftp_sudo_start", { terminalId, password });
+export const sftpSudoStop = (terminalId: TerminalId) => invoke<void>("sftp_sudo_stop", { terminalId });
 export const sftpList = (terminalId: TerminalId, path: string) =>
   invoke<RemoteEntry[]>("sftp_list", { terminalId, path });
 

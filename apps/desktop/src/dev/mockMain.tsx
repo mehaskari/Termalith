@@ -635,6 +635,12 @@ mockIPC(
         w?.(a.answer as HostKeyAnswer);
         return w !== undefined;
       }
+      case "sftp_sudo_start":
+        if (a.password == null) throw { code: "password_required", message: "sudo needs a password" };
+        if (a.password === "wrong") throw { code: "sudo_refused", message: "sudo refused: wrong password, no sudo rights, or no SFTP server on the host" };
+        return null;
+      case "sftp_sudo_stop":
+        return null;
       case "sftp_home":
         return "/home/deploy";
       case "sftp_list": {

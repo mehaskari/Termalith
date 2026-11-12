@@ -58,6 +58,20 @@ description: Files in Termalith — the SFTP panel and file browser, FTP and FTP
 - **Compare…** in a file's menu, then **Compare with …** on a second file,
   shows both side by side with the differences highlighted.
 
+## Browse as root (sudo)
+
+On SSH connections, **root** in the Files panel's header switches file
+access to root through `sudo`, for files your login user cannot read or
+change (e.g. `/etc` or `/root`). Termalith asks for your sudo password
+unless the server allows passwordless sudo; the password is used once and
+never saved. While the red **root** badge is on, browsing, uploads,
+downloads, edits, renames and deletes all run as root, so be careful.
+Click it again to go back to your user.
+
+It needs `sudo` rights on the server and its SFTP server program in a usual
+place (`/usr/lib/openssh/sftp-server`, `/usr/libexec/openssh/sftp-server`,
+…). Not for FTP.
+
 ## Follow the terminal's folder
 
 The **⇣** button in the Files panel of an SSH tab makes the panel follow

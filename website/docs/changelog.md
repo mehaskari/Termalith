@@ -5,6 +5,11 @@
 - **Shared session files.** *Settings → Shared sessions* reads a team's
   session export from a shared folder or an https:// address; its sessions
   appear read-only under their own folder and refresh at every start.
+- **Bandwidth test.** *Tools → Bandwidth (iperf3)* measures upload or
+  download speed to any iperf3 server.
+- **LAN scan.** *Tools → LAN scan* lists the hosts on your subnet with
+  their open common ports and hardware addresses; no administrator rights
+  needed.
 - **New-output dot on tabs.** A tab that got output while you were
   elsewhere shows a small dot until you open it.
 - **Risky pastes are shown first.** Several lines, a trailing line break,

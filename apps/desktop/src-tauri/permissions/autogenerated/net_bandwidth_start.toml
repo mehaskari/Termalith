@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-net-bandwidth-start"
+description = "Enables the net_bandwidth_start command without any pre-configured scope."
+commands.allow = ["net_bandwidth_start"]
+
+[[permission]]
+identifier = "deny-net-bandwidth-start"
+description = "Denies the net_bandwidth_start command without any pre-configured scope."
+commands.deny = ["net_bandwidth_start"]

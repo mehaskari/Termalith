@@ -14,7 +14,11 @@ use crate::AppError;
 use crate::migrations::MIGRATIONS;
 use crate::migrations::migrate;
 
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, export_to = "../../../apps/desktop/src/generated/"))]
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct SessionId(String);
@@ -47,7 +51,11 @@ impl SessionId {
     }
 }
 
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, export_to = "../../../apps/desktop/src/generated/"))]
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AuthMethod {
@@ -60,7 +68,11 @@ pub enum AuthMethod {
 }
 
 /// What a saved session connects with.
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, export_to = "../../../apps/desktop/src/generated/"))]
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum SessionProtocol {
@@ -107,7 +119,11 @@ impl SessionProtocol {
 }
 
 /// User-editable fields of a session.
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, export_to = "../../../apps/desktop/src/generated/"))]
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInput {
@@ -155,7 +171,11 @@ pub struct SessionInput {
 
 /// A session's or folder's icon: one of the app's built-in pictures and an
 /// optional color. Unknown names show the default picture in the UI.
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, export_to = "../../../apps/desktop/src/generated/"))]
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Icon {
@@ -196,7 +216,11 @@ impl Icon {
 }
 
 /// A session's own terminal font and colors (M-012).
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, export_to = "../../../apps/desktop/src/generated/"))]
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Appearance {
@@ -262,7 +286,11 @@ pub fn normalize_tags(tags: &[String]) -> Vec<String> {
     out
 }
 
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, export_to = "../../../apps/desktop/src/generated/"))]
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionRecord {

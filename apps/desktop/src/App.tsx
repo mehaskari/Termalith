@@ -23,6 +23,8 @@ import {
   type SshTarget,
   appInfo,
   listFolders,
+  launchRequests,
+  type LaunchRequest,
   listFolderIcons,
   setFolderIcon,
   type SessionIcon,
@@ -101,12 +103,13 @@ import { useTheme } from "./app/useTheme";
 import { SessionIconGlyph } from "./ui/sessionIcons";
 import { isMacPlatform, matchShortcut } from "./ui/shortcuts";
 import { Sidebar } from "./ui/Sidebar";
-import { isFtp, targetLabel } from "./ui/sessionList";
+import { type TypedConnection, parseTypedConnection } from "./ui/commandLine";
+import { applyTypedConnection, emptyForm, isFtp, normalizeFolder, parseForm, targetLabel } from "./ui/sessionList";
 
 const RECONNECT_DELAY_MS = 5000;
 
 type SessionDialogState =
-  | { mode: "create"; folder?: string }
+  | { mode: "create"; folder?: string; prefill?: SessionInput }
   | { mode: "edit"; session: SessionRecord }
   | { mode: "quick" };
 
@@ -509,6 +512,38 @@ export function App() {
     openDesktopIds.current = now;
   }, [tabs]);
 
+  /** Opens what the command line asked for (kept current for the startup effect). */
+  const launchRef = useRef<(requests: LaunchRequest[], saved: SessionRecord[]) => void>(() => {});
+  launchRef.current = (requests, saved) => {
+    const inFolder = (s: SessionRecord, path: string) => {
+      const f = normalizeFolder(s.folder).toLowerCase();
+      const p = normalizeFolder(path).toLowerCase();
+      return p !== "" && (f === p || f.startsWith(`${p}/`));
+    };
+    let opened = 0;
+    for (const r of requests) {
+      if (r.kind === "session") {
+        const s = saved.find((x) => x.name.toLowerCase() === r.name.toLowerCase());
+        if (s) {
+          connectSaved(s);
+          opened++;
+        } else setNotice(`No saved session is called "${r.name}".`);
+      } else if (r.kind === "folder") {
+        const list = saved.filter((s) => inFolder(s, r.path));
+        if (list.length === 0) setNotice(`No sessions in folder "${r.path}".`);
+        list.forEach((s) => connectSaved(s));
+        opened += list.length;
+      } else {
+        const t = parseTypedConnection(r.text);
+        if (t) {
+          connectTyped(t);
+          opened++;
+        } else setNotice(`Could not read "${r.text}" as a connection.`);
+      }
+    }
+    // Nothing could be opened: start as usual, with a local terminal.
+    if (opened === 0) openLocal();
+  };
   const didOpenInitialTab = useRef(false);
   useEffect(() => {
     appInfo().then(setInfo, () => setInfo({ version: "?", secretsAvailable: false, agentAvailable: false }));
@@ -539,11 +574,18 @@ export function App() {
         },
         () => {},
       ),
-    ]).then(() => {
-      if (!didOpenInitialTab.current) {
-        didOpenInitialTab.current = true;
+    ]).then(async () => {
+      if (didOpenInitialTab.current) return;
+      didOpenInitialTab.current = true;
+      // Command-line switches (--session, --folder, ssh://…) replace the
+      // first local terminal.
+      const requests = await launchRequests().catch(() => []);
+      if (requests.length === 0) {
         openLocal();
+        return;
       }
+      const saved = await listSessions().catch(() => [] as SessionRecord[]);
+      launchRef.current(requests, saved);
     });
     const unlisten = listen<HostKeyPrompt>("host-key-prompt", (e) =>
       setHostKeyPrompts((q) => [...q, e.payload]),
@@ -577,6 +619,24 @@ export function App() {
     askPassword({ target: `sudo on ${target}`, kind: "password", canSave: false, retry: null }).then(
       (a) => a?.password ?? null,
     );
+  /** A connection typed in the palette: SSH opens at once, others prefill New session. */
+  function connectTyped(t: TypedConnection) {
+    const form = applyTypedConnection({ ...emptyForm(), name: t.host }, t);
+    const parsed = parseForm(form, { requireName: false });
+    if (!parsed.ok) {
+      setNotice(parsed.message);
+      return;
+    }
+    if (t.protocol === "ssh" && !t.mosh && !t.filesOnly) {
+      connect({ quick: parsed.value }, targetLabel(parsed.value), {
+        canSave: false,
+        keyAuth: parsed.value.auth.kind === "keyFile",
+        savedSecret: false,
+      });
+    } else {
+      setSessionDialog({ mode: "create", prefill: parsed.value });
+    }
+  }
 
   async function submitSession(value: SessionInput) {
     const d = sessionDialog;
@@ -1338,7 +1398,13 @@ export function App() {
       {sessionDialog && (
         <SessionDialog
           mode={sessionDialog.mode}
-          initial={sessionDialog.mode === "edit" ? sessionDialog.session : undefined}
+          initial={
+            sessionDialog.mode === "edit"
+              ? sessionDialog.session
+              : sessionDialog.mode === "create"
+                ? sessionDialog.prefill
+                : undefined
+          }
           editingId={sessionDialog.mode === "edit" ? sessionDialog.session.id : undefined}
           defaultFolder={sessionDialog.mode === "create" ? sessionDialog.folder : undefined}
           sessions={sessions}
@@ -1511,6 +1577,19 @@ export function App() {
       {paletteOpen && (
         <CommandPalette
           onClose={() => setPaletteOpen(false)}
+          typed={(q) => {
+            const t = parseTypedConnection(q);
+            if (!t) return [];
+            return [
+              {
+                id: "typed-connection",
+                label: `Connect: ${q.trim()}`,
+                detail: t.protocol === "ssh" && !t.mosh && !t.filesOnly ? "SSH, not saved" : "opens New session",
+                group: "Actions",
+                run: () => connectTyped(t),
+              },
+            ];
+          }}
           items={[
             ...tabs.map(
               (t): PaletteItem => ({ id: `tab-${t.key}`, label: t.title, detail: t.kind, group: "Tabs", run: () => setActive(t.key) }),

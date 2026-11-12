@@ -80,6 +80,7 @@
     "allow-sftp-download",
     "allow-sftp-upload",
     "allow-transfer-cancel",
+    "allow-launch-requests",
     "allow-server-folder",
     "allow-server-pick-folder",
     "allow-server-use-dropped",

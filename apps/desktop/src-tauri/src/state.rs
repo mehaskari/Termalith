@@ -34,6 +34,8 @@ pub struct AppState {
     /// The folder the next file server shares (picked or dropped);
     /// `None` is the default "Termalith Share" folder.
     pub server_folder: std::sync::Mutex<Option<PathBuf>>,
+    /// What the command line asked to open (handed out once).
+    pub launch: crate::launch::LaunchRequests,
     pub probes: Arc<crate::nettools::Probes>,
     /// Files dropped onto the window; uploads refer to them by token.
     pub dropped: Arc<DroppedFiles>,
@@ -182,6 +184,9 @@ impl AppState {
             servers: Arc::new(app_core::LocalServers::default()),
             probes: Arc::new(crate::nettools::Probes::default()),
             server_folder: std::sync::Mutex::new(None),
+            launch: crate::launch::LaunchRequests(std::sync::Mutex::new(Some(
+                crate::launch::parse(std::env::args()),
+            ))),
             dropped: Arc::new(DroppedFiles::default()),
             downloads_dir,
             home_dir: app.path().home_dir().ok(),

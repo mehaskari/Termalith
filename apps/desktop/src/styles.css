@@ -2092,6 +2092,26 @@ button.recording {
   color: var(--danger, #d9534f);
 }
 
+/* A background tab got new output. */
+.tab-activity {
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+.paste-preview {
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
 /* Session and folder icons */
 .session-icon-box {
   width: 30px;

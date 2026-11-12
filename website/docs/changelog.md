@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.7 (2026-11-12)
 
 - **File servers: choose the folder and the FTP login.** The folder to share
   is shown in full before you start, with **Choose folder…** (the system

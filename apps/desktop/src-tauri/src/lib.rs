@@ -1,6 +1,8 @@
 //! Tauri boundary. Translates IPC to calls on platform-neutral crates; holds
 //! no domain logic of its own.
 
+#[cfg(test)]
+mod command_lists;
 mod crash;
 mod desktop;
 mod error;

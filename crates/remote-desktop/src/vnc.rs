@@ -14,9 +14,12 @@ use vnc::{PixelFormat, VncClient, VncConnector, VncEncoding, VncError, VncEvent,
 use zeroize::Zeroizing;
 
 use crate::DesktopError;
-use crate::embedded::{
-    Control, MAX_FRAMES_IN_FLIGHT, Viewer, ViewerEvent, ViewerInput, crop, debug, union,
-};
+use crate::viewer::{Control, MAX_FRAMES_IN_FLIGHT, Viewer, ViewerEvent, ViewerInput, crop, union};
+
+/// VNC diagnostics (`TERMALITH_RDP_DEBUG=1`), prefixed `vnc:`.
+fn debug(message: &str) {
+    crate::viewer::debug("vnc", message);
+}
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 /// How often the server is asked for changes while frames are flowing.

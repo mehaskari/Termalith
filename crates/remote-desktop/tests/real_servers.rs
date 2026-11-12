@@ -150,7 +150,8 @@ async fn tigervnc_viewer_connects_with_the_launch_plan() {
 #[cfg(feature = "embedded")]
 #[test]
 fn embedded_rdp_against_xrdp() {
-    use remote_desktop::embedded::{LoginParams, ViewerEvent, ViewerInput, capture, start};
+    use remote_desktop::embedded::{LoginParams, capture, start};
+    use remote_desktop::viewer::{ViewerEvent, ViewerInput};
     let Some(addr) = env("TERMALITH_TEST_XRDP") else {
         eprintln!("TERMALITH_TEST_XRDP not set; skipped");
         return;
@@ -272,7 +273,7 @@ fn embedded_rdp_against_xrdp() {
 #[cfg(feature = "embedded")]
 #[test]
 fn embedded_vnc_against_xvnc() {
-    use remote_desktop::embedded::{ViewerEvent, ViewerInput};
+    use remote_desktop::viewer::{ViewerEvent, ViewerInput};
     use remote_desktop::vnc::{VncParams, start};
     let Some(addr) = env("TERMALITH_TEST_VNC") else {
         eprintln!("TERMALITH_TEST_VNC not set; skipped");

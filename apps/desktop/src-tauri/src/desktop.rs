@@ -3,7 +3,7 @@
 //! experimental embedded RDP viewer (ADR-030).
 
 use app_core::{AppError, DesktopHub, DesktopInfo, DesktopLaunch, SessionId, SessionProtocol};
-use remote_desktop::embedded::{Cursor, ViewerEvent, ViewerInput};
+use remote_desktop::viewer::{Cursor, ViewerEvent, ViewerInput};
 use remote_desktop::{DesktopError, DesktopTarget, Protocol};
 use serde::{Deserialize, Serialize};
 use tauri::State;

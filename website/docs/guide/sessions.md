@@ -29,7 +29,32 @@ of the sidebar and are not saved as sessions.
   move, delete).
 - Click a session, or select it and press <kbd>Enter</kbd>, to connect.
 - **Quick connect** connects without saving. The host field accepts
-  `user@host:port`.
+  `user@host:port` or an ssh command such as `ssh -p 2222 -l root web1`
+  or `ssh -i ~/.ssh/id_ed25519 me@web1`.
+- **Type a connection in the command palette:** press
+  <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>K</kbd> and type e.g.
+  `ssh me@10.0.0.5`, `telnet 10.0.0.254 23`, `mosh me@box`,
+  `sftp me@files`, `rdp admin@win`, `vnc 192.168.1.40` or a URL such as
+  `ssh://me@host:2222`. **Connect** opens SSH at once (not saved); the
+  other types open **New session** filled in, ready to save.
+
+## Open from a shortcut or a script
+
+Start Termalith with a switch to open sessions right away (instead of the
+first local terminal):
+
+| Switch | Opens |
+|---|---|
+| `--session "web-01"` | the saved session with that name |
+| `--folder "Production/DB"` | every session in that folder and its subfolders |
+| `ssh://me@10.0.0.5:2222` (also `telnet://`, `rdp://`, `vnc://`, `sftp://`, `ftp://`) | that connection, like the command palette |
+| `--connect "ssh -p 2222 me@host"` | a typed connection |
+
+Examples: on Windows, copy the Termalith shortcut, open **Properties** and
+add `--session "web-01"` after the path in **Target**; on macOS
+`open -a Termalith --args --folder Production`; on Linux
+`termalith --session web-01`. Switches apply when Termalith starts; a
+running Termalith is not reused.
 
 ## Folders
 

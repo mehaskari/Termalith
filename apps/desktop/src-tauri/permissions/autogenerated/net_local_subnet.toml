@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-net-local-subnet"
+description = "Enables the net_local_subnet command without any pre-configured scope."
+commands.allow = ["net_local_subnet"]
+
+[[permission]]
+identifier = "deny-net-local-subnet"
+description = "Denies the net_local_subnet command without any pre-configured scope."
+commands.deny = ["net_local_subnet"]

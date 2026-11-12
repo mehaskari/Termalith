@@ -592,6 +592,51 @@ export function startScan(
   return invoke<number>("net_scan_start", { host, ports, onResult: result, onDone: done });
 }
 
+export interface LanHost {
+  address: string;
+  /** Ports that accepted a connection (of 22, 23, 80, 443, 445, 139, 3389, 5900, 8080, 8443). */
+  openPorts: number[];
+}
+
+/** This computer's subnet as a /24 guess, or null. */
+export const localSubnet = () => invoke<string | null>("net_local_subnet");
+
+/** Scans an IPv4 subnet (/22 to /30); cancel with `cancelProbe`. */
+export function startLanScan(
+  subnet: string,
+  onHost: (h: LanHost) => void,
+  onDone: (d: { macs: Record<string, string>; cancelled: boolean }) => void,
+): Promise<number> {
+  const host = new Channel<LanHost>();
+  host.onmessage = onHost;
+  const done = new Channel<{ macs: Record<string, string>; cancelled: boolean }>();
+  done.onmessage = onDone;
+  return invoke<number>("net_lan_scan_start", { subnet, onHost: host, onDone: done });
+}
+
+export interface BandwidthResult {
+  bytes: number;
+  seconds: number;
+  bitsPerSecond: number;
+  download: boolean;
+}
+
+/** Bandwidth test against an iperf3 server; cancel with `cancelProbe`. */
+export function startBandwidth(
+  host: string,
+  port: number | null,
+  seconds: number,
+  download: boolean,
+  onSample: (s: { second: number; bitsPerSecond: number }) => void,
+  onDone: (d: { result: BandwidthResult | null; error: string | null; cancelled: boolean }) => void,
+): Promise<number> {
+  const sample = new Channel<{ second: number; bitsPerSecond: number }>();
+  sample.onmessage = onSample;
+  const done = new Channel<{ result: BandwidthResult | null; error: string | null; cancelled: boolean }>();
+  done.onmessage = onDone;
+  return invoke<number>("net_bandwidth_start", { host, port, seconds, download, onSample: sample, onDone: done });
+}
+
 /** Sends a Wake-on-LAN magic packet. */
 export const wakeOnLan = (mac: string, broadcast: string | null) => invoke<void>("net_wake", { mac, broadcast });
 

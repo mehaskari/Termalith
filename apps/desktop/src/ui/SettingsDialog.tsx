@@ -210,6 +210,10 @@ export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvail
           Right-click in a terminal pastes
         </label>
         <label className="checkbox span-2">
+          <input type="checkbox" checked={s.pasteWarning} onChange={(e) => set({ pasteWarning: e.target.checked })} />
+          Warn before pasting several lines or risky text
+        </label>
+        <label className="checkbox span-2">
           <input type="checkbox" checked={s.autoReconnect} onChange={(e) => set({ autoReconnect: e.target.checked })} />
           Reconnect SSH tabs automatically when the connection drops
         </label>

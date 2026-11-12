@@ -18,6 +18,8 @@ import {
 } from "./api";
 import { AckBatcher, SerialQueue, chunkInput } from "./flow";
 import { connectFailureLines, describeError, describeExit } from "./messages";
+import { pasteWarnings, revealHidden } from "./pasteCheck";
+import { Dialog } from "../ui/Dialog";
 
 
 interface Props {
@@ -42,6 +44,8 @@ interface Props {
   onNotice?: (message: string) => void;
   /** The shell reported its folder (OSC 7). */
   onFolder?: (host: string, path: string) => void;
+  /** Output arrived while this terminal was not shown (once until shown again). */
+  onActivity?: () => void;
 }
 
 export function TerminalView({
@@ -57,6 +61,7 @@ export function TerminalView({
   label = "terminal",
   onNotice,
   onFolder,
+  onActivity,
 }: Props) {
   const searchRef = useRef<SearchAddon | null>(null);
   const findInput = useRef<HTMLInputElement>(null);
@@ -70,8 +75,24 @@ export function TerminalView({
   // `open` must not re-run the effect; keep the first one.
   const openRef = useRef(open);
   const initial = useRef({ settings, theme });
-  const callbacks = useRef({ onReady, onFailed, onExited, onInput, onNotice, onFolder, label });
-  callbacks.current = { onReady, onFailed, onExited, onInput, onNotice, onFolder, label };
+  const callbacks = useRef({ onReady, onFailed, onExited, onInput, onNotice, onFolder, onActivity, label });
+  callbacks.current = { onReady, onFailed, onExited, onInput, onNotice, onFolder, onActivity, label };
+  // Hidden terminals report new output once, until they are shown again.
+  const shown = useRef({ active, reported: false });
+  shown.current.active = active;
+  if (active) shown.current.reported = false;
+  // Pastes that need a look first (Settings → warn before risky pastes).
+  const [pendingPaste, setPendingPaste] = useState<{ text: string; reasons: string[] } | null>(null);
+  const warnPaste = useRef(settings.pasteWarning);
+  warnPaste.current = settings.pasteWarning;
+  /** Pastes into the shell, asking first when the text looks risky. */
+  const pasteRef = useRef((text: string) => {
+    const term = termRef.current;
+    if (!term || !text) return;
+    const reasons = warnPaste.current ? pasteWarnings(text) : [];
+    if (reasons.length > 0) setPendingPaste({ text, reasons });
+    else term.paste(text);
+  });
 
   useEffect(() => {
     const host = hostRef.current;
@@ -141,11 +162,16 @@ export function TerminalView({
           .current(
             term.cols,
             term.rows,
-            (data) =>
+            (data) => {
+              if (!shown.current.active && !shown.current.reported) {
+                shown.current.reported = true;
+                callbacks.current.onActivity?.();
+              }
               term.write(data, () => {
                 acks.add(data.length);
                 highlighter.schedule();
-              }),
+              });
+            },
             (payload) => {
               exited = true;
               term.write(`\r\n\x1b[2m[${describeExit(payload)}]\x1b[0m\r\n`);
@@ -195,6 +221,15 @@ export function TerminalView({
         if (id !== null && !exited) resizeTerminal(id, cols, rows).catch(report("resize failed"));
       });
     });
+    // Native paste (Cmd/Ctrl+V, menu) goes through the same check.
+    const onPaste = (e: ClipboardEvent) => {
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      if (!warnPaste.current || pasteWarnings(text).length === 0) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      pasteRef.current(text);
+    };
+    host.addEventListener("paste", onPaste, true);
     // Hidden tabs have zero size; fitting them would shrink the PTY.
     const observer = new ResizeObserver(() => {
       if (host.offsetWidth > 0 && host.offsetHeight > 0) fit.fit();
@@ -205,6 +240,7 @@ export function TerminalView({
       disposed = true;
       clearTimeout(startTimer);
       observer.disconnect();
+      host.removeEventListener("paste", onPaste, true);
       cancelAnimationFrame(resizeFrame);
       onData.dispose();
       onResize.dispose();
@@ -240,7 +276,7 @@ export function TerminalView({
       const sel = term.getSelection();
       if (sel) void navigator.clipboard.writeText(sel).catch(() => {});
     } else {
-      void navigator.clipboard.readText().then((t) => t && term.paste(t), () => {});
+      void navigator.clipboard.readText().then((t) => pasteRef.current(t), () => {});
     }
     // Only react to new requests.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -295,8 +331,7 @@ export function TerminalView({
     if (!host || !settings.rightClickPaste) return;
     const onContext = (e: MouseEvent) => {
       e.preventDefault();
-      const term = termRef.current;
-      if (term) void navigator.clipboard.readText().then((t) => t && term.paste(t), () => {});
+      void navigator.clipboard.readText().then((t) => pasteRef.current(t), () => {});
     };
     host.addEventListener("contextmenu", onContext);
     return () => host.removeEventListener("contextmenu", onContext);
@@ -315,6 +350,50 @@ export function TerminalView({
   return (
     <div className="terminal-wrap">
       <div ref={hostRef} className="terminal-host" />
+      {pendingPaste && (
+        <Dialog
+          title="Paste this?"
+          tone="warning"
+          onCancel={() => {
+            setPendingPaste(null);
+            termRef.current?.focus();
+          }}
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingPaste(null);
+                  termRef.current?.focus();
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger"
+                onClick={() => {
+                  const text = pendingPaste.text;
+                  setPendingPaste(null);
+                  termRef.current?.paste(text);
+                  termRef.current?.focus();
+                }}
+              >
+                Paste
+              </button>
+            </>
+          }
+        >
+          <p>Look at it before it reaches {label}:</p>
+          <ul>
+            {pendingPaste.reasons.map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+          <pre className="paste-preview">{revealHidden(pendingPaste.text)}</pre>
+          <p className="hint">Settings → “Warn before pasting several lines or risky text” turns this off.</p>
+        </Dialog>
+      )}
       {findOpen && (
         <form
           className="find-bar"

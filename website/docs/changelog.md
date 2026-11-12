@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **New-output dot on tabs.** A tab that got output while you were
+  elsewhere shows a small dot until you open it.
+- **Risky pastes are shown first.** Several lines, a trailing line break,
+  `curl … | sh`, or invisible and control characters open a short check
+  with the text before it reaches the shell (*Settings → Warn before
+  pasting several lines or risky text*).
 - **Broadcast to a whole folder, side by side.** Right-click a folder →
   *Open all and type into them at once…* opens its SSH and Telnet sessions
   and broadcasts your typing to all of them. The terminals can be shown

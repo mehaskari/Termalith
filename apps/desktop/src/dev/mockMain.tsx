@@ -41,7 +41,7 @@ const mockSnippets: Array<{ id: string; name: string; command: string; folder: s
   { id: "snp-1", name: "Interface status", command: "show interfaces {{iface}} status", folder: "Cisco" },
   { id: "snp-2", name: "Disk usage", command: "df -h\ndu -sh {{path}}", folder: null },
 ];
-const mockSettings: Record<string, unknown> = { theme: "system", fontSize: 13, fontFamily: "", cursorStyle: "block", cursorBlink: true, scrollback: 5000, logSessions: false, defaultShell: null, copyOnSelect: false, rightClickPaste: false, autoReconnect: true, terminalScheme: "app", proxy: null };
+const mockSettings: Record<string, unknown> = { theme: "system", fontSize: 13, fontFamily: "", cursorStyle: "block", cursorBlink: true, scrollback: 5000, logSessions: false, defaultShell: null, copyOnSelect: false, rightClickPaste: false, autoReconnect: true, terminalScheme: "app", proxy: null, pasteWarning: true };
 const logging = new Set<number>();
 let nextTunnel = 1;
 const tunnels: Array<Record<string, unknown> & { id: number; terminalId: number }> = [];

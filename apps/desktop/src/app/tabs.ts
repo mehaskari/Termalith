@@ -59,6 +59,8 @@ export interface Tab {
   shellId?: string | null;
   /** Command typed into the shell once it is ready (saved session option). */
   startup?: string;
+  /** New output arrived while the tab was not shown. */
+  activity?: boolean;
 }
 
 /**

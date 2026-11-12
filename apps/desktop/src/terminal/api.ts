@@ -405,6 +405,8 @@ export interface Settings {
   copyOnSelect: boolean;
   /** Right-click in a terminal pastes the clipboard. */
   rightClickPaste: boolean;
+  /** Ask before risky pastes (several lines, curl | sh, hidden characters). */
+  pasteWarning: boolean;
   /** Reconnect SSH tabs whose connection was lost (not on `exit`). */
   autoReconnect: boolean;
   /** Terminal color scheme id (see TERMINAL_SCHEMES); "app" follows the app theme. */
@@ -430,6 +432,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultShell: null,
   copyOnSelect: false,
   rightClickPaste: false,
+  pasteWarning: true,
   autoReconnect: true,
   terminalScheme: "app",
   proxy: null,

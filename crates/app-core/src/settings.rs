@@ -87,6 +87,9 @@ pub struct Settings {
     pub copy_on_select: bool,
     /// Right-click in a terminal pastes.
     pub right_click_paste: bool,
+    /// Ask before pasting several lines, a download piped into a shell, or
+    /// invisible/control characters into a terminal.
+    pub paste_warning: bool,
     /// Reconnect SSH tabs whose connection was lost.
     pub auto_reconnect: bool,
     /// Terminal color scheme id; "app" follows the app theme.
@@ -118,6 +121,7 @@ impl Default for Settings {
             default_shell: None,
             copy_on_select: false,
             right_click_paste: false,
+            paste_warning: true,
             auto_reconnect: true,
             terminal_scheme: "app".into(),
             proxy: None,

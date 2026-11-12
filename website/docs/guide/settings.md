@@ -24,7 +24,7 @@ Open **Settings** with ☀ in the sidebar footer. Changes apply when you click
 | **Copy selected terminal text automatically** | Selecting text copies it, like many Linux terminals. |
 | **Right-click in a terminal pastes** | Right-click pastes instead of opening a menu. |
 | **Reconnect SSH tabs automatically when the connection drops** | Reconnects after 5 seconds, with a Cancel button. |
-| **Check GitHub for a newer version at startup** | Looks for a newer release when Termalith starts; nothing is downloaded. |
+| **Tell me when a new version is available** | On by default. At startup Termalith asks GitHub for the latest release; when it is newer, a small notice in the corner offers **Download** (opens the release page) or **Later** (that version is not shown again). Nothing is downloaded or installed automatically. Turn it off to make no request at all. |
 | **Show RDP and VNC sessions inside Termalith** | Opens desktops in a tab instead of the installed client ([Remote desktop](remote-desktop.md)). |
 | **Color keywords in terminal output** | Shows *error*, *warning*, *ok* and similar words in color. |
 | **Show a server monitor under SSH terminals** | CPU, load, memory, disk and network of Linux servers, refreshed every 3 seconds. |

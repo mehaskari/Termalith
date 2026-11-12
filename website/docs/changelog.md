@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **New version notice.** When a newer Termalith is out, a small notice in
+  the corner offers **Download** or **Later** (that version is not shown
+  again). The startup check is now on by default for everyone, including
+  existing installs; turn it off in *Settings → Tell me when a new version
+  is available*. Nothing is downloaded automatically.
+
 ## 0.5.8 (2026-11-12)
 
 - **File servers: login for HTTP, shown for every protocol.** The new

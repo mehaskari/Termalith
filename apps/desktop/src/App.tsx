@@ -6,6 +6,7 @@ import {
   DEFAULT_SETTINGS,
   type Settings,
   checkForUpdates,
+  type UpdateInfo,
   getSettings,
   saveSettings,
   setFavorite,
@@ -95,6 +96,7 @@ import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
 import { type Tab, useTabs } from "./app/tabs";
 import { useMasterPassword } from "./app/useMasterPassword";
 import { useTheme } from "./app/useTheme";
+import { UpdateToast, dismissedVersion } from "./ui/UpdateToast";
 import { isMacPlatform, matchShortcut } from "./ui/shortcuts";
 import { Sidebar } from "./ui/Sidebar";
 import { isFtp, targetLabel } from "./ui/sessionList";
@@ -204,6 +206,7 @@ export function App() {
   const [importing, setImporting] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const didCheckUpdates = useRef(false);
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [serialOpen, setSerialOpen] = useState(false);
   const [broadcast, setBroadcast] = useState<BroadcastState | null>(null);
@@ -494,11 +497,12 @@ export function App() {
         (s) => {
           setSettings(s);
           localPrefs.current.defaultShell = s.defaultShell;
-          // Opt-in: one quiet request; only a newer version is mentioned.
-          if (s.checkUpdates && !didCheckUpdates.current) {
+          // One quiet request at startup (Settings can turn it off); only a
+          // newer version is shown, and a version put off with "Later" is not.
+          if (s.updateCheck && !didCheckUpdates.current) {
             didCheckUpdates.current = true;
             checkForUpdates().then(
-              (u) => u.newer && setNotice(`Termalith ${u.latest} is available. Open About (ⓘ) to download it.`),
+              (u) => u.newer && u.latest !== dismissedVersion() && setUpdate(u),
               () => {},
             );
           }
@@ -915,6 +919,7 @@ export function App() {
             +
           </button>
         </div>
+        {update && <UpdateToast info={update} onClose={() => setUpdate(null)} />}
         {notice && (
           <div className="notice" role="status">
             {notice}

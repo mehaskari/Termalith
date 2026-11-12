@@ -19,8 +19,8 @@ import { formatSize } from "./paths";
 const msg = (e: unknown) => (isIpcError(e) ? e.message : String(e));
 const DEFAULT_PORT: Record<ServerKind, number> = { tftp: 6969, http: 8080, ftp: 2121 };
 const LABEL: Record<ServerKind, string> = { tftp: "TFTP", http: "HTTP", ftp: "FTP" };
-const DEFAULT_FTP_USER = "termalith";
-const FTP_PASSWORD_MIN = 6;
+const DEFAULT_USER = "termalith";
+const PASSWORD_MIN = 6;
 const copy = (text: string) => void navigator.clipboard.writeText(text).catch(() => {});
 
 /**
@@ -34,8 +34,9 @@ export function ServersTool({ dropped }: { dropped: DroppedFile | null }) {
   const [lan, setLan] = useState(false);
   const [uploads, setUploads] = useState(false);
   const [folder, setFolder] = useState<SharedFolder | null>(null);
-  const [ftpUser, setFtpUser] = useState(DEFAULT_FTP_USER);
-  const [ftpPassword, setFtpPassword] = useState("");
+  const [httpLogin, setHttpLogin] = useState(false);
+  const [user, setUser] = useState(DEFAULT_USER);
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [servers, setServers] = useState<ServerState[]>([]);
@@ -66,9 +67,11 @@ export function ServersTool({ dropped }: { dropped: DroppedFile | null }) {
 
   const portNumber = Number(port);
   const portOk = Number.isInteger(portNumber) && portNumber > 0 && portNumber < 65536;
-  const userOk = ftpUser === "" || /^[A-Za-z0-9._-]{1,64}$/.test(ftpUser);
-  const passwordOk = ftpPassword === "" || (ftpPassword.length >= FTP_PASSWORD_MIN && ftpPassword.length <= 64);
-  const canStart = folder !== null && portOk && (kind !== "ftp" || (userOk && passwordOk)) && !busy;
+  // FTP always asks for a login; HTTP when turned on; TFTP cannot.
+  const login = kind === "ftp" || (kind === "http" && httpLogin);
+  const userOk = user === "" || /^[A-Za-z0-9._-]{1,64}$/.test(user);
+  const passwordOk = password === "" || (password.length >= PASSWORD_MIN && password.length <= 64);
+  const canStart = folder !== null && portOk && (!login || (userOk && passwordOk)) && !busy;
 
   async function chooseFolder() {
     setError(null);
@@ -90,11 +93,12 @@ export function ServersTool({ dropped }: { dropped: DroppedFile | null }) {
         lan,
         port: portNumber,
         allowUploads: uploads,
-        ftpUser: kind === "ftp" ? ftpUser : null,
-        ftpPassword: kind === "ftp" ? ftpPassword : null,
+        requireLogin: login,
+        user: login ? user : null,
+        password: login ? password : null,
       });
       // The password now shows with the running server; do not keep it here.
-      setFtpPassword("");
+      setPassword("");
       setServers(await serverList());
     } catch (err) {
       setError(msg(err));
@@ -155,45 +159,64 @@ export function ServersTool({ dropped }: { dropped: DroppedFile | null }) {
           <p className="hint">You can also drop a folder onto this window.</p>
         </fieldset>
 
-        {kind === "ftp" && (
-          <fieldset className="server-login">
-            <legend>FTP login</legend>
-            <div className="server-fields">
-              <label>
-                User name
-                <input
-                  value={ftpUser}
-                  autoComplete="off"
-                  spellCheck={false}
-                  aria-invalid={!userOk}
-                  placeholder={DEFAULT_FTP_USER}
-                  onChange={(e) => setFtpUser(e.target.value.trim())}
-                />
-              </label>
-              <label>
-                Password
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={ftpPassword}
-                  autoComplete="new-password"
-                  spellCheck={false}
-                  aria-invalid={!passwordOk}
-                  placeholder="random"
-                  onChange={(e) => setFtpPassword(e.target.value)}
-                />
-              </label>
-              <label className="checkbox">
-                <input type="checkbox" checked={showPassword} onChange={(e) => setShowPassword(e.target.checked)} />
-                Show
-              </label>
-            </div>
+        <fieldset className="server-login">
+          <legend>Login</legend>
+          {kind === "tftp" && (
             <p className="hint">
-              {userOk
-                ? `Leave the password empty for a random one. A chosen password needs at least ${FTP_PASSWORD_MIN} characters.`
-                : "The user name may only use letters, digits, '.', '_' and '-'."}
+              TFTP has no user name or password: the protocol does not support them. Anyone who can reach this
+              port can read the shared files (and upload new ones, if allowed), so keep "Allow other computers" off
+              unless you need it.
             </p>
-          </fieldset>
-        )}
+          )}
+          {kind === "http" && (
+            <label className="checkbox">
+              <input type="checkbox" checked={httpLogin} onChange={(e) => setHttpLogin(e.target.checked)} />
+              Require a user name and password
+            </label>
+          )}
+          {kind === "ftp" && <p className="hint">FTP always asks for a user name and password.</p>}
+          {login && (
+            <>
+              <div className="server-fields">
+                <label>
+                  User name
+                  <input
+                    value={user}
+                    autoComplete="off"
+                    spellCheck={false}
+                    aria-invalid={!userOk}
+                    placeholder={DEFAULT_USER}
+                    onChange={(e) => setUser(e.target.value.trim())}
+                  />
+                </label>
+                <label>
+                  Password
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    autoComplete="new-password"
+                    spellCheck={false}
+                    aria-invalid={!passwordOk}
+                    placeholder="random"
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </label>
+                <label className="checkbox">
+                  <input type="checkbox" checked={showPassword} onChange={(e) => setShowPassword(e.target.checked)} />
+                  Show
+                </label>
+              </div>
+              <p className="hint">
+                {userOk
+                  ? `Leave the password empty for a random one. A chosen password needs at least ${PASSWORD_MIN} characters.`
+                  : "The user name may only use letters, digits, '.', '_' and '-'."}
+              </p>
+            </>
+          )}
+          {kind === "http" && !httpLogin && (
+            <p className="hint">Off: anyone who can reach this port can read the shared files.</p>
+          )}
+        </fieldset>
 
         <label className="checkbox">
           <input type="checkbox" checked={lan} onChange={(e) => setLan(e.target.checked)} />
@@ -237,6 +260,12 @@ export function ServersTool({ dropped }: { dropped: DroppedFile | null }) {
                   Open
                 </button>
               </dd>
+              {!s.credentials && (
+                <>
+                  <dt>Login</dt>
+                  <dd>none (anyone who can connect)</dd>
+                </>
+              )}
               {s.credentials && (
                 <>
                   <dt>User name</dt>

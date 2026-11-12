@@ -52,9 +52,11 @@ pub struct ServerConfig {
     /// 0 picks a free port.
     pub port: u16,
     pub allow_uploads: bool,
-    /// FTP: the user name and password; `None` uses [`FTP_USER`] and a
-    /// random password. Checked with [`check_ftp_login`].
-    pub ftp_login: Option<(String, String)>,
+    /// The user name and password clients must give, checked with
+    /// [`check_login`]. FTP always asks for one: `None` uses [`FTP_USER`]
+    /// and a random password. HTTP asks only when set. TFTP has no login
+    /// in the protocol, so it must be `None`.
+    pub login: Option<(String, String)>,
 }
 
 impl std::fmt::Debug for ServerConfig {
@@ -64,22 +66,22 @@ impl std::fmt::Debug for ServerConfig {
             .field("bind", &self.bind)
             .field("port", &self.port)
             .field("allow_uploads", &self.allow_uploads)
-            .field("ftp_user", &self.ftp_login.as_ref().map(|(u, _)| u))
+            .field("user", &self.login.as_ref().map(|(u, _)| u))
             .finish_non_exhaustive()
     }
 }
 
-/// Longest FTP user name and password accepted.
-const FTP_FIELD_MAX: usize = 64;
-/// Shortest FTP password accepted.
-pub const FTP_PASSWORD_MIN: usize = 6;
+/// Longest user name and password accepted.
+const LOGIN_FIELD_MAX: usize = 64;
+/// Shortest password accepted.
+pub const PASSWORD_MIN: usize = 6;
 
-/// Checks a user-chosen FTP login: a user name of letters, digits, `.`,
-/// `_` and `-`, and a password of at least [`FTP_PASSWORD_MIN`] printable
+/// Checks a user-chosen login: a user name of letters, digits, `.`, `_`
+/// and `-`, and a password of at least [`PASSWORD_MIN`] printable
 /// characters without spaces at either end.
-pub fn check_ftp_login(user: &str, password: &str) -> Result<(), ServerError> {
+pub fn check_login(user: &str, password: &str) -> Result<(), ServerError> {
     let user_ok = !user.is_empty()
-        && user.len() <= FTP_FIELD_MAX
+        && user.len() <= LOGIN_FIELD_MAX
         && user
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
@@ -89,12 +91,12 @@ pub fn check_ftp_login(user: &str, password: &str) -> Result<(), ServerError> {
         ));
     }
     let chars = password.chars().count();
-    if !(FTP_PASSWORD_MIN..=FTP_FIELD_MAX).contains(&chars)
+    if !(PASSWORD_MIN..=LOGIN_FIELD_MAX).contains(&chars)
         || password.chars().any(char::is_control)
         || password.trim() != password
     {
         return Err(ServerError::Login(format!(
-            "the password needs {FTP_PASSWORD_MIN} to {FTP_FIELD_MAX} characters, without control characters or spaces at either end"
+            "the password needs {PASSWORD_MIN} to {LOGIN_FIELD_MAX} characters, without control characters or spaces at either end"
         )));
     }
     Ok(())
@@ -143,7 +145,7 @@ pub enum ServerError {
 pub struct Running {
     pub kind: ServerKind,
     pub local_addr: SocketAddr,
-    /// FTP: the user name and the password of this start.
+    /// FTP, and HTTP with a login: the user name and password of this start.
     pub credentials: Option<(String, String)>,
     stop: CancellationToken,
     task: JoinHandle<()>,
@@ -184,12 +186,25 @@ pub async fn start(
     let stop = CancellationToken::new();
     let mut credentials = None;
     let (local_addr, task) = match kind {
-        ServerKind::Tftp => tftp::serve(addr, shared, stop.clone()).await?,
-        ServerKind::Http => http::serve(addr, shared, stop.clone()).await?,
+        ServerKind::Tftp => {
+            if config.login.is_some() {
+                return Err(ServerError::Login(
+                    "TFTP has no user name or password in the protocol".into(),
+                ));
+            }
+            tftp::serve(addr, shared, stop.clone()).await?
+        }
+        ServerKind::Http => {
+            if let Some((user, password)) = &config.login {
+                check_login(user, password)?;
+            }
+            credentials.clone_from(&config.login);
+            http::serve(addr, shared, stop.clone(), config.login).await?
+        }
         ServerKind::Ftp => {
-            let (user, password) = match config.ftp_login {
+            let (user, password) = match config.login {
                 Some((user, password)) => {
-                    check_ftp_login(&user, &password)?;
+                    check_login(&user, &password)?;
                     (user, password)
                 }
                 None => (FTP_USER.to_owned(), ftp::random_password()),
@@ -213,6 +228,11 @@ pub(crate) struct Shared {
     pub root: PathBuf,
     pub allow_uploads: bool,
     pub activity: ActivitySink,
+}
+
+/// Compares secrets in time that does not depend on where they differ.
+pub(crate) fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 impl Shared {

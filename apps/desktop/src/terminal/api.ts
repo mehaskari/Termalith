@@ -597,7 +597,7 @@ export interface ServerInfo {
   lan: boolean;
   allowUploads: boolean;
   urls: string[];
-  /** FTP: user name and password of this start. */
+  /** FTP, and HTTP with a login: user name and password of this start. */
   credentials: { user: string; password: string } | null;
 }
 
@@ -624,10 +624,12 @@ export const serverStart = (request: {
   lan: boolean;
   port: number | null;
   allowUploads: boolean;
-  /** FTP: empty or null is "termalith". */
-  ftpUser: string | null;
-  /** FTP: empty or null makes a random password. */
-  ftpPassword: string | null;
+  /** HTTP: ask clients for a user name and password (FTP always asks). */
+  requireLogin: boolean;
+  /** Empty or null is "termalith". */
+  user: string | null;
+  /** Empty or null makes a random password. */
+  password: string | null;
 }) => invoke<ServerInfo>("server_start", { request });
 export const serverList = () => invoke<ServerState[]>("server_list");
 export const serverStop = (id: number) => invoke<boolean>("server_stop", { id });

@@ -3370,6 +3370,7 @@ name = "local-servers"
 version = "0.5.7"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
  "bytes",
  "futures-util",
  "getrandom 0.3.4",

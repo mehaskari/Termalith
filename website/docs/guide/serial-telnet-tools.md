@@ -58,11 +58,20 @@ older device or a file manager an FTP server.
   connect. Turn it on to serve devices on your network; the addresses to use
   are shown with each running server. Your firewall may ask to allow
   Termalith.
-- **FTP login:** for FTP, set the **User name** (default `termalith`;
-  letters, digits, `.`, `_` and `-`) and the **Password** before you start.
+- **Login:** shown for every protocol before you start.
+  - **FTP** always asks for a **User name** (default `termalith`; letters,
+    digits, `.`, `_` and `-`) and a **Password**.
+  - **HTTP** asks only if you turn on **Require a user name and password**
+    (off by default, so devices that cannot sign in can still fetch files);
+    clients then sign in with HTTP Basic, e.g. `curl -u user:password …`.
+  - **TFTP** has no user name or password: the protocol does not support
+    them. Anyone who can reach the port can read the files, so keep **Allow
+    other computers** off unless you need it.
+
   Leave the password empty for a new random one; a chosen password needs at
-  least 6 characters. The running server shows both (**Copy**). Anonymous
-  sign-in is not offered.
+  least 6 characters. Each running server shows its user name and password
+  (**Copy**), or *none* when no login is asked. Anonymous sign-in is not
+  offered.
 - **Allow uploads:** off by default (read-only). When on, clients can upload
   new files and create folders (TFTP write, HTTP `PUT`, e.g. `curl -T
   backup.cfg http://192.168.1.23:8080/`, FTP `put`); an existing file is

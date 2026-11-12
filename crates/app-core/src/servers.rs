@@ -28,9 +28,9 @@ pub struct ServerSpec {
     /// `None`: the protocol's unprivileged default.
     pub port: Option<u16>,
     pub allow_uploads: bool,
-    /// FTP: a chosen user name and password; `None` uses the default user
-    /// and a random password.
-    pub ftp_login: Option<(String, String)>,
+    /// The login clients must give (FTP always: `None` is the default user
+    /// and a random password; HTTP only when set; TFTP never).
+    pub login: Option<(String, String)>,
 }
 
 impl std::fmt::Debug for ServerSpec {
@@ -41,7 +41,7 @@ impl std::fmt::Debug for ServerSpec {
             .field("lan", &self.lan)
             .field("port", &self.port)
             .field("allow_uploads", &self.allow_uploads)
-            .field("ftp_user", &self.ftp_login.as_ref().map(|(u, _)| u))
+            .field("user", &self.login.as_ref().map(|(u, _)| u))
             .finish_non_exhaustive()
     }
 }
@@ -58,13 +58,13 @@ pub struct ServerInfo {
     pub allow_uploads: bool,
     /// Addresses to give to clients (`tftp://…`, `http://…`, `ftp://…`).
     pub urls: Vec<String>,
-    /// FTP: the user name and password of this start.
-    pub credentials: Option<FtpCredentials>,
+    /// FTP, and HTTP with a login: the user name and password of this start.
+    pub credentials: Option<LoginCredentials>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FtpCredentials {
+pub struct LoginCredentials {
     pub user: String,
     pub password: String,
 }
@@ -124,7 +124,7 @@ impl LocalServers {
                 bind,
                 port,
                 allow_uploads: spec.allow_uploads,
-                ftp_login: spec.ftp_login.clone(),
+                login: spec.login.clone(),
             },
             Arc::new(move |a: Activity| {
                 let entry = ActivityEntry {
@@ -155,7 +155,7 @@ impl LocalServers {
             credentials: running
                 .credentials
                 .clone()
-                .map(|(user, password)| FtpCredentials { user, password }),
+                .map(|(user, password)| LoginCredentials { user, password }),
         };
         self.servers
             .lock()
@@ -286,7 +286,7 @@ mod tests {
                 lan: false,
                 port: Some(0),
                 allow_uploads: false,
-                ftp_login: None,
+                login: None,
             })
             .await
             .unwrap();
@@ -304,7 +304,7 @@ mod tests {
                 lan: false,
                 port: Some(0),
                 allow_uploads: false,
-                ftp_login: None,
+                login: None,
             })
             .await
             .unwrap();
@@ -322,7 +322,7 @@ mod tests {
                 lan: false,
                 port: Some(0),
                 allow_uploads: false,
-                ftp_login: None,
+                login: None,
             })
             .await;
         assert!(missing.is_err());

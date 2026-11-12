@@ -7,6 +7,12 @@
   again). The startup check is now on by default for everyone, including
   existing installs; turn it off in *Settings → Tell me when a new version
   is available*. Nothing is downloaded automatically.
+- **New-output dot on tabs.** A tab that got output while you were
+  elsewhere shows a small dot until you open it.
+- **Risky pastes are shown first.** Several lines, a trailing line break,
+  `curl … | sh`, or invisible and control characters open a short check
+  with the text before it reaches the shell (*Settings → Warn before
+  pasting several lines or risky text*).
 - **Command-line switches.** `--session NAME`, `--folder PATH`,
   `--connect "ssh …"` or a URL such as `ssh://me@host` open sessions when
   Termalith starts, e.g. from a desktop shortcut or a script.

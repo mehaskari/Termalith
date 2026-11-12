@@ -19,6 +19,9 @@ output** or close other tabs. <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>K</kbd>
 opens the **command palette**, which searches tabs, sessions and actions.
 All shortcuts: [Keyboard shortcuts](shortcuts.md).
 
+A small dot after a tab's title means new output arrived while you were in
+another tab, e.g. a long command finished. It goes away when you open the tab.
+
 ## Split panes
 
 The first three toolbar buttons split the tab **side by side**, **top and
@@ -80,6 +83,12 @@ typed a password.
 - Copy and paste: <kbd>Cmd</kbd>+<kbd>C</kbd>/<kbd>V</kbd>, or
   <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>/<kbd>V</kbd>. Optional in
   [Settings](settings.md): copy on select, paste with a right-click.
+- **Risky pastes are shown first.** Before pasting several lines (each runs
+  as soon as it arrives), text ending in a line break, a download piped into
+  a shell (`curl … | sh`), or invisible or control characters, Termalith
+  shows the text and why it asks; **Paste** or **Cancel**. Invisible
+  characters appear as `⟨U+200B⟩`. *Settings → Warn before pasting several
+  lines or risky text* turns this off.
 - <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+click opens an `http(s)` link in your
   browser.
 

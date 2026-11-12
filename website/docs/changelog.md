@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Broadcast to a whole folder, side by side.** Right-click a folder →
+  *Open all and type into them at once…* opens its SSH and Telnet sessions
+  and broadcasts your typing to all of them. The terminals can be shown
+  side by side while broadcasting, and the broadcast dialog has
+  **Select all**.
+
 ## 0.5.8 (2026-11-12)
 
 - **File servers: login for HTTP, shown for every protocol.** The new

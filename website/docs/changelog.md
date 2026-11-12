@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.8 (2026-11-12)
 
 - **File servers: login for HTTP, shown for every protocol.** The new
   server form always has a *Login* section: FTP asks for a user name and

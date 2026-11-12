@@ -27,6 +27,7 @@ zeroize = "1.9"
 semver = "1"
 rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "aws_lc_rs"] }
 ureq = { version = "3.5", default-features = false, features = ["rustls-no-provider", "rustls-webpki-roots"] }
+ts-rs = { version = "12", default-features = false, features = ["serde-compat"], optional = true }
 
 [dev-dependencies]
 zeroize = "1.9"
@@ -42,3 +43,8 @@ serial-console = { path = "../serial-console" }
 
 [lints]
 workspace = true
+
+[features]
+# Generates the TypeScript IPC types (R-005, ADR-039):
+# `cargo test -p app-core --features ts export_bindings`.
+ts = ["dep:ts-rs"]

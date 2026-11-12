@@ -102,7 +102,10 @@ fn try_start(cfg: &SshdConfig) -> Result<TestSshd, String> {
     let host_pub = std::fs::read_to_string(d.join("host_key.pub")).map_err(|e| e.to_string())?;
 
     let mut last_err = String::new();
-    for _attempt in 0..3 {
+    // A port picked by binding 0 can be taken by another test's sshd before
+    // ours binds it: then ours exits while the other one answers. Only a
+    // port that our own process reports listening on counts.
+    for _attempt in 0..6 {
         let port = free_port();
         let mut conf = String::new();
         let _ = writeln!(conf, "Port {port}");
@@ -139,7 +142,14 @@ fn try_start(cfg: &SshdConfig) -> Result<TestSshd, String> {
             .spawn()
             .map_err(|e| format!("spawn sshd: {e}"))?;
 
-        if wait_for_banner(port, Duration::from_secs(10)) {
+        if wait_for_own_listen(
+            &mut child,
+            &d.join("sshd.log"),
+            port,
+            Duration::from_secs(10),
+        ) && wait_for_banner(port, Duration::from_secs(10))
+            && matches!(child.try_wait(), Ok(None))
+        {
             return Ok(TestSshd {
                 dir,
                 port,
@@ -157,6 +167,35 @@ fn try_start(cfg: &SshdConfig) -> Result<TestSshd, String> {
         );
     }
     Err(last_err)
+}
+
+/// Waits until *this* sshd logs that it listens on `port`. False when it
+/// exits first (e.g. "Address already in use") or the time runs out.
+fn wait_for_own_listen(
+    child: &mut std::process::Child,
+    log: &std::path::Path,
+    port: u16,
+    timeout: Duration,
+) -> bool {
+    let start = Instant::now();
+    let listening = format!("port {port}");
+    while start.elapsed() < timeout {
+        if !matches!(child.try_wait(), Ok(None)) {
+            return false;
+        }
+        let text = std::fs::read_to_string(log).unwrap_or_default();
+        if text
+            .lines()
+            .any(|l| l.contains("Server listening on") && l.contains(&listening))
+        {
+            return true;
+        }
+        if text.contains("Cannot bind any address") || text.contains("Address already in use") {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    false
 }
 
 fn wait_for_banner(port: u16, timeout: Duration) -> bool {
@@ -202,5 +241,54 @@ impl Drop for TestSshd {
     fn drop(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    fn sleeper() -> std::process::Child {
+        Command::new("sleep").arg("5").spawn().expect("sleep")
+    }
+
+    #[test]
+    fn only_our_own_listening_line_counts() {
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("sshd.log");
+        let mut child = sleeper();
+        std::fs::write(
+            &log,
+            "Bind to port 4022 on 127.0.0.1 failed: Address already in use.\n",
+        )
+        .unwrap();
+        assert!(!wait_for_own_listen(
+            &mut child,
+            &log,
+            4022,
+            Duration::from_secs(2)
+        ));
+        std::fs::write(&log, "Server listening on 127.0.0.1 port 4023.\n").unwrap();
+        assert!(!wait_for_own_listen(
+            &mut child,
+            &log,
+            4022,
+            Duration::from_millis(200)
+        ));
+        assert!(wait_for_own_listen(
+            &mut child,
+            &log,
+            4023,
+            Duration::from_secs(2)
+        ));
+        let _ = child.kill();
+        let _ = child.wait();
+        // A process that already exited never counts.
+        assert!(!wait_for_own_listen(
+            &mut child,
+            &log,
+            4023,
+            Duration::from_secs(2)
+        ));
     }
 }

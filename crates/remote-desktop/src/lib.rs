@@ -18,6 +18,8 @@ pub use rdp_cert::{CertFingerprint, read_certificate};
 #[cfg(feature = "embedded")]
 pub mod embedded;
 #[cfg(feature = "embedded")]
+pub mod viewer;
+#[cfg(feature = "embedded")]
 pub mod vnc;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]

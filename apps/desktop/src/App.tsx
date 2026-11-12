@@ -12,7 +12,6 @@ import {
   writeTerminal,
   type MacroStep,
   createMacro,
-  masterStatus,
   type DroppedFile,
   type IpcError,
   type TerminalId,
@@ -46,8 +45,6 @@ import {
   serialSummary,
   splitTerminal,
   updateSession,
-  type DesktopInfo,
-  type LogInfo,
   type AuthPrompt,
   respondAuthPrompt,
   startLog,
@@ -66,7 +63,7 @@ import {
 } from "./terminal/api";
 import { DesktopPane } from "./ui/DesktopPane";
 import { EditorPane } from "./ui/EditorPane";
-import { DiffPane, type DiffTarget } from "./ui/DiffPane";
+import { DiffPane } from "./ui/DiffPane";
 import { AuthPromptDialog } from "./ui/AuthPromptDialog";
 import { KeysDialog } from "./ui/KeysDialog";
 import { AboutDialog } from "./ui/AboutDialog";
@@ -95,65 +92,14 @@ import { SettingsDialog } from "./ui/SettingsDialog";
 import { UnlockDialog } from "./ui/MasterPassword";
 import { SerialDialog } from "./ui/SerialDialog";
 import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
-import { resolveTheme } from "./ui/theme";
+import { type Tab, useTabs } from "./app/tabs";
+import { useMasterPassword } from "./app/useMasterPassword";
+import { useTheme } from "./app/useTheme";
 import { isMacPlatform, matchShortcut } from "./ui/shortcuts";
 import { Sidebar } from "./ui/Sidebar";
 import { isFtp, targetLabel } from "./ui/sessionList";
 
-interface Tab {
-  key: number;
-  title: string;
-  kind: "local" | "ssh" | "serial" | "tools" | "desktop" | "editor" | "telnet" | "files" | "diff" | "rdp";
-  /** A files tab on a protocol without terminals (FTP). */
-  noShell?: boolean;
-  /** The Files panel follows the folder of this tab's shell. */
-  followFolder?: boolean;
-  /** The folder and host the shell last reported (OSC 7). */
-  shellFolder?: { host: string; path: string };
-  open: Opener;
-  terminalId?: TerminalId;
-  /** Connection over (failed, or the remote shell exited). */
-  ended?: boolean;
-  filesOpen?: boolean;
-  /** Latest shortcut command for the main terminal of this tab. */
-  command?: { seq: number; action: "find" | "copy" | "paste" | "save" };
-  tunnelsOpen?: boolean;
-  snippetsOpen?: boolean;
-  /** Set when the connection was refused because the host key changed. */
-  changedKey?: { host: string; port: number; presented: string; known: string[] };
-  reconnect?: () => void;
-  /** Extra panes beside the main terminal. */
-  splits: SplitPane[];
-  direction: "row" | "column" | "grid";
-  /** Remote desktop tabs: the external client session (null while opening). */
-  desktop?: DesktopInfo | null;
-  desktopError?: string | null;
-  sessionId?: string;
-  /** Active session log of the main terminal. */
-  log?: LogInfo | null;
-  /** Editor tabs: the remote file and the SSH terminal whose connection is used. */
-  edit?: { terminalId: TerminalId; dir: string; name: string };
-  /** Editor has unsaved changes. */
-  dirty?: boolean;
-  /** Diff tabs: the two files compared. */
-  diff?: { left: DiffTarget; right: DiffTarget };
-  /** Connection lost: time (ms since epoch) of the automatic reconnect. */
-  reconnectAt?: number;
-  /** Local tabs: the shell id they were opened with (null = default). */
-  shellId?: string | null;
-  /** Command typed into the shell once it is ready (saved session option). */
-  startup?: string;
-}
-
 const RECONNECT_DELAY_MS = 5000;
-
-/** Panes in a tab split as a grid, the first terminal included. */
-const GRID_PANES = 4;
-
-interface SplitPane {
-  key: number;
-  open: Opener;
-}
 
 type SessionDialogState =
   | { mode: "create"; folder?: string }
@@ -172,23 +118,12 @@ const cancelled = () => ({ code: "cancelled", message: "Connection cancelled" })
 
 export function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
-  // Saved passwords protected by a master password start locked (ADR-032).
-  const [unlockOpen, setUnlockOpen] = useState(false);
-  const [masterProtected, setMasterProtected] = useState(false);
-  const refreshMaster = useCallback(() => {
-    masterStatus().then((s) => setMasterProtected(s.protected), () => {});
-  }, []);
-  useEffect(() => {
-    masterStatus().then((s) => {
-      setUnlockOpen(s.locked);
-      setMasterProtected(s.protected);
-    }, () => {});
-  }, []);
+  const { unlockOpen, setUnlockOpen, masterProtected, refreshMaster } = useMasterPassword();
   // Portable mode saves passwords only under a master password (ADR-033).
   const canSave = (info?.secretsAvailable ?? false) && (!info?.portable || masterProtected);
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
-  const [tabs, setTabs] = useState<Tab[]>([]);
-  const [active, setActive] = useState<number | null>(null);
+  const { tabs, setTabs, tabsRef, active, setActive, addTab, renameTab, patchTab, splitTab, closeSplit, closeTab } =
+    useTabs();
   const [sessionDialog, setSessionDialog] = useState<SessionDialogState | null>(null);
   // Several connections may ask at once (e.g. "Open all"): one dialog at a time.
   const [passwordRequests, setPasswordRequests] = useState<PasswordRequest[]>([]);
@@ -275,26 +210,8 @@ export function App() {
   const [broadcastPicker, setBroadcastPicker] = useState<number | null>(null);
   const broadcastQueues = useRef(new Map<number, SerialQueue>());
   const [transferMode, setTransferMode] = useState<"export" | "import" | null>(null);
-  const [systemDark, setSystemDark] = useState(
-    () => typeof window.matchMedia !== "function" || window.matchMedia("(prefers-color-scheme: dark)").matches,
-  );
-  const theme = resolveTheme(settings.theme, systemDark);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = (e: MediaQueryListEvent) => setSystemDark(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
+  const theme = useTheme(settings.theme);
   const activeRef = useRef<Tab | undefined>(undefined);
-  const tabsRef = useRef<Tab[]>([]);
-  tabsRef.current = tabs;
-  const nextKey = useRef(1);
 
   const [folders, setFolders] = useState<string[]>([]);
   const refresh = useCallback(() => {
@@ -302,47 +219,6 @@ export function App() {
     listFolders().then(setFolders, () => {});
   }, []);
   const failed = useCallback((e: unknown) => setNotice(String((e as { message?: string })?.message ?? e)), []);
-
-  const addTab = useCallback((title: string, kind: Tab["kind"], open: Opener) => {
-    const key = nextKey.current++;
-    setTabs((t) => [...t, { key, title, kind, open, splits: [], direction: "row" }]);
-    setActive(key);
-    return key;
-  }, []);
-
-  const renameTab = useCallback((key: number, title: string) => {
-    setTabs((t) => t.map((x) => (x.key === key ? { ...x, title } : x)));
-  }, []);
-
-  const patchTab = useCallback((key: number, patch: Partial<Tab>) => {
-    setTabs((t) => t.map((x) => (x.key === key ? { ...x, ...patch } : x)));
-  }, []);
-
-  const splitTab = useCallback((tab: Tab, direction: Tab["direction"]) => {
-    if (tab.terminalId === undefined) return;
-    const source = tab.terminalId;
-    // A grid fills up to four panes; a row or column adds one.
-    const added = direction === "grid" ? Math.max(0, GRID_PANES - 1 - tab.splits.length) : 1;
-    const panes = Array.from({ length: added }, () => ({ key: nextKey.current++, open: splitTerminal(source) }));
-    setTabs((t) =>
-      t.map((x) => (x.key === tab.key ? { ...x, direction, splits: [...x.splits, ...panes] } : x)),
-    );
-  }, []);
-
-  const closeSplit = useCallback((tabKey: number, paneKey: number) => {
-    setTabs((t) =>
-      t.map((x) => (x.key === tabKey ? { ...x, splits: x.splits.filter((s) => s.key !== paneKey) } : x)),
-    );
-  }, []);
-
-  const closeTab = useCallback((key: number) => {
-    setTabs((t) => {
-      const i = t.findIndex((x) => x.key === key);
-      const rest = t.filter((x) => x.key !== key);
-      setActive((a) => (a === key ? (rest[Math.max(0, i - 1)]?.key ?? null) : a));
-      return rest;
-    });
-  }, []);
 
   /** Closes a tab, asking first if an editor has unsaved changes. */
   const requestClose = useCallback(

@@ -96,6 +96,14 @@ jobs:
             libayatana-appindicator3-dev libssl-dev build-essential \
             xvfb openssh-server gnome-keyring dbus freerdp3-x11
 
+      # The TypeScript IPC types are generated from Rust (ts-rs, ADR-039);
+      # fail when the committed files are stale.
+      - name: Generated TypeScript types are current (Linux x64)
+        if: runner.os == 'Linux' && runner.arch == 'X64'
+        run: |
+          cargo test -p app-core --features ts --lib export_bindings
+          git diff --exit-code -- apps/desktop/src/generated
+
       # A real root-run sshd and a throwaway account so password
       # authentication can be tested (an unprivileged sshd cannot verify
       # passwords). Localhost only, random password, ephemeral runner.

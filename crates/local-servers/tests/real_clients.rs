@@ -44,6 +44,15 @@ fn folder() -> tempfile::TempDir {
 type Log = Arc<Mutex<Vec<Activity>>>;
 
 async fn server(kind: ServerKind, root: &Path, uploads: bool) -> (local_servers::Running, Log) {
+    server_with_login(kind, root, uploads, None).await
+}
+
+async fn server_with_login(
+    kind: ServerKind,
+    root: &Path,
+    uploads: bool,
+    ftp_login: Option<(String, String)>,
+) -> (local_servers::Running, Log) {
     let log: Log = Arc::default();
     let l = Arc::clone(&log);
     let running = start(
@@ -53,6 +62,7 @@ async fn server(kind: ServerKind, root: &Path, uploads: bool) -> (local_servers:
             bind: IpAddr::V4(Ipv4Addr::LOCALHOST),
             port: 0,
             allow_uploads: uploads,
+            ftp_login,
         },
         Arc::new(move |a| l.lock().unwrap().push(a)),
     )
@@ -251,6 +261,77 @@ async fn http_accepts_put_uploads_when_allowed() {
     // Stopped: nothing listens any more.
     let (ok, _) = run_curl(vec!["-f".into(), format!("{base}/small.txt")]).await;
     assert!(!ok);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn ftp_accepts_a_chosen_login_only() {
+    if !curl() {
+        return;
+    }
+    let dir = folder();
+    // A per-run password, so no literal secret sits in the test.
+    let password = format!("p{:x}", std::process::id() as u64 * 7919 + 104_729);
+    let (srv, _log) = server_with_login(
+        ServerKind::Ftp,
+        dir.path(),
+        false,
+        Some(("switch-admin".into(), password.clone())),
+    )
+    .await;
+    assert_eq!(
+        srv.credentials,
+        Some(("switch-admin".to_string(), password.clone()))
+    );
+    let base = format!("ftp://{}", srv.local_addr);
+    let (ok, out) = run_curl(vec![
+        "-u".into(),
+        format!("switch-admin:{password}"),
+        format!("{base}/small.txt"),
+    ])
+    .await;
+    assert!(ok && out == b"hello\n", "chosen login works");
+    // The default user name is not accepted with the chosen password.
+    let (ok, _) = run_curl(vec![
+        "-u".into(),
+        format!("termalith:{password}"),
+        format!("{base}/small.txt"),
+    ])
+    .await;
+    assert!(!ok, "only the chosen user");
+    srv.stop().await;
+}
+
+#[tokio::test]
+async fn ftp_rejects_unusable_logins() {
+    let dir = folder();
+    // Per-run random values, so no literal secret sits in the test.
+    let good = local_servers::ftp::random_password();
+    let short = good[..5].to_string();
+    let spaced = format!(" {good} ");
+    let long = good.repeat(6);
+    let cases = [
+        ("", good.as_str()),
+        ("a b", good.as_str()),
+        ("root;", good.as_str()),
+        ("user", short.as_str()),
+        ("user", spaced.as_str()),
+        ("user", long.as_str()),
+    ];
+    for (i, (user, password)) in cases.into_iter().enumerate() {
+        let r = start(
+            ServerKind::Ftp,
+            ServerConfig {
+                root: dir.path().to_path_buf(),
+                bind: IpAddr::V4(Ipv4Addr::LOCALHOST),
+                port: 0,
+                allow_uploads: false,
+                ftp_login: Some((user.into(), password.into())),
+            },
+            Arc::new(|_| {}),
+        )
+        .await;
+        assert!(r.is_err(), "case {i} must be refused");
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -3,38 +3,51 @@ import {
   type DroppedFile,
   type ServerKind,
   type ServerState,
+  type SharedFolder,
   isIpcError,
-  serverDefaultFolder,
+  serverFolder,
   serverList,
   serverOpenFolder,
+  serverPickFolder,
+  serverResetFolder,
   serverStart,
   serverStop,
+  serverUseDropped,
 } from "../terminal/api";
 import { formatSize } from "./paths";
 
 const msg = (e: unknown) => (isIpcError(e) ? e.message : String(e));
 const DEFAULT_PORT: Record<ServerKind, number> = { tftp: 6969, http: 8080, ftp: 2121 };
 const LABEL: Record<ServerKind, string> = { tftp: "TFTP", http: "HTTP", ftp: "FTP" };
+const DEFAULT_FTP_USER = "termalith";
+const FTP_PASSWORD_MIN = 6;
+const copy = (text: string) => void navigator.clipboard.writeText(text).catch(() => {});
 
 /**
- * Built-in TFTP, HTTP and FTP servers sharing one folder: the default
- * "Termalith Share" folder, or a folder dropped onto the window.
+ * Built-in TFTP, HTTP and FTP servers. The folder to share is kept by the
+ * backend: the default "Termalith Share" folder, one picked in the system
+ * dialog, or one dropped onto the window. What is shown is what is shared.
  */
 export function ServersTool({ dropped }: { dropped: DroppedFile | null }) {
   const [kind, setKind] = useState<ServerKind>("tftp");
   const [port, setPort] = useState(String(DEFAULT_PORT.tftp));
   const [lan, setLan] = useState(false);
   const [uploads, setUploads] = useState(false);
-  const [useDropped, setUseDropped] = useState(false);
-  const [defaultFolder, setDefaultFolder] = useState<string | null>(null);
+  const [folder, setFolder] = useState<SharedFolder | null>(null);
+  const [ftpUser, setFtpUser] = useState(DEFAULT_FTP_USER);
+  const [ftpPassword, setFtpPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [servers, setServers] = useState<ServerState[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    serverDefaultFolder().then(setDefaultFolder, (e) => setError(msg(e)));
+    serverFolder().then(setFolder, (e) => setError(msg(e)));
   }, []);
-  // A newly dropped folder becomes the one to share.
-  useEffect(() => setUseDropped(dropped !== null), [dropped]);
+  // A folder dropped onto the window becomes the one to share.
+  useEffect(() => {
+    if (dropped?.folder) serverUseDropped(dropped.token).then(setFolder, (e) => setError(msg(e)));
+  }, [dropped]);
   // The list (with recent activity) is refreshed while the tool is shown.
   useEffect(() => {
     let alive = true;
@@ -51,66 +64,137 @@ export function ServersTool({ dropped }: { dropped: DroppedFile | null }) {
     };
   }, []);
 
+  const portNumber = Number(port);
+  const portOk = Number.isInteger(portNumber) && portNumber > 0 && portNumber < 65536;
+  const userOk = ftpUser === "" || /^[A-Za-z0-9._-]{1,64}$/.test(ftpUser);
+  const passwordOk = ftpPassword === "" || (ftpPassword.length >= FTP_PASSWORD_MIN && ftpPassword.length <= 64);
+  const canStart = folder !== null && portOk && (kind !== "ftp" || (userOk && passwordOk)) && !busy;
+
+  async function chooseFolder() {
+    setError(null);
+    try {
+      setFolder(await serverPickFolder());
+    } catch (e) {
+      setError(msg(e));
+    }
+  }
+
   async function start(e: FormEvent) {
     e.preventDefault();
+    if (!canStart) return;
     setError(null);
-    const p = Number(port);
+    setBusy(true);
     try {
       await serverStart({
         kind,
-        folderToken: useDropped && dropped ? dropped.token : null,
         lan,
-        port: Number.isInteger(p) && p > 0 && p < 65536 ? p : null,
+        port: portNumber,
         allowUploads: uploads,
+        ftpUser: kind === "ftp" ? ftpUser : null,
+        ftpPassword: kind === "ftp" ? ftpPassword : null,
       });
-      // A dropped folder's token is used up; the next start shares the default.
-      if (useDropped) setUseDropped(false);
+      // The password now shows with the running server; do not keep it here.
+      setFtpPassword("");
       setServers(await serverList());
     } catch (err) {
       setError(msg(err));
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
     <div className="tool-form servers">
-      <form className="tool-form" onSubmit={start}>
-        <div className="row">
+      <form className="tool-form" onSubmit={start} aria-label="New file server">
+        <h3>New server</h3>
+        <div className="server-fields">
           <label>
-            Protocol{" "}
-            <select value={kind} onChange={(e) => {
-              const k = e.target.value as ServerKind;
-              setKind(k);
-              setPort(String(DEFAULT_PORT[k]));
-            }}>
+            Protocol
+            <select
+              value={kind}
+              onChange={(e) => {
+                const k = e.target.value as ServerKind;
+                setKind(k);
+                setPort(String(DEFAULT_PORT[k]));
+              }}
+            >
               <option value="tftp">TFTP</option>
               <option value="http">HTTP</option>
               <option value="ftp">FTP</option>
             </select>
           </label>
           <label>
-            Port <input className="port" value={port} inputMode="numeric" aria-label="Port"
-              onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ""))} />
+            Port
+            <input
+              className="port"
+              value={port}
+              inputMode="numeric"
+              aria-invalid={!portOk}
+              onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ""))}
+            />
           </label>
-          <button type="submit" className="primary">Start</button>
         </div>
-        <p className="hint">
-          Shared folder:{" "}
-          {useDropped && dropped ? (
-            <>
-              <strong>{dropped.name}</strong> (dropped){" "}
-              <button type="button" className="link" onClick={() => setUseDropped(false)}>Use the default folder</button>
-            </>
-          ) : (
-            <>
-              <code>{defaultFolder ?? "…"}</code>{" "}
-              <button type="button" className="link" onClick={() => void serverOpenFolder().catch((e) => setError(msg(e)))}>
-                Open folder
+
+        <fieldset className="server-folder">
+          <legend>Shared folder</legend>
+          <div className="row">
+            <code className="server-path" title={folder?.path}>{folder?.path ?? "…"}</code>
+            {folder?.isDefault && <span className="hint">(default)</span>}
+          </div>
+          <div className="row">
+            <button type="button" onClick={() => void chooseFolder()}>Choose folder…</button>
+            {folder && !folder.isDefault && (
+              <button type="button" onClick={() => void serverResetFolder().then(setFolder, (e) => setError(msg(e)))}>
+                Use default folder
               </button>
-            </>
-          )}
-          <br />
-          Drop a folder onto this window to share it instead.
-        </p>
+            )}
+            <button type="button" className="link" onClick={() => void serverOpenFolder(null).catch((e) => setError(msg(e)))}>
+              Open folder
+            </button>
+          </div>
+          <p className="hint">You can also drop a folder onto this window.</p>
+        </fieldset>
+
+        {kind === "ftp" && (
+          <fieldset className="server-login">
+            <legend>FTP login</legend>
+            <div className="server-fields">
+              <label>
+                User name
+                <input
+                  value={ftpUser}
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-invalid={!userOk}
+                  placeholder={DEFAULT_FTP_USER}
+                  onChange={(e) => setFtpUser(e.target.value.trim())}
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={ftpPassword}
+                  autoComplete="new-password"
+                  spellCheck={false}
+                  aria-invalid={!passwordOk}
+                  placeholder="random"
+                  onChange={(e) => setFtpPassword(e.target.value)}
+                />
+              </label>
+              <label className="checkbox">
+                <input type="checkbox" checked={showPassword} onChange={(e) => setShowPassword(e.target.checked)} />
+                Show
+              </label>
+            </div>
+            <p className="hint">
+              {userOk
+                ? `Leave the password empty for a random one. A chosen password needs at least ${FTP_PASSWORD_MIN} characters.`
+                : "The user name may only use letters, digits, '.', '_' and '-'."}
+            </p>
+          </fieldset>
+        )}
+
         <label className="checkbox">
           <input type="checkbox" checked={lan} onChange={(e) => setLan(e.target.checked)} />
           Allow other computers (otherwise only this computer can connect)
@@ -119,19 +203,25 @@ export function ServersTool({ dropped }: { dropped: DroppedFile | null }) {
           <input type="checkbox" checked={uploads} onChange={(e) => setUploads(e.target.checked)} />
           Allow uploads (new files only; existing files are never replaced)
         </label>
-        {Number(port) < 1024 && Number(port) > 0 && (
+        {portOk && portNumber < 1024 && (
           <p className="hint">Ports below 1024 need administrator rights on macOS and Linux.</p>
         )}
         {error && <p className="files-error" role="alert">{error}</p>}
+        <div className="row">
+          <button type="submit" className="primary" disabled={!canStart}>
+            Start {LABEL[kind]} server
+          </button>
+        </div>
       </form>
 
+      <h3>Running servers</h3>
       {servers.length === 0 ? (
         <p className="hint">No server is running.</p>
       ) : (
         servers.map((s) => (
           <section key={s.id} className="server" aria-label={`${LABEL[s.kind]} server on port ${s.port}`}>
             <div className="row">
-              <strong>{LABEL[s.kind]}</strong>
+              <strong>{LABEL[s.kind]} · port {s.port}</strong>
               <span className="hint">
                 {s.lan ? "other computers allowed" : "this computer only"} · {s.allowUploads ? "uploads on" : "read-only"}
               </span>
@@ -139,27 +229,40 @@ export function ServersTool({ dropped }: { dropped: DroppedFile | null }) {
                 Stop
               </button>
             </div>
-            <p className="hint"><code>{s.folder}</code></p>
-            {s.credentials && (
-              <p className="hint">
-                User <code>{s.credentials.user}</code> · password <code>{s.credentials.password}</code>{" "}
-                <button type="button" className="link"
-                  onClick={() => void navigator.clipboard.writeText(s.credentials?.password ?? "").catch(() => {})}>
-                  Copy password
+            <dl className="server-details">
+              <dt>Shared folder</dt>
+              <dd>
+                <code title={s.folder}>{s.folder}</code>{" "}
+                <button type="button" className="link" onClick={() => void serverOpenFolder(s.id).catch((e) => setError(msg(e)))}>
+                  Open
                 </button>
-                <br />A new random password is made each time the server starts.
-              </p>
-            )}
-            <ul className="server-urls">
-              {s.urls.map((u) => (
-                <li key={u}>
-                  <code>{u}</code>{" "}
-                  <button type="button" className="link" onClick={() => void navigator.clipboard.writeText(u).catch(() => {})}>
-                    Copy
-                  </button>
-                </li>
-              ))}
-            </ul>
+              </dd>
+              {s.credentials && (
+                <>
+                  <dt>User name</dt>
+                  <dd>
+                    <code>{s.credentials.user}</code>{" "}
+                    <button type="button" className="link" onClick={() => copy(s.credentials?.user ?? "")}>Copy</button>
+                  </dd>
+                  <dt>Password</dt>
+                  <dd>
+                    <code>{s.credentials.password}</code>{" "}
+                    <button type="button" className="link" onClick={() => copy(s.credentials?.password ?? "")}>Copy</button>
+                  </dd>
+                </>
+              )}
+              <dt>Addresses</dt>
+              <dd>
+                <ul className="server-urls">
+                  {s.urls.map((u) => (
+                    <li key={u}>
+                      <code>{u}</code>{" "}
+                      <button type="button" className="link" onClick={() => copy(u)}>Copy</button>
+                    </li>
+                  ))}
+                </ul>
+              </dd>
+            </dl>
             {s.activity.length > 0 && (
               <table className="server-activity">
                 <thead>

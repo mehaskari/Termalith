@@ -1954,6 +1954,82 @@ button.recording {
 }
 
 /* Built-in file servers (Network tools → File servers) */
+.servers h3 {
+  margin: 8px 0 0;
+  font-size: 14px;
+}
+.server-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.server-fields > label:not(.checkbox) {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.server-fields > label.checkbox {
+  padding-bottom: 7px;
+}
+.server-fields select,
+.server-fields input:not([type="checkbox"]) {
+  min-width: 140px;
+  height: 32px;
+  box-sizing: border-box;
+}
+.server-fields .port {
+  min-width: 0;
+  width: 90px;
+}
+.server-folder,
+.server-login {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 12px 10px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.server-folder legend,
+.server-login legend {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 4px;
+}
+.server-folder .row,
+.servers form > .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.server-folder .hint,
+.server-login .hint {
+  margin: 0;
+}
+.server-path {
+  font-size: 13px;
+  word-break: break-all;
+}
+.server-details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.server-details dt {
+  color: var(--muted);
+}
+.server-details dd {
+  margin: 0;
+  min-width: 0;
+  word-break: break-all;
+}
 .servers .server {
   margin-top: 6px;
   padding: 10px 12px;
@@ -1969,8 +2045,9 @@ button.recording {
   margin-left: auto;
 }
 .server-urls {
-  margin: 4px 0;
-  padding-left: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .server-activity {
   width: 100%;

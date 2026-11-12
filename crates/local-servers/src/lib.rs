@@ -42,7 +42,8 @@ impl ServerKind {
     }
 }
 
-#[derive(Debug, Clone)]
+/// How to start a server (its `Debug` leaves the FTP password out).
+#[derive(Clone)]
 pub struct ServerConfig {
     /// The shared folder.
     pub root: PathBuf,
@@ -51,6 +52,52 @@ pub struct ServerConfig {
     /// 0 picks a free port.
     pub port: u16,
     pub allow_uploads: bool,
+    /// FTP: the user name and password; `None` uses [`FTP_USER`] and a
+    /// random password. Checked with [`check_ftp_login`].
+    pub ftp_login: Option<(String, String)>,
+}
+
+impl std::fmt::Debug for ServerConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ServerConfig")
+            .field("root", &self.root)
+            .field("bind", &self.bind)
+            .field("port", &self.port)
+            .field("allow_uploads", &self.allow_uploads)
+            .field("ftp_user", &self.ftp_login.as_ref().map(|(u, _)| u))
+            .finish_non_exhaustive()
+    }
+}
+
+/// Longest FTP user name and password accepted.
+const FTP_FIELD_MAX: usize = 64;
+/// Shortest FTP password accepted.
+pub const FTP_PASSWORD_MIN: usize = 6;
+
+/// Checks a user-chosen FTP login: a user name of letters, digits, `.`,
+/// `_` and `-`, and a password of at least [`FTP_PASSWORD_MIN`] printable
+/// characters without spaces at either end.
+pub fn check_ftp_login(user: &str, password: &str) -> Result<(), ServerError> {
+    let user_ok = !user.is_empty()
+        && user.len() <= FTP_FIELD_MAX
+        && user
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
+    if !user_ok {
+        return Err(ServerError::Login(
+            "the user name may only use letters, digits, '.', '_' and '-' (up to 64)".into(),
+        ));
+    }
+    let chars = password.chars().count();
+    if !(FTP_PASSWORD_MIN..=FTP_FIELD_MAX).contains(&chars)
+        || password.chars().any(char::is_control)
+        || password.trim() != password
+    {
+        return Err(ServerError::Login(format!(
+            "the password needs {FTP_PASSWORD_MIN} to {FTP_FIELD_MAX} characters, without control characters or spaces at either end"
+        )));
+    }
+    Ok(())
 }
 
 /// What a client did, for the activity list.
@@ -82,6 +129,8 @@ pub type ActivitySink = Arc<dyn Fn(Activity) + Send + Sync>;
 pub enum ServerError {
     #[error("the shared folder is not usable: {0}")]
     Folder(String),
+    #[error("{0}")]
+    Login(String),
     #[error("cannot listen on {addr}: {source}")]
     Listen {
         addr: SocketAddr,
@@ -94,7 +143,7 @@ pub enum ServerError {
 pub struct Running {
     pub kind: ServerKind,
     pub local_addr: SocketAddr,
-    /// FTP: the user name and the random password of this start.
+    /// FTP: the user name and the password of this start.
     pub credentials: Option<(String, String)>,
     stop: CancellationToken,
     task: JoinHandle<()>,
@@ -138,9 +187,15 @@ pub async fn start(
         ServerKind::Tftp => tftp::serve(addr, shared, stop.clone()).await?,
         ServerKind::Http => http::serve(addr, shared, stop.clone()).await?,
         ServerKind::Ftp => {
-            let password = ftp::random_password();
-            credentials = Some((FTP_USER.to_owned(), password.clone()));
-            ftp::serve(addr, shared, stop.clone(), password).await?
+            let (user, password) = match config.ftp_login {
+                Some((user, password)) => {
+                    check_ftp_login(&user, &password)?;
+                    (user, password)
+                }
+                None => (FTP_USER.to_owned(), ftp::random_password()),
+            };
+            credentials = Some((user.clone(), password.clone()));
+            ftp::serve(addr, shared, stop.clone(), user, password).await?
         }
     };
     Ok(Running {

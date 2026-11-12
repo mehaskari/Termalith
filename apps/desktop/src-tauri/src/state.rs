@@ -31,6 +31,9 @@ pub struct AppState {
     pub tunnels: Arc<Tunnels>,
     /// Built-in TFTP/HTTP servers (ADR-036).
     pub servers: Arc<app_core::LocalServers>,
+    /// The folder the next file server shares (picked or dropped);
+    /// `None` is the default "Termalith Share" folder.
+    pub server_folder: std::sync::Mutex<Option<PathBuf>>,
     pub probes: Arc<crate::nettools::Probes>,
     /// Files dropped onto the window; uploads refer to them by token.
     pub dropped: Arc<DroppedFiles>,
@@ -178,6 +181,7 @@ impl AppState {
             tunnels: Arc::new(Tunnels::default()),
             servers: Arc::new(app_core::LocalServers::default()),
             probes: Arc::new(crate::nettools::Probes::default()),
+            server_folder: std::sync::Mutex::new(None),
             dropped: Arc::new(DroppedFiles::default()),
             downloads_dir,
             home_dir: app.path().home_dir().ok(),

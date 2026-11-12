@@ -46,6 +46,7 @@ const logging = new Set<number>();
 let nextTunnel = 1;
 const tunnels: Array<Record<string, unknown> & { id: number; terminalId: number }> = [];
 const mockServers: Array<{ id: number; port: number; [k: string]: unknown }> = [];
+let mockShareFolder = { path: "/Users/me/Downloads/Termalith Share", isDefault: true };
 /** Running mock transfers that can be paused: id → pause. */
 const pausers = new Map<number, () => void>();
 /** Paused mock downloads: id → what a resume needs. */
@@ -722,12 +723,21 @@ mockIPC(
         if (i >= 0) tunnels.splice(i, 1);
         return i >= 0;
       }
-      case "server_default_folder":
-        return "/Users/me/Downloads/Termalith Share";
+      case "server_folder":
+        return { ...mockShareFolder };
+      case "server_pick_folder":
+        mockShareFolder = { path: "/Users/me/Firmware", isDefault: false };
+        return { ...mockShareFolder };
+      case "server_use_dropped":
+        mockShareFolder = { path: "/Users/me/Desktop/Dropped folder", isDefault: false };
+        return { ...mockShareFolder };
+      case "server_reset_folder":
+        mockShareFolder = { path: "/Users/me/Downloads/Termalith Share", isDefault: true };
+        return { ...mockShareFolder };
       case "server_open_folder":
         return null;
       case "server_start": {
-        const r = a.request as { kind: "tftp" | "http" | "ftp"; folderToken: number | null; lan: boolean; port: number | null; allowUploads: boolean };
+        const r = a.request as { kind: "tftp" | "http" | "ftp"; lan: boolean; port: number | null; allowUploads: boolean; ftpUser: string | null; ftpPassword: string | null };
         const port = r.port ?? { tftp: 6969, http: 8080, ftp: 2121 }[r.kind];
         if (mockServers.some((x) => x.port === port)) throw { code: "invalid", message: `invalid server: cannot listen on 0.0.0.0:${port}: Address already in use` };
         const id = mockServers.length + 1;
@@ -735,8 +745,8 @@ mockIPC(
         const urls = (r.lan ? ["192.168.1.23", "127.0.0.1"] : ["127.0.0.1"]).map((h) => `${scheme}://${h}:${port}/`);
         const now = Math.floor(Date.now() / 1000);
         const server = {
-          id, kind: r.kind, folder: "/Users/me/Downloads/Termalith Share", port, lan: r.lan, allowUploads: r.allowUploads, urls,
-          credentials: r.kind === "ftp" ? { user: "termalith", password: "k7Qm2xPa9TbN" } : null,
+          id, kind: r.kind, folder: mockShareFolder.path, port, lan: r.lan, allowUploads: r.allowUploads, urls,
+          credentials: r.kind === "ftp" ? { user: r.ftpUser || "termalith", password: r.ftpPassword || "k7Qm2xPa9TbN" } : null,
           activity: [
             { seq: 1, at: now, peer: "192.168.1.40", action: "download", path: "/fw/switch-9.3.bin", bytes: 48_234_496, error: null },
             { seq: 2, at: now, peer: "192.168.1.40", action: "upload", path: "/backup.cfg", bytes: 0, error: "uploads are turned off" },

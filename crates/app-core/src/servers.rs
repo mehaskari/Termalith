@@ -18,8 +18,8 @@ const ACTIVITY_KEPT: usize = 200;
 /// Servers running at once.
 const MAX_SERVERS: usize = 8;
 
-/// What to start.
-#[derive(Debug, Clone)]
+/// What to start (its `Debug` leaves the FTP password out).
+#[derive(Clone)]
 pub struct ServerSpec {
     pub kind: ServerKind,
     pub root: PathBuf,
@@ -28,6 +28,22 @@ pub struct ServerSpec {
     /// `None`: the protocol's unprivileged default.
     pub port: Option<u16>,
     pub allow_uploads: bool,
+    /// FTP: a chosen user name and password; `None` uses the default user
+    /// and a random password.
+    pub ftp_login: Option<(String, String)>,
+}
+
+impl std::fmt::Debug for ServerSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ServerSpec")
+            .field("kind", &self.kind)
+            .field("root", &self.root)
+            .field("lan", &self.lan)
+            .field("port", &self.port)
+            .field("allow_uploads", &self.allow_uploads)
+            .field("ftp_user", &self.ftp_login.as_ref().map(|(u, _)| u))
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -42,7 +58,7 @@ pub struct ServerInfo {
     pub allow_uploads: bool,
     /// Addresses to give to clients (`tftp://…`, `http://…`, `ftp://…`).
     pub urls: Vec<String>,
-    /// FTP: the user name and this start's random password.
+    /// FTP: the user name and password of this start.
     pub credentials: Option<FtpCredentials>,
 }
 
@@ -108,6 +124,7 @@ impl LocalServers {
                 bind,
                 port,
                 allow_uploads: spec.allow_uploads,
+                ftp_login: spec.ftp_login.clone(),
             },
             Arc::new(move |a: Activity| {
                 let entry = ActivityEntry {
@@ -269,6 +286,7 @@ mod tests {
                 lan: false,
                 port: Some(0),
                 allow_uploads: false,
+                ftp_login: None,
             })
             .await
             .unwrap();
@@ -286,6 +304,7 @@ mod tests {
                 lan: false,
                 port: Some(0),
                 allow_uploads: false,
+                ftp_login: None,
             })
             .await
             .unwrap();
@@ -303,6 +322,7 @@ mod tests {
                 lan: false,
                 port: Some(0),
                 allow_uploads: false,
+                ftp_login: None,
             })
             .await;
         assert!(missing.is_err());

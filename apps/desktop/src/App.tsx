@@ -772,6 +772,13 @@ export function App() {
     if (dirty.length) setNotice(`Kept ${dirty.map((t) => t.title).join(", ")}: unsaved changes.`);
   }
 
+  // Showing a tab clears its new-output dot.
+  useEffect(() => {
+    if (active !== null && tabsRef.current.find((t) => t.key === active)?.activity) {
+      patchTab(active, { activity: false });
+    }
+  }, [active, patchTab, tabsRef]);
+
   const tiled = broadcast?.tiled ?? false;
   const inBroadcast = (key: number) =>
     broadcast !== null && (broadcast.source === key || broadcast.targets.includes(key));
@@ -967,6 +974,9 @@ export function App() {
                     );
                   })()}
                   {t.title}
+                  {t.activity && t.key !== active && (
+                    <span className="tab-activity" title="New output" aria-label="new output" />
+                  )}
                 </button>
               )}
               {/* Not in the Tab order: Delete closes the focused tab. */}
@@ -1328,6 +1338,7 @@ export function App() {
                       label={t.title}
                       onNotice={setNotice}
                       onInput={(d) => mirrorInput(t.key, d)}
+                      onActivity={() => patchTab(t.key, { activity: true })}
                       onFolder={(host, path) =>
                         setTabs((all) =>
                           all.map((x) =>

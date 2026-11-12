@@ -23,6 +23,7 @@ Open **Settings** with ☀ in the sidebar footer. Changes apply when you click
 | **Proxy user name (optional)** and **Proxy password** | Login for the proxy (SOCKS5 user/password or HTTP Basic). The password is kept in the system keychain; *Forget the saved proxy password* removes it. HTTP proxies receive it in the clear. |
 | **Copy selected terminal text automatically** | Selecting text copies it, like many Linux terminals. |
 | **Right-click in a terminal pastes** | Right-click pastes instead of opening a menu. |
+| **Warn before pasting several lines or risky text** | On by default. Shows the text first when it has several lines, ends with a line break, pipes a download into a shell, or contains invisible or control characters ([details](terminals.md#find-copy-and-links)). |
 | **Reconnect SSH tabs automatically when the connection drops** | Reconnects after 5 seconds, with a Cancel button. |
 | **Check GitHub for a newer version at startup** | Looks for a newer release when Termalith starts; nothing is downloaded. |
 | **Show RDP and VNC sessions inside Termalith** | Opens desktops in a tab instead of the installed client ([Remote desktop](remote-desktop.md)). |

@@ -153,6 +153,59 @@ pub fn net_scan_start(
     Ok(id)
 }
 
+/// The end of a LAN scan, with the hardware addresses the system knows.
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LanDone {
+    /// IPv4 → hardware address from the ARP table.
+    macs: std::collections::HashMap<String, String>,
+    cancelled: bool,
+}
+
+/// This computer's subnet as a /24 guess, for the LAN scan field.
+#[tauri::command]
+pub fn net_local_subnet() -> Option<String> {
+    network_tools::local_subnet_guess()
+}
+
+/// Scans an IPv4 subnet (/22 to /30) for hosts; each one that answers
+/// streams to `on_host`. Cancel with `net_probe_cancel`.
+#[tauri::command]
+pub fn net_lan_scan_start(
+    state: State<'_, AppState>,
+    subnet: String,
+    on_host: Channel<network_tools::LanHost>,
+    on_done: Channel<LanDone>,
+) -> Result<u64, IpcError> {
+    let hosts = network_tools::subnet_hosts(&subnet).map_err(tool_err)?;
+    let id = state.probes.next.fetch_add(1, Ordering::Relaxed) + 1;
+    let cancel = CancellationToken::new();
+    state
+        .probes
+        .running
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(id, cancel.clone());
+    let probes = state.probes.clone();
+    tauri::async_runtime::spawn(async move {
+        network_tools::scan_lan(hosts, Duration::from_millis(1500), &cancel, |h| {
+            let _ = on_host.send(h);
+        })
+        .await;
+        let macs = network_tools::arp_table().await;
+        let _ = on_done.send(LanDone {
+            macs,
+            cancelled: cancel.is_cancelled(),
+        });
+        probes
+            .running
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&id);
+    });
+    Ok(id)
+}
+
 /// Sends a Wake-on-LAN magic packet.
 #[tauri::command]
 pub async fn net_wake(mac: String, broadcast: Option<String>) -> Result<(), IpcError> {

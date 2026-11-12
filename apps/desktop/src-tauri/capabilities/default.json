@@ -27,6 +27,8 @@
     "allow-net-probe-start",
     "allow-net-probe-cancel",
     "allow-net-scan-start",
+    "allow-net-local-subnet",
+    "allow-net-lan-scan-start",
     "allow-net-wake",
     "allow-ssh-open",
     "allow-ssh-files-open",

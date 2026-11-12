@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **LAN scan.** *Tools → LAN scan* lists the hosts on your subnet with
+  their open common ports and hardware addresses; no administrator rights
+  needed.
 - **Command-line switches.** `--session NAME`, `--folder PATH`,
   `--connect "ssh …"` or a URL such as `ssh://me@host` open sessions when
   Termalith starts, e.g. from a desktop shortcut or a script.

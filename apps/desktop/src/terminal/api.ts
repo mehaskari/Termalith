@@ -589,6 +589,28 @@ export function startScan(
   return invoke<number>("net_scan_start", { host, ports, onResult: result, onDone: done });
 }
 
+export interface LanHost {
+  address: string;
+  /** Ports that accepted a connection (of 22, 23, 80, 443, 445, 139, 3389, 5900, 8080, 8443). */
+  openPorts: number[];
+}
+
+/** This computer's subnet as a /24 guess, or null. */
+export const localSubnet = () => invoke<string | null>("net_local_subnet");
+
+/** Scans an IPv4 subnet (/22 to /30); cancel with `cancelProbe`. */
+export function startLanScan(
+  subnet: string,
+  onHost: (h: LanHost) => void,
+  onDone: (d: { macs: Record<string, string>; cancelled: boolean }) => void,
+): Promise<number> {
+  const host = new Channel<LanHost>();
+  host.onmessage = onHost;
+  const done = new Channel<{ macs: Record<string, string>; cancelled: boolean }>();
+  done.onmessage = onDone;
+  return invoke<number>("net_lan_scan_start", { subnet, onHost: host, onDone: done });
+}
+
 /** Sends a Wake-on-LAN magic packet. */
 export const wakeOnLan = (mac: string, broadcast: string | null) => invoke<void>("net_wake", { mac, broadcast });
 

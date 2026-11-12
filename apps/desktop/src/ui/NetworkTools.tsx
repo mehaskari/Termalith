@@ -1,15 +1,27 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
-import { cancelProbe, dnsLookup, isIpcError, startProbe, startScan, tcpCheck, wakeOnLan } from "../terminal/api";
+import {
+  type LanHost,
+  cancelProbe,
+  dnsLookup,
+  isIpcError,
+  localSubnet,
+  startLanScan,
+  startProbe,
+  startScan,
+  tcpCheck,
+  wakeOnLan,
+} from "../terminal/api";
 import type { DroppedFile } from "../terminal/api";
 import { ServersTool } from "./ServersTool";
 import { calcSubnet } from "./subnet";
 
-type Tool = "ping" | "traceroute" | "tcp" | "scan" | "dns" | "subnet" | "wol" | "servers";
+type Tool = "ping" | "traceroute" | "tcp" | "scan" | "lan" | "dns" | "subnet" | "wol" | "servers";
 const TOOLS: Array<[Tool, string]> = [
   ["ping", "Ping"],
   ["traceroute", "Traceroute"],
   ["tcp", "TCP port check"],
   ["scan", "Port scan"],
+  ["lan", "LAN scan"],
   ["dns", "DNS lookup"],
   ["subnet", "Subnet calculator"],
   ["wol", "Wake-on-LAN"],
@@ -40,6 +52,7 @@ export function NetworkTools({ dropped = null }: { dropped?: DroppedFile | null 
         {tool === "dns" && <DnsTool />}
         {tool === "subnet" && <SubnetTool />}
         {tool === "scan" && <ScanTool />}
+        {tool === "lan" && <LanTool />}
         {tool === "wol" && <WolTool />}
         {tool === "servers" && <ServersTool dropped={dropped} />}
       </div>
@@ -241,6 +254,108 @@ function ScanTool() {
         Only scan hosts you are allowed to test. Checked {checked}; open: {open.length ? open.join(", ") : "none yet"}
       </p>
       {status && <p className="tool-result">{status}</p>}
+    </form>
+  );
+}
+
+const PORT_NAMES: Record<number, string> = {
+  22: "SSH",
+  23: "Telnet",
+  80: "HTTP",
+  443: "HTTPS",
+  445: "SMB",
+  139: "NetBIOS",
+  3389: "RDP",
+  5900: "VNC",
+  8080: "HTTP",
+  8443: "HTTPS",
+};
+
+/** Finds hosts on a local subnet: TCP probes on common ports, hardware addresses from the ARP table. */
+function LanTool() {
+  const [subnet, setSubnet] = useState("");
+  const [hosts, setHosts] = useState<LanHost[]>([]);
+  const [macs, setMacs] = useState<Record<string, string>>({});
+  const [running, setRunning] = useState<number | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const runningRef = useRef<number | null>(null);
+  runningRef.current = running;
+  useEffect(() => {
+    localSubnet().then((s) => s && setSubnet((cur) => cur || s), () => {});
+    return () => {
+      if (runningRef.current !== null) void cancelProbe(runningRef.current);
+    };
+  }, []);
+
+  const key = (a: string) => a.split(".").reduce((n, o) => n * 256 + Number(o), 0);
+
+  async function run(e: FormEvent) {
+    e.preventDefault();
+    setHosts([]);
+    setMacs({});
+    setStatus("Scanning…");
+    try {
+      const id = await startLanScan(
+        subnet,
+        (h) => setHosts((list) => [...list, h].sort((a, b) => key(a.address) - key(b.address))),
+        (d) => {
+          setRunning(null);
+          setMacs(d.macs);
+          setStatus(d.cancelled ? "Stopped." : "Done.");
+        },
+      );
+      setRunning(id);
+    } catch (err) {
+      setStatus(msg(err));
+    }
+  }
+
+  return (
+    <form className="tool-form" onSubmit={run}>
+      <div className="row">
+        <input value={subnet} placeholder="192.168.1.0/24" spellCheck={false} autoFocus aria-label="Subnet"
+          onChange={(e) => setSubnet(e.target.value)} />
+        {running === null ? (
+          <button type="submit" className="primary" disabled={!subnet.trim()}>
+            Scan
+          </button>
+        ) : (
+          <button type="button" onClick={() => void cancelProbe(running)}>
+            Stop
+          </button>
+        )}
+      </div>
+      <p className="hint">
+        Finds hosts that answer on common ports (SSH, Telnet, HTTP, SMB, RDP, VNC…); a host with every
+        port filtered stays hidden. /22 to /30. Only scan networks you are allowed to test.
+      </p>
+      {status && (
+        <p className="tool-result">
+          {status} {hosts.length} host{hosts.length === 1 ? "" : "s"} found.
+        </p>
+      )}
+      {hosts.length > 0 && (
+        <table className="lan-hosts">
+          <thead>
+            <tr><th>Address</th><th>Hardware address</th><th>Open ports</th></tr>
+          </thead>
+          <tbody>
+            {hosts.map((h) => (
+              <tr key={h.address}>
+                <td><code>{h.address}</code></td>
+                <td><code>{macs[h.address] ?? ""}</code></td>
+                <td>
+                  {h.openPorts.length === 0
+                    ? <span className="hint">none open</span>
+                    : h.openPorts.map((p) => (
+                        <span key={p} className="port-chip" title={`port ${p}`}>{PORT_NAMES[p] ?? p} {p}</span>
+                      ))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </form>
   );
 }

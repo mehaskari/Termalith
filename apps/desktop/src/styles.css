@@ -2155,3 +2155,24 @@ button.recording {
   border-radius: var(--radius);
   padding: 8px 10px 10px;
 }
+
+/* LAN scan results */
+.lan-hosts {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.lan-hosts th,
+.lan-hosts td {
+  text-align: left;
+  padding: 3px 10px 3px 0;
+  border-bottom: 1px solid var(--line);
+}
+.port-chip {
+  display: inline-block;
+  margin: 1px 4px 1px 0;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 11px;
+}

@@ -23,6 +23,8 @@ import {
   type SshTarget,
   appInfo,
   listFolders,
+  launchRequests,
+  type LaunchRequest,
   listFolderIcons,
   setFolderIcon,
   type SessionIcon,
@@ -102,7 +104,7 @@ import { SessionIconGlyph } from "./ui/sessionIcons";
 import { isMacPlatform, matchShortcut } from "./ui/shortcuts";
 import { Sidebar } from "./ui/Sidebar";
 import { type TypedConnection, parseTypedConnection } from "./ui/commandLine";
-import { applyTypedConnection, emptyForm, isFtp, parseForm, targetLabel } from "./ui/sessionList";
+import { applyTypedConnection, emptyForm, isFtp, normalizeFolder, parseForm, targetLabel } from "./ui/sessionList";
 
 const RECONNECT_DELAY_MS = 5000;
 
@@ -510,6 +512,38 @@ export function App() {
     openDesktopIds.current = now;
   }, [tabs]);
 
+  /** Opens what the command line asked for (kept current for the startup effect). */
+  const launchRef = useRef<(requests: LaunchRequest[], saved: SessionRecord[]) => void>(() => {});
+  launchRef.current = (requests, saved) => {
+    const inFolder = (s: SessionRecord, path: string) => {
+      const f = normalizeFolder(s.folder).toLowerCase();
+      const p = normalizeFolder(path).toLowerCase();
+      return p !== "" && (f === p || f.startsWith(`${p}/`));
+    };
+    let opened = 0;
+    for (const r of requests) {
+      if (r.kind === "session") {
+        const s = saved.find((x) => x.name.toLowerCase() === r.name.toLowerCase());
+        if (s) {
+          connectSaved(s);
+          opened++;
+        } else setNotice(`No saved session is called "${r.name}".`);
+      } else if (r.kind === "folder") {
+        const list = saved.filter((s) => inFolder(s, r.path));
+        if (list.length === 0) setNotice(`No sessions in folder "${r.path}".`);
+        list.forEach((s) => connectSaved(s));
+        opened += list.length;
+      } else {
+        const t = parseTypedConnection(r.text);
+        if (t) {
+          connectTyped(t);
+          opened++;
+        } else setNotice(`Could not read "${r.text}" as a connection.`);
+      }
+    }
+    // Nothing could be opened: start as usual, with a local terminal.
+    if (opened === 0) openLocal();
+  };
   const didOpenInitialTab = useRef(false);
   useEffect(() => {
     appInfo().then(setInfo, () => setInfo({ version: "?", secretsAvailable: false, agentAvailable: false }));
@@ -540,11 +574,18 @@ export function App() {
         },
         () => {},
       ),
-    ]).then(() => {
-      if (!didOpenInitialTab.current) {
-        didOpenInitialTab.current = true;
+    ]).then(async () => {
+      if (didOpenInitialTab.current) return;
+      didOpenInitialTab.current = true;
+      // Command-line switches (--session, --folder, ssh://…) replace the
+      // first local terminal.
+      const requests = await launchRequests().catch(() => []);
+      if (requests.length === 0) {
         openLocal();
+        return;
       }
+      const saved = await listSessions().catch(() => [] as SessionRecord[]);
+      launchRef.current(requests, saved);
     });
     const unlisten = listen<HostKeyPrompt>("host-key-prompt", (e) =>
       setHostKeyPrompts((q) => [...q, e.payload]),

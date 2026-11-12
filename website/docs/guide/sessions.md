@@ -38,6 +38,24 @@ of the sidebar and are not saved as sessions.
   `ssh://me@host:2222`. **Connect** opens SSH at once (not saved); the
   other types open **New session** filled in, ready to save.
 
+## Open from a shortcut or a script
+
+Start Termalith with a switch to open sessions right away (instead of the
+first local terminal):
+
+| Switch | Opens |
+|---|---|
+| `--session "web-01"` | the saved session with that name |
+| `--folder "Production/DB"` | every session in that folder and its subfolders |
+| `ssh://me@10.0.0.5:2222` (also `telnet://`, `rdp://`, `vnc://`, `sftp://`, `ftp://`) | that connection, like the command palette |
+| `--connect "ssh -p 2222 me@host"` | a typed connection |
+
+Examples: on Windows, copy the Termalith shortcut, open **Properties** and
+add `--session "web-01"` after the path in **Target**; on macOS
+`open -a Termalith --args --folder Production`; on Linux
+`termalith --session web-01`. Switches apply when Termalith starts; a
+running Termalith is not reused.
+
 ## Folders
 
 - Create one with the folder button next to *Sessions*, or right-click the

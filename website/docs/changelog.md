@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Command-line switches.** `--session NAME`, `--folder PATH`,
+  `--connect "ssh …"` or a URL such as `ssh://me@host` open sessions when
+  Termalith starts, e.g. from a desktop shortcut or a script.
 - **Icons for sessions and folders.** Pick a picture (server, router,
   switch, firewall, database, cloud and more) and a color in the session
   dialog, or right-click a folder → *Icon…*. Session icons also show on

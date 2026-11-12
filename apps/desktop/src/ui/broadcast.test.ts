@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eligibleTargets, resolveTargets } from "./broadcast";
+import { eligibleTargets, pickableTargets, resolveTargets } from "./broadcast";
 
 const tabs = [
   { key: 1, title: "src", terminalId: 10, kind: "ssh" },
@@ -19,5 +19,10 @@ describe("broadcast targets", () => {
     const r = resolveTargets({ source: 1, targets: [2, 3, 4, 99] }, tabs);
     expect(r.live).toEqual([{ key: 2, terminalId: 11 }]);
     expect(r.skipped.map((t) => t.key)).toEqual([3, 4]);
+  });
+
+  it("adds terminals still connecting when they belong to the group", () => {
+    expect(pickableTargets(tabs, 1).map((t) => t.key)).toEqual([2, 6]);
+    expect(pickableTargets(tabs, 1, [4, 5]).map((t) => t.key)).toEqual([2, 4, 6]);
   });
 });

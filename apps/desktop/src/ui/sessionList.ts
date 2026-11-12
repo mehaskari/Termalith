@@ -285,6 +285,23 @@ export function formFromSession(s: SessionInput): SessionFormState {
   };
 }
 
+/** Fills the form from a typed command such as `ssh -p 2222 me@host`. */
+export function applyTypedConnection(
+  f: SessionFormState,
+  t: { protocol: SessionProtocol; mosh?: boolean; filesOnly?: boolean; user?: string; host: string; port?: number; keyPath?: string },
+): SessionFormState {
+  const next = withProtocol(f, t.protocol);
+  return {
+    ...next,
+    host: t.host,
+    port: t.port ? String(t.port) : next.port,
+    username: t.user ?? next.username,
+    mosh: t.mosh ?? false,
+    filesOnly: t.filesOnly ?? false,
+    ...(t.keyPath ? { authKind: "keyFile" as const, keyPath: t.keyPath } : {}),
+  };
+}
+
 /**
  * Splits `user@host:port` typed into the host field. IPv6 literals need
  * brackets for a port (`[fe80::1]:2222`); a bare IPv6 address is a host.

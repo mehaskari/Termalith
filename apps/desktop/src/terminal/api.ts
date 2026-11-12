@@ -458,6 +458,13 @@ export const setFavorite = (id: string, favorite: boolean) => invoke<void>("sess
 
 /** Folders stored on their own; others exist only through their sessions. */
 export const listFolders = () => invoke<string[]>("folders_list");
+
+/** What the command line asked to open at startup (handed out once). */
+export type LaunchRequest =
+  | { kind: "session"; name: string }
+  | { kind: "folder"; path: string }
+  | { kind: "connect"; text: string };
+export const launchRequests = () => invoke<LaunchRequest[]>("launch_requests");
 /** Folders that have an icon, as [path, icon]. */
 export const listFolderIcons = () => invoke<Array<[string, SessionIcon]>>("folder_icons_list");
 export const setFolderIcon = (path: string, icon: SessionIcon | null) => invoke<void>("folder_icon_set", { path, icon });

@@ -8,10 +8,17 @@
   `curl … | sh`, or invisible and control characters open a short check
   with the text before it reaches the shell (*Settings → Warn before
   pasting several lines or risky text*).
+- **Command-line switches.** `--session NAME`, `--folder PATH`,
+  `--connect "ssh …"` or a URL such as `ssh://me@host` open sessions when
+  Termalith starts, e.g. from a desktop shortcut or a script.
 - **Icons for sessions and folders.** Pick a picture (server, router,
   switch, firewall, database, cloud and more) and a color in the session
   dialog, or right-click a folder → *Icon…*. Session icons also show on
   their tabs.
+- **Connect by typing.** Type `ssh -p 2222 me@host`, `telnet host 23`,
+  `rdp admin@win` or a URL like `ssh://me@host` in the command palette
+  (Cmd/Ctrl+K) or the Quick connect host field. SSH connects at once;
+  other types open New session filled in.
 - **Broadcast to a whole folder, side by side.** Right-click a folder →
   *Open all and type into them at once…* opens its SSH and Telnet sessions
   and broadcasts your typing to all of them. The terminals can be shown

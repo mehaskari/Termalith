@@ -2111,6 +2111,7 @@ button.recording {
   font-size: 12px;
   white-space: pre-wrap;
   word-break: break-all;
+}
 /* Session and folder icons */
 .session-icon-box {
   width: 30px;

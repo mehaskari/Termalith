@@ -391,6 +391,15 @@ mockIPC(
         return null;
       case "sessions_list":
         return [...sessions.values()];
+      case "launch_requests": {
+        // mock.html?session=web-01 or ?connect=ssh://me@host tries the switches.
+        const q = new URLSearchParams(location.search);
+        const out: unknown[] = [];
+        if (q.get("session")) out.push({ kind: "session", name: q.get("session") });
+        if (q.get("folder")) out.push({ kind: "folder", path: q.get("folder") });
+        if (q.get("connect")) out.push({ kind: "connect", text: q.get("connect") });
+        return out;
+      }
       case "folders_list":
         return [...mockFolders];
       case "folder_icons_list":

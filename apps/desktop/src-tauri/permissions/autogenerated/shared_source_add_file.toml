@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shared-source-add-file"
+description = "Enables the shared_source_add_file command without any pre-configured scope."
+commands.allow = ["shared_source_add_file"]
+
+[[permission]]
+identifier = "deny-shared-source-add-file"
+description = "Denies the shared_source_add_file command without any pre-configured scope."
+commands.deny = ["shared_source_add_file"]

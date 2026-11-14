@@ -116,6 +116,89 @@ pub async fn session_delete(state: State<'_, AppState>, id: String) -> Result<()
     Ok(state.connector.delete_session(&id).await?)
 }
 
+/// Shared (team) session files.
+#[tauri::command]
+pub fn shared_sources_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<app_core::SharedSource>, IpcError> {
+    Ok(state.connector.sessions.shared_sources()?)
+}
+
+/// Adds an https:// address as a shared session source.
+#[tauri::command]
+pub fn shared_source_add_url(
+    state: State<'_, AppState>,
+    label: String,
+    url: String,
+) -> Result<String, IpcError> {
+    app_core::check_shared_url(&url)?;
+    Ok(state.connector.sessions.add_shared_source(
+        &label,
+        app_core::SharedLocation::Https(url.trim().to_owned()),
+    )?)
+}
+
+/// Picks a session file in the system dialog and adds it as a shared
+/// source. `None` when the dialog was cancelled.
+#[tauri::command]
+pub async fn shared_source_add_file(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    label: String,
+) -> Result<Option<String>, IpcError> {
+    use tauri::Manager;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let window = app.get_webview_window("main");
+    app.run_on_main_thread(move || {
+        let mut dialog = rfd::FileDialog::new()
+            .set_title("Shared session file")
+            .add_filter("Termalith sessions", &["json"]);
+        if let Some(window) = window.as_ref() {
+            dialog = dialog.set_parent(window);
+        }
+        let _ = tx.send(dialog.pick_file());
+    })
+    .map_err(|e| IpcError::coded("dialog", format!("could not show the file dialog: {e}")))?;
+    let Ok(Some(path)) = rx.await else {
+        return Ok(None);
+    };
+    Ok(Some(state.connector.sessions.add_shared_source(
+        &label,
+        app_core::SharedLocation::File(path),
+    )?))
+}
+
+#[tauri::command]
+pub async fn shared_source_remove(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
+    Ok(state.connector.remove_shared_source(&id).await?)
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SharedSyncItem {
+    label: String,
+    sessions: Option<usize>,
+    error: Option<String>,
+}
+
+/// Reads every shared source again and updates its sessions.
+#[tauri::command]
+pub async fn shared_sync(state: State<'_, AppState>) -> Result<Vec<SharedSyncItem>, IpcError> {
+    let store = std::sync::Arc::clone(&state.connector.sessions);
+    let agent = format!("Termalith/{}", env!("CARGO_PKG_VERSION"));
+    let report = tauri::async_runtime::spawn_blocking(move || store.sync_shared(&agent))
+        .await
+        .map_err(|e| IpcError::coded("internal", e.to_string()))?;
+    Ok(report
+        .into_iter()
+        .map(|(label, r)| SharedSyncItem {
+            label,
+            sessions: r.as_ref().ok().copied(),
+            error: r.err(),
+        })
+        .collect())
+}
+
 #[tauri::command]
 pub async fn session_forget_secret(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
     let id = SessionId::parse(&id)?;

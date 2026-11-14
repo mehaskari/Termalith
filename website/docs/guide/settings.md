@@ -31,4 +31,5 @@ Open **Settings** with ☀ in the sidebar footer. Changes apply when you click
 | **Show a server monitor under SSH terminals** | CPU, load, memory, disk and network of Linux servers, refreshed every 3 seconds. |
 | **Shell for new local terminals** | Default shell for **Local** (shown when more than one is installed). |
 | **Log every new terminal to Documents/Termalith Logs** | Writes every new terminal's output there as plain text. Logs may contain sensitive output. |
+| **Shared sessions** | Session files shared by a team (a folder path or an `https://` address); acts at once ([details](sessions.md#shared-session-files-team)). |
 | **Master password** | Encrypts saved passwords with a password asked at startup; **Set**, **Change**, **Turn off** or **Lock now** ([details](passwords-and-data.md#master-password)). |

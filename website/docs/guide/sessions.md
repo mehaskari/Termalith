@@ -93,6 +93,25 @@ rest are easy to tell apart in the list and on tabs.
 - The search box matches names, hosts, user names, folders and tags; with
   several words, all must match.
 
+## Shared session files (team)
+
+A team can keep one session list for everybody: export it (**Import →
+Export sessions…**) to a shared folder or a web server, then on each
+computer open **Settings → Shared sessions**, type a folder name (e.g.
+`Team`) and click **Add file…** (pick the `.json` file) or enter an
+`https://` address and click **Add address**.
+
+- Its sessions appear under that folder, marked *shared*. They are
+  read-only: **Duplicate as my session** makes your own editable copy.
+- Termalith reads the file again at every start (and on **Refresh now**).
+  Changed sessions are updated, removed ones disappear; a file that cannot
+  be read keeps the last list and Settings shows why.
+- Export files never contain passwords. A password you save for a shared
+  session stays on your computer and survives refreshes; favorites too.
+- Only `https://` addresses are accepted, so the list cannot be changed on
+  the way. **Remove** drops the source, its sessions and their saved
+  passwords.
+
 ## Import and export
 
 **Import** in the sidebar footer:

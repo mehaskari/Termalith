@@ -24,6 +24,8 @@ import {
   type SshTarget,
   appInfo,
   listFolders,
+  listSharedSources,
+  syncShared,
   launchRequests,
   type LaunchRequest,
   listFolderIcons,
@@ -552,6 +554,13 @@ export function App() {
     appInfo().then(setInfo, () => setInfo({ version: "?", secretsAvailable: false, agentAvailable: false }));
     crashReports().then(setCrashes, () => {});
     refresh();
+    // Shared session files are read again at every start.
+    listSharedSources().then(
+      (list) => {
+        if (list.length > 0) void syncShared().then(refresh, () => {});
+      },
+      () => {},
+    );
     // The first tab uses the preferred shell, so wait for settings and the
     // shell list. StrictMode runs effects twice in development; open once.
     void Promise.all([

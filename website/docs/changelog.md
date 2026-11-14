@@ -7,6 +7,9 @@
   again). The startup check is now on by default for everyone, including
   existing installs; turn it off in *Settings → Tell me when a new version
   is available*. Nothing is downloaded automatically.
+- **Shared session files.** *Settings → Shared sessions* reads a team's
+  session export from a shared folder or an https:// address; its sessions
+  appear read-only under their own folder and refresh at every start.
 - **Bandwidth test.** *Tools → Bandwidth (iperf3)* measures upload or
   download speed to any iperf3 server.
 - **LAN scan.** *Tools → LAN scan* lists the hosts on your subnet with

@@ -24,6 +24,7 @@ mod remote_files;
 mod servers;
 mod sessions;
 mod settings;
+mod shared;
 mod snippets;
 mod ssh_config;
 mod terminals;
@@ -64,6 +65,7 @@ pub use sessions::{
 pub use settings::{
     CursorStyle, ProxySetting, ProxyType, Settings, Theme, export_sessions, import_sessions,
 };
+pub use shared::{Location as SharedLocation, SharedSource, check_url as check_shared_url};
 pub use snippets::{MAX_SNIPPET_LEN, Snippet, SnippetInput};
 pub use ssh_config::{
     IMPORT_FOLDER, ImportCandidate, ImportReport, import_candidates, parse_ssh_config,

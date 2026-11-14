@@ -13,7 +13,7 @@ packages via pnpm) and covers what ships in the app on all platforms.
 | Unicode License v3 | 19 |
 | Apache License 2.0 | 18 |
 | BSD 3-Clause "New" or "Revised" License | 8 |
-| ISC License | 7 |
+| ISC License | 6 |
 | Mozilla Public License 2.0 | 6 |
 | Community Data License Agreement Permissive 2.0 | 1 |
 | MIT No Attribution | 1 |
@@ -1503,7 +1503,7 @@ Apache License
 
 ### Apache License 2.0
 
-Used by: `aws-lc-sys 0.47.0`, `pageant 0.2.5`, `russh-cryptovec 0.62.0`, `russh-util 0.52.0`, `russh 0.65.0`, `serial2 0.2.39`, `unftp-core 0.1.1`, `unftp-sbe-fs 0.4.1`
+Used by: `aws-lc-sys 0.47.0`, `pageant 0.2.5`, `russh-cryptovec 0.62.0`, `russh-util 0.52.0`, `russh 0.65.1`, `serial2 0.2.39`, `unftp-core 0.1.1`, `unftp-sbe-fs 0.4.1`
 
 ```text
 Apache License
@@ -1839,7 +1839,7 @@ insights.
 
 ### ISC License
 
-Used by: `untrusted 0.7.1`, `untrusted 0.9.0`
+Used by: `untrusted 0.9.0`
 
 ```text
 // Copyright 2015-2016 Brian Smith.

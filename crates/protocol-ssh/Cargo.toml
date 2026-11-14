@@ -10,7 +10,7 @@ rust-version.workspace = true
 [dependencies]
 # Same version russh 0.65 uses; key generation needs a CSPRNG.
 rand = { version = "0.10", features = ["thread_rng"] }
-russh = "0.65.0"
+russh = "0.65.1"
 russh-sftp = "3.0.1"
 thiserror.workspace = true
 tokio = { version = "1.54", features = ["fs", "io-util", "macros", "net", "rt", "sync", "time"] }

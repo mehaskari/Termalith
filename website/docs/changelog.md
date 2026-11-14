@@ -4,6 +4,9 @@
 
 - **Browse files as root.** On SSH, **root** in the Files panel switches
   file access to root through sudo (password asked once, never saved).
+- **Shared session files.** *Settings → Shared sessions* reads a team's
+  session export from a shared folder or an https:// address; its sessions
+  appear read-only under their own folder and refresh at every start.
 - **Bandwidth test.** *Tools → Bandwidth (iperf3)* measures upload or
   download speed to any iperf3 server.
 - **LAN scan.** *Tools → LAN scan* lists the hosts on your subnet with

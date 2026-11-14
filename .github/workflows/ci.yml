@@ -103,6 +103,14 @@ jobs:
           iperf3 -s -D -B 127.0.0.1
           echo "TERMALITH_TEST_IPERF=127.0.0.1" >> "$GITHUB_ENV"
 
+      # The TypeScript IPC types are generated from Rust (ts-rs, ADR-039);
+      # fail when the committed files are stale.
+      - name: Generated TypeScript types are current (Linux x64)
+        if: runner.os == 'Linux' && runner.arch == 'X64'
+        run: |
+          cargo test -p app-core --features ts --lib export_bindings
+          git diff --exit-code -- apps/desktop/src/generated
+
       # A real root-run sshd and a throwaway account so password
       # authentication can be tested (an unprivileged sshd cannot verify
       # passwords). Localhost only, random password, ephemeral runner.

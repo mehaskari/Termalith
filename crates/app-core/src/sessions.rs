@@ -14,12 +14,17 @@ use crate::AppError;
 use crate::migrations::MIGRATIONS;
 use crate::migrations::migrate;
 
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct SessionId(String);
 
 impl SessionId {
-    fn generate() -> Result<Self, AppError> {
+    pub(crate) fn generate() -> Result<Self, AppError> {
         let mut b = [0u8; 12];
         getrandom::fill(&mut b).map_err(|e| AppError::Db(e.to_string()))?;
         Ok(Self(format!(
@@ -46,6 +51,11 @@ impl SessionId {
     }
 }
 
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AuthMethod {
@@ -58,6 +68,11 @@ pub enum AuthMethod {
 }
 
 /// What a saved session connects with.
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum SessionProtocol {
@@ -79,7 +94,7 @@ impl SessionProtocol {
         matches!(self, SessionProtocol::Ftp | SessionProtocol::Ftps)
     }
 
-    fn column(self) -> &'static str {
+    pub(crate) fn column(self) -> &'static str {
         match self {
             SessionProtocol::Ssh => "ssh",
             SessionProtocol::Rdp => "rdp",
@@ -104,6 +119,11 @@ impl SessionProtocol {
 }
 
 /// User-editable fields of a session.
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInput {
@@ -151,6 +171,11 @@ pub struct SessionInput {
 
 /// A session's or folder's icon: one of the app's built-in pictures and an
 /// optional color. Unknown names show the default picture in the UI.
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Icon {
@@ -191,6 +216,11 @@ impl Icon {
 }
 
 /// A session's own terminal font and colors (M-012).
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Appearance {
@@ -234,7 +264,7 @@ impl Appearance {
     }
 }
 
-fn appearance_json(a: &Option<Appearance>) -> Option<String> {
+pub(crate) fn appearance_json(a: &Option<Appearance>) -> Option<String> {
     a.as_ref()
         .filter(|a| !a.is_empty())
         .and_then(|a| serde_json::to_string(a).ok())
@@ -256,6 +286,11 @@ pub fn normalize_tags(tags: &[String]) -> Vec<String> {
     out
 }
 
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionRecord {
@@ -267,7 +302,12 @@ pub struct SessionRecord {
     pub favorite: bool,
     #[serde(skip)]
     pub credential: Option<CredentialRef>,
+    /// Seconds since the Unix epoch (a JSON number).
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub updated_at: i64,
+    /// Comes from a shared session file (that source's id): read-only here,
+    /// replaced on every sync.
+    pub shared: Option<String>,
 }
 
 fn validate_text(field: &'static str, v: &str, max: usize) -> Result<(), AppError> {
@@ -417,7 +457,7 @@ pub struct SessionStore {
     conn: Mutex<Connection>,
 }
 
-fn now() -> i64 {
+pub(crate) fn now() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
@@ -452,7 +492,7 @@ impl SessionStore {
     pub fn list(&self) -> Result<Vec<SessionRecord>, AppError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source
              FROM sessions ORDER BY folder IS NOT NULL, folder COLLATE NOCASE, name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], row_to_record)?;
@@ -463,7 +503,7 @@ impl SessionStore {
     pub fn get(&self, id: &SessionId) -> Result<SessionRecord, AppError> {
         let conn = self.conn();
         conn.query_row(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source
              FROM sessions WHERE id = ?1",
             [id.as_str()],
             row_to_record,
@@ -546,6 +586,9 @@ impl SessionStore {
     ) -> Result<(SessionRecord, Option<CredentialRef>), AppError> {
         input.validate()?;
         let old = self.get(id)?;
+        if old.shared.is_some() {
+            return Err(shared_read_only());
+        }
         self.check_jump(id, input.jump_via.as_ref())?;
         let auth_changed =
             std::mem::discriminant(&old.input.auth) != std::mem::discriminant(&input.auth);
@@ -623,17 +666,27 @@ impl SessionStore {
     /// the caller can remove the secret.
     pub fn delete(&self, id: &SessionId) -> Result<Option<CredentialRef>, AppError> {
         let old = self.get(id)?;
+        if old.shared.is_some() {
+            return Err(shared_read_only());
+        }
         self.conn()
             .execute("DELETE FROM sessions WHERE id = ?1", [id.as_str()])?;
         Ok(old.credential)
     }
 }
 
-fn tags_json(tags: &[String]) -> String {
+pub(crate) fn shared_read_only() -> AppError {
+    AppError::invalid(
+        "session",
+        "it comes from a shared session file; duplicate it to change it",
+    )
+}
+
+pub(crate) fn tags_json(tags: &[String]) -> String {
     serde_json::to_string(&normalize_tags(tags)).unwrap_or_else(|_| "[]".into())
 }
 
-fn auth_columns(a: &AuthMethod) -> (&'static str, Option<String>) {
+pub(crate) fn auth_columns(a: &AuthMethod) -> (&'static str, Option<String>) {
     match a {
         AuthMethod::Password => ("password", None),
         AuthMethod::KeyFile { path } => ("key_file", Some(path.to_string_lossy().into_owned())),
@@ -694,6 +747,7 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
             icon: Icon::from_json(r.get(21)?),
         },
         updated_at: r.get(9)?,
+        shared: r.get(22)?,
     }))
 }
 

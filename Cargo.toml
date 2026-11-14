@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/terminal-pty", "crates/protocol-ssh", "crates/credential-store", "crates/app-core", "crates/test-sshd", "crates/serial-console", "crates/network-tools", "crates/remote-desktop", "crates/protocol-telnet", "crates/protocol-ftp", "crates/local-servers", "apps/desktop/src-tauri"]
 
 [workspace.package]
-version = "0.5.8"
+version = "0.5.9"
 edition = "2024"
 license = "MIT"
 publish = false

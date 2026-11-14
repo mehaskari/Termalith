@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.9 (2026-11-14)
 
 - **Browse files as root.** On SSH, **root** in the Files panel switches
   file access to root through sudo (password asked once, never saved).

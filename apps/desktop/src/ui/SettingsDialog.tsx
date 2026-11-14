@@ -219,8 +219,8 @@ export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvail
           Reconnect SSH tabs automatically when the connection drops
         </label>
         <label className="checkbox span-2">
-          <input type="checkbox" checked={s.checkUpdates} onChange={(e) => set({ checkUpdates: e.target.checked })} />
-          Check GitHub for a newer version at startup (nothing is downloaded automatically)
+          <input type="checkbox" checked={s.updateCheck} onChange={(e) => set({ updateCheck: e.target.checked })} />
+          Tell me when a new version is available (checks GitHub at startup; nothing is downloaded automatically)
         </label>
         <label className="checkbox span-2">
           <input type="checkbox" checked={s.embeddedRdp} onChange={(e) => set({ embeddedRdp: e.target.checked })} />

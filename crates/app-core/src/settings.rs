@@ -96,9 +96,11 @@ pub struct Settings {
     pub terminal_scheme: String,
     /// Proxy for outgoing connections; `None` connects directly.
     pub proxy: Option<ProxySetting>,
-    /// Ask GitHub for a newer release at startup (off by default: no
-    /// network request without the user's choice).
-    pub check_updates: bool,
+    /// Ask GitHub for a newer release at startup and show a small notice
+    /// when there is one (on by default since 0.5.9; nothing is downloaded).
+    /// Stored as `updateCheck`: the earlier opt-in `checkUpdates` key is
+    /// ignored, so every install starts with it on once.
+    pub update_check: bool,
     /// Show RDP sessions inside Termalith (experimental, ADR-030).
     pub embedded_rdp: bool,
     /// Show the server monitor bar under SSH terminals (runs a read-only
@@ -125,7 +127,7 @@ impl Default for Settings {
             auto_reconnect: true,
             terminal_scheme: "app".into(),
             proxy: None,
-            check_updates: false,
+            update_check: true,
             embedded_rdp: false,
             server_monitor: false,
             highlight_output: false,
@@ -454,6 +456,15 @@ fn to_input(s: &ExportedSession) -> SessionInput {
 mod tests {
     use super::*;
     use credential_store::CredentialRef;
+
+    #[test]
+    fn update_check_is_on_even_after_the_old_opt_out() {
+        assert!(Settings::default().update_check);
+        let old: Settings = serde_json::from_str(r#"{"checkUpdates":false}"#).unwrap();
+        assert!(old.update_check);
+        let off: Settings = serde_json::from_str(r#"{"updateCheck":false}"#).unwrap();
+        assert!(!off.update_check);
+    }
 
     #[test]
     fn settings_default_round_trip_and_validation() {

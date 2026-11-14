@@ -1,236 +1,305 @@
-import type { ReactElement } from "react";
+import { useMemo, useState } from "react";
+import {
+  type LucideIcon,
+  Activity,
+  AirVent,
+  Anchor,
+  Antenna,
+  AppWindow,
+  Archive,
+  Atom,
+  Award,
+  Battery,
+  BatteryCharging,
+  Beaker,
+  Bluetooth,
+  Bookmark,
+  Bot,
+  Box,
+  Boxes,
+  Braces,
+  BrickWall,
+  BrickWallFire,
+  Briefcase,
+  BriefcaseBusiness,
+  Bug,
+  Building,
+  Building2,
+  Cable,
+  Calendar,
+  Camera,
+  Car,
+  Cast,
+  Castle,
+  Cctv,
+  ChartBar,
+  ChartLine,
+  ChartPie,
+  Circle,
+  CircleAlert,
+  CircleCheck,
+  CircleDot,
+  CircleHelp,
+  CircleX,
+  Clock,
+  Cloud,
+  CloudCog,
+  CloudDownload,
+  CloudOff,
+  CloudUpload,
+  Code,
+  CodeXml,
+  Cog,
+  Compass,
+  Computer,
+  Contact,
+  Container,
+  Cpu,
+  Crown,
+  Database,
+  DatabaseBackup,
+  DatabaseZap,
+  Diamond,
+  Earth,
+  EthernetPort,
+  Eye,
+  EyeOff,
+  Factory,
+  Fan,
+  File,
+  FileCode,
+  FileText,
+  Files,
+  Fingerprint,
+  Flag,
+  Flame,
+  FlaskConical,
+  Folder,
+  FolderGit2,
+  FolderLock,
+  FolderOpen,
+  Gamepad2,
+  Gauge,
+  Gem,
+  GitBranch,
+  GitMerge,
+  Globe,
+  Hammer,
+  HardDrive,
+  HardDriveDownload,
+  HardDriveUpload,
+  Headset,
+  Heart,
+  Hexagon,
+  Hospital,
+  House,
+  Inbox,
+  Key,
+  KeyRound,
+  KeySquare,
+  Keyboard,
+  Landmark,
+  Laptop,
+  LaptopMinimal,
+  Layers,
+  Leaf,
+  Lightbulb,
+  Link,
+  Lock,
+  LockKeyhole,
+  Mail,
+  Map,
+  MapPin,
+  MemoryStick,
+  MessageSquare,
+  Mic,
+  Microscope,
+  Monitor,
+  MonitorCog,
+  MonitorDot,
+  MonitorSmartphone,
+  Moon,
+  Mountain,
+  Mouse,
+  Network,
+  Octagon,
+  Package,
+  PanelsTopLeft,
+  PcCase,
+  Pentagon,
+  Phone,
+  PhoneCall,
+  Plane,
+  Plug,
+  PlugZap,
+  Printer,
+  Projector,
+  Radio,
+  RadioTower,
+  Rocket,
+  Router,
+  Rss,
+  Satellite,
+  SatelliteDish,
+  ScanFace,
+  School,
+  Send,
+  Server,
+  ServerCog,
+  ServerCrash,
+  ServerOff,
+  Settings,
+  Share2,
+  Shield,
+  ShieldAlert,
+  ShieldBan,
+  ShieldCheck,
+  ShieldHalf,
+  Ship,
+  Signal,
+  Siren,
+  SlidersHorizontal,
+  Smartphone,
+  Snowflake,
+  Speaker,
+  Square,
+  SquareTerminal,
+  Star,
+  Store,
+  Sun,
+  Tablet,
+  Tag,
+  Telescope,
+  Tent,
+  Terminal,
+  TestTube,
+  Thermometer,
+  TreePine,
+  Triangle,
+  Tv,
+  Unlock,
+  Unplug,
+  User,
+  UserCog,
+  Users,
+  Warehouse,
+  Waypoints,
+  Webcam,
+  Webhook,
+  Wifi,
+  WifiOff,
+  Workflow,
+  Wrench,
+  Zap,
+} from "lucide-react";
 import type { SessionIcon } from "../terminal/api";
 
-/** Pictures for sessions and folders (16px stroke grid), drawn for Termalith. */
-const PICTURES: Record<string, { label: string; svg: ReactElement }> = {
-  server: {
-    label: "Server",
-    svg: (
-      <>
-        <rect x="2.5" y="2.5" width="11" height="4.5" rx="1" />
-        <rect x="2.5" y="9" width="11" height="4.5" rx="1" />
-        <path d="M5 4.75h.01M5 11.25h.01" />
-      </>
-    ),
-  },
-  terminal: {
-    label: "Terminal",
-    svg: (
-      <>
-        <rect x="2" y="3" width="12" height="10" rx="1.5" />
-        <path d="M4.5 6.5L6.5 8l-2 1.5M8 10h3" />
-      </>
-    ),
-  },
-  desktop: {
-    label: "Desktop",
-    svg: (
-      <>
-        <rect x="2" y="2.5" width="12" height="8" rx="1" />
-        <path d="M6 13.5h4M8 10.5v3" />
-      </>
-    ),
-  },
-  laptop: {
-    label: "Laptop",
-    svg: (
-      <>
-        <rect x="3.5" y="3" width="9" height="6.5" rx="1" />
-        <path d="M1.5 12.5h13l-1.5-3h-10z" />
-      </>
-    ),
-  },
-  window: {
-    label: "Window",
-    svg: (
-      <>
-        <rect x="2.5" y="2.5" width="11" height="11" rx="1" />
-        <path d="M2.5 8h11M8 2.5v11" />
-      </>
-    ),
-  },
-  vm: {
-    label: "Virtual machine",
-    svg: (
-      <>
-        <rect x="2" y="3" width="12" height="9" rx="1" />
-        <rect x="5" y="5.5" width="6" height="4" rx=".5" />
-        <path d="M6 14h4" />
-      </>
-    ),
-  },
-  container: { label: "Container", svg: <path d="M8 2l5.5 3v6L8 14 2.5 11V5zM2.5 5L8 8l5.5-3M8 8v6" /> },
-  router: {
-    label: "Router",
-    svg: (
-      <>
-        <rect x="2" y="8.5" width="12" height="5" rx="1" />
-        <path d="M5 11h.01M7.5 11h.01M4.5 8.5l-.8-3M11.5 8.5l.8-3M6 4.2a3 3 0 014 0" />
-      </>
-    ),
-  },
-  switch: {
-    label: "Switch",
-    svg: (
-      <>
-        <rect x="1.5" y="5" width="13" height="6" rx="1" />
-        <path d="M4 8h1M6.5 8h1M9 8h1M11.5 8h1" />
-      </>
-    ),
-  },
-  firewall: {
-    label: "Firewall",
-    svg: (
-      <>
-        <rect x="2" y="3" width="12" height="10" rx="1" />
-        <path d="M2 6.3h12M2 9.7h12M6 3v3.3M10 6.3v3.4M6 9.7V13" />
-      </>
-    ),
-  },
-  wifi: { label: "Access point", svg: <path d="M2.5 6.5a8 8 0 0111 0M4.5 8.8a5 5 0 017 0M6.5 11a2 2 0 013 0M8 13.2h.01" /> },
-  database: {
-    label: "Database",
-    svg: (
-      <>
-        <ellipse cx="8" cy="4" rx="5" ry="1.8" />
-        <path d="M3 4v8c0 1 2.2 1.8 5 1.8s5-.8 5-1.8V4M3 8c0 1 2.2 1.8 5 1.8s5-.8 5-1.8" />
-      </>
-    ),
-  },
-  storage: {
-    label: "Storage",
-    svg: (
-      <>
-        <rect x="2" y="4" width="12" height="8" rx="1.5" />
-        <path d="M2 9h12M11 10.5h.01" />
-      </>
-    ),
-  },
-  cloud: { label: "Cloud", svg: <path d="M4.5 12.5h7a3 3 0 00.4-6A4 4 0 004.3 7.6 2.5 2.5 0 004.5 12.5z" /> },
-  web: {
-    label: "Web",
-    svg: (
-      <>
-        <circle cx="8" cy="8" r="5.5" />
-        <path d="M2.5 8h11M8 2.5c1.7 1.6 2.5 3.4 2.5 5.5s-.8 3.9-2.5 5.5c-1.7-1.6-2.5-3.4-2.5-5.5S6.3 4.1 8 2.5z" />
-      </>
-    ),
-  },
-  mail: {
-    label: "Mail",
-    svg: (
-      <>
-        <rect x="2" y="3.5" width="12" height="9" rx="1" />
-        <path d="M2 4.5l6 4.5 6-4.5" />
-      </>
-    ),
-  },
-  printer: {
-    label: "Printer",
-    svg: (
-      <>
-        <path d="M4.5 6V2.5h7V6M4.5 11.5h-2V6h11v5.5h-2" />
-        <rect x="4.5" y="9.5" width="7" height="4" />
-      </>
-    ),
-  },
-  camera: {
-    label: "Camera",
-    svg: (
-      <>
-        <path d="M2 5.5h3l1-1.5h4l1 1.5h3v7H2z" />
-        <circle cx="8" cy="9" r="2.2" />
-      </>
-    ),
-  },
-  phone: {
-    label: "Phone",
-    svg: (
-      <>
-        <rect x="4.5" y="1.5" width="7" height="13" rx="1.5" />
-        <path d="M7 12.5h2" />
-      </>
-    ),
-  },
-  chip: {
-    label: "Device",
-    svg: (
-      <>
-        <rect x="4.5" y="4.5" width="7" height="7" rx="1" />
-        <path d="M6.5 2v2.5M9.5 2v2.5M6.5 11.5V14M9.5 11.5V14M2 6.5h2.5M2 9.5h2.5M11.5 6.5H14M11.5 9.5H14" />
-      </>
-    ),
-  },
-  plug: { label: "Serial", svg: <path d="M6 2.5v3M10 2.5v3M4.5 5.5h7v2a3.5 3.5 0 01-7 0zM8 11v2.5" /> },
-  shield: { label: "Security", svg: <path d="M8 1.8l5 2v4c0 3-2.2 5.2-5 6.4-2.8-1.2-5-3.4-5-6.4v-4z" /> },
-  key: {
-    label: "Key",
-    svg: (
-      <>
-        <circle cx="5.5" cy="10.5" r="2.5" />
-        <path d="M7.3 8.7L13 3M11 5l1.5 1.5M9.5 6.5L11 8" />
-      </>
-    ),
-  },
-  home: { label: "Home", svg: <path d="M2.5 7.5L8 3l5.5 4.5M4 6.5v7h8v-7" /> },
-  office: {
-    label: "Office",
-    svg: (
-      <>
-        <rect x="3.5" y="2" width="9" height="12" rx=".5" />
-        <path d="M6 4.5h1M9 4.5h1M6 7h1M9 7h1M6 9.5h1M9 9.5h1M7 14v-2h2v2" />
-      </>
-    ),
-  },
-  lab: { label: "Lab", svg: <path d="M6.5 2h3M7 2v4L3.2 12.3A1.2 1.2 0 004.2 14h7.6a1.2 1.2 0 001-1.7L9 6V2" /> },
-  star: { label: "Star", svg: <path d="M8 2.5l1.7 3.5 3.8.5-2.8 2.6.7 3.8L8 11.1l-3.4 1.8.7-3.8L2.5 6.5l3.8-.5z" /> },
-  folder: {
-    label: "Folder",
-    svg: <path d="M2 4.5A1.5 1.5 0 013.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0114 6v5.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 11.5z" />,
-  },
+/**
+ * Pictures for sessions and folders: a curated part of Lucide (ISC
+ * licence, no brand logos), grouped for the picker. Stored by a slug such
+ * as "server-cog"; names saved by 0.5.9 map through ALIASES.
+ */
+const GROUPS: Array<{ label: string; icons: Array<[string, LucideIcon]> }> = [
+  { label: "Servers", icons: [["Server", Server], ["ServerCog", ServerCog], ["ServerCrash", ServerCrash], ["ServerOff", ServerOff], ["Database", Database], ["DatabaseBackup", DatabaseBackup], ["DatabaseZap", DatabaseZap], ["HardDrive", HardDrive], ["HardDriveDownload", HardDriveDownload], ["HardDriveUpload", HardDriveUpload], ["Cpu", Cpu], ["MemoryStick", MemoryStick], ["Container", Container], ["Box", Box], ["Boxes", Boxes], ["Package", Package], ["Layers", Layers], ["Cloud", Cloud], ["CloudCog", CloudCog], ["CloudUpload", CloudUpload], ["CloudDownload", CloudDownload], ["CloudOff", CloudOff]] },
+  { label: "Computers", icons: [["Monitor", Monitor], ["MonitorSmartphone", MonitorSmartphone], ["MonitorCog", MonitorCog], ["MonitorDot", MonitorDot], ["Laptop", Laptop], ["LaptopMinimal", LaptopMinimal], ["Computer", Computer], ["PcCase", PcCase], ["Tablet", Tablet], ["Smartphone", Smartphone], ["AppWindow", AppWindow], ["PanelsTopLeft", PanelsTopLeft], ["Terminal", Terminal], ["SquareTerminal", SquareTerminal], ["Keyboard", Keyboard], ["Mouse", Mouse], ["Tv", Tv], ["Gamepad2", Gamepad2]] },
+  { label: "Network", icons: [["Router", Router], ["Network", Network], ["Wifi", Wifi], ["WifiOff", WifiOff], ["Radio", Radio], ["RadioTower", RadioTower], ["Antenna", Antenna], ["Satellite", Satellite], ["SatelliteDish", SatelliteDish], ["Cable", Cable], ["EthernetPort", EthernetPort], ["Plug", Plug], ["PlugZap", PlugZap], ["Unplug", Unplug], ["Globe", Globe], ["Earth", Earth], ["Signal", Signal], ["Waypoints", Waypoints], ["Workflow", Workflow], ["Share2", Share2], ["Rss", Rss], ["Bluetooth", Bluetooth], ["Cast", Cast], ["Webhook", Webhook], ["Link", Link]] },
+  { label: "Security", icons: [["Shield", Shield], ["ShieldCheck", ShieldCheck], ["ShieldAlert", ShieldAlert], ["ShieldHalf", ShieldHalf], ["ShieldBan", ShieldBan], ["BrickWall", BrickWall], ["BrickWallFire", BrickWallFire], ["Lock", Lock], ["LockKeyhole", LockKeyhole], ["Unlock", Unlock], ["Key", Key], ["KeyRound", KeyRound], ["KeySquare", KeySquare], ["Fingerprint", Fingerprint], ["ScanFace", ScanFace], ["Eye", Eye], ["EyeOff", EyeOff], ["Bug", Bug], ["Siren", Siren]] },
+  { label: "Devices", icons: [["Printer", Printer], ["Cctv", Cctv], ["Camera", Camera], ["Webcam", Webcam], ["Phone", Phone], ["PhoneCall", PhoneCall], ["Headset", Headset], ["Speaker", Speaker], ["Mic", Mic], ["Projector", Projector], ["Thermometer", Thermometer], ["Gauge", Gauge], ["Battery", Battery], ["BatteryCharging", BatteryCharging], ["Zap", Zap], ["Lightbulb", Lightbulb], ["Fan", Fan], ["AirVent", AirVent], ["Car", Car], ["Bot", Bot]] },
+  { label: "Places", icons: [["House", House], ["Building", Building], ["Building2", Building2], ["Factory", Factory], ["Warehouse", Warehouse], ["Store", Store], ["School", School], ["Hospital", Hospital], ["Landmark", Landmark], ["Castle", Castle], ["Tent", Tent], ["MapPin", MapPin], ["Map", Map], ["Flag", Flag], ["Briefcase", Briefcase], ["BriefcaseBusiness", BriefcaseBusiness], ["Users", Users], ["User", User], ["UserCog", UserCog], ["Contact", Contact]] },
+  { label: "Files and apps", icons: [["Folder", Folder], ["FolderOpen", FolderOpen], ["FolderGit2", FolderGit2], ["FolderLock", FolderLock], ["File", File], ["FileCode", FileCode], ["FileText", FileText], ["Files", Files], ["Archive", Archive], ["Mail", Mail], ["Inbox", Inbox], ["Send", Send], ["MessageSquare", MessageSquare], ["Calendar", Calendar], ["Clock", Clock], ["Code", Code], ["CodeXml", CodeXml], ["Braces", Braces], ["GitBranch", GitBranch], ["GitMerge", GitMerge]] },
+  { label: "Tools", icons: [["Wrench", Wrench], ["Hammer", Hammer], ["Settings", Settings], ["Cog", Cog], ["SlidersHorizontal", SlidersHorizontal], ["Activity", Activity], ["ChartLine", ChartLine], ["ChartBar", ChartBar], ["ChartPie", ChartPie], ["TestTube", TestTube], ["FlaskConical", FlaskConical], ["Microscope", Microscope], ["Beaker", Beaker], ["Rocket", Rocket], ["Plane", Plane], ["Ship", Ship], ["Anchor", Anchor], ["Compass", Compass], ["Telescope", Telescope], ["Atom", Atom]] },
+  { label: "Shapes and marks", icons: [["Star", Star], ["Heart", Heart], ["Circle", Circle], ["Square", Square], ["Triangle", Triangle], ["Hexagon", Hexagon], ["Octagon", Octagon], ["Diamond", Diamond], ["Pentagon", Pentagon], ["CircleDot", CircleDot], ["CircleCheck", CircleCheck], ["CircleAlert", CircleAlert], ["CircleX", CircleX], ["CircleHelp", CircleHelp], ["Bookmark", Bookmark], ["Tag", Tag], ["Award", Award], ["Crown", Crown], ["Gem", Gem], ["Flame", Flame], ["Snowflake", Snowflake], ["Sun", Sun], ["Moon", Moon], ["Leaf", Leaf], ["TreePine", TreePine], ["Mountain", Mountain]] },
+];
+
+/** "ServerCog" → "server-cog", "Building2" → "building-2". */
+const slugOf = (name: string) =>
+  name
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/([a-zA-Z])([0-9])/g, "$1-$2")
+    .toLowerCase();
+/** "server-cog" → "Server cog". */
+const labelOf = (slug: string) => {
+  const words = slug.replace(/-/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 };
 
-export const ICON_NAMES = Object.keys(PICTURES);
+interface Picture {
+  slug: string;
+  label: string;
+  Glyph: LucideIcon;
+}
+
+const PICTURES = new globalThis.Map<string, Picture>();
+export const ICON_GROUPS: Array<{ label: string; pictures: Picture[] }> = GROUPS.map((g) => ({
+  label: g.label,
+  pictures: g.icons.map(([name, Glyph]) => {
+    const slug = slugOf(name);
+    const p = { slug, label: labelOf(slug), Glyph };
+    PICTURES.set(slug, p);
+    return p;
+  }),
+}));
+
+/** Names used by the first icon set (0.5.9). */
+const ALIASES: Record<string, string> = {
+  desktop: "monitor",
+  window: "app-window",
+  vm: "monitor-cog",
+  switch: "network",
+  firewall: "brick-wall",
+  storage: "hard-drive",
+  web: "globe",
+  camera: "cctv",
+  phone: "smartphone",
+  chip: "cpu",
+  home: "house",
+  office: "building-2",
+  lab: "flask-conical",
+};
+
+const picture = (name: string): Picture | undefined => PICTURES.get(ALIASES[name] ?? name);
+
+export const ICON_NAMES = [...PICTURES.keys()];
 
 /** Colors offered for icons (readable on light and dark backgrounds). */
 export const ICON_COLORS: Array<{ name: string; value: string }> = [
   { name: "Gray", value: "#868e96" },
   { name: "Red", value: "#e03131" },
   { name: "Orange", value: "#f08c00" },
+  { name: "Yellow", value: "#d4a106" },
+  { name: "Lime", value: "#66a80f" },
   { name: "Green", value: "#2f9e44" },
   { name: "Teal", value: "#0c8599" },
+  { name: "Cyan", value: "#1098ad" },
   { name: "Blue", value: "#1971c2" },
+  { name: "Indigo", value: "#4263eb" },
   { name: "Violet", value: "#7048e8" },
   { name: "Pink", value: "#c2255c" },
+  { name: "Brown", value: "#8d6e63" },
 ];
 
 export function iconLabel(name: string): string {
-  return PICTURES[name]?.label ?? "Icon";
+  return picture(name)?.label ?? "Icon";
 }
 
 /** A session or folder icon; unknown names show the server picture. */
 export function SessionIconGlyph({ icon, size = 16, className }: { icon: SessionIcon; size?: number; className?: string }) {
-  const picture = PICTURES[icon.name] ?? PICTURES.server;
+  const p = picture(icon.name) ?? picture("server");
+  if (!p) return null;
+  const { Glyph } = p;
   return (
-    <svg
+    <Glyph
       className={`ic session-icon ${className ?? ""}`}
-      width={size}
-      height={size}
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke={icon.color ?? "currentColor"}
-      strokeWidth={1.4}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      size={size}
+      color={icon.color ?? "currentColor"}
+      strokeWidth={1.75}
       aria-hidden="true"
       focusable="false"
-    >
-      {picture?.svg}
-    </svg>
+    />
   );
 }
 
-/** Picks a picture and a color; "Automatic" (null) shows the protocol or folder. */
+/** Picks a picture (with search) and a color; "Automatic" (null) shows the protocol or folder. */
 export function IconPicker({
   value,
   onChange,
@@ -241,9 +310,19 @@ export function IconPicker({
   automaticLabel?: string;
 }) {
   const color = value?.color ?? null;
+  const [query, setQuery] = useState("");
+  const chosen = value ? (ALIASES[value.name] ?? value.name) : null;
+  const groups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return ICON_GROUPS;
+    return ICON_GROUPS.map((g) => ({
+      label: g.label,
+      pictures: g.pictures.filter((p) => p.label.toLowerCase().includes(q) || g.label.toLowerCase().includes(q)),
+    })).filter((g) => g.pictures.length > 0);
+  }, [query]);
   return (
     <div className="icon-picker">
-      <div className="icon-grid" role="radiogroup" aria-label="Icon">
+      <div className="icon-picker-head">
         <button
           type="button"
           role="radio"
@@ -253,19 +332,37 @@ export function IconPicker({
         >
           {automaticLabel}
         </button>
-        {ICON_NAMES.map((name) => (
-          <button
-            key={name}
-            type="button"
-            role="radio"
-            aria-checked={value?.name === name}
-            aria-label={iconLabel(name)}
-            title={iconLabel(name)}
-            className="icon-choice"
-            onClick={() => onChange({ name, color })}
-          >
-            <SessionIconGlyph icon={{ name, color }} size={18} />
-          </button>
+        <input
+          className="icon-search"
+          value={query}
+          placeholder={`Search ${ICON_NAMES.length} icons…`}
+          aria-label="Search icons"
+          spellCheck={false}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+      <div className="icon-groups">
+        {groups.length === 0 && <p className="hint">No icon matches.</p>}
+        {groups.map((g) => (
+          <section key={g.label} aria-label={g.label}>
+            <h4>{g.label}</h4>
+            <div className="icon-grid" role="radiogroup" aria-label={g.label}>
+              {g.pictures.map((p) => (
+                <button
+                  key={p.slug}
+                  type="button"
+                  role="radio"
+                  aria-checked={chosen === p.slug}
+                  aria-label={p.label}
+                  title={p.label}
+                  className="icon-choice"
+                  onClick={() => onChange({ name: p.slug, color })}
+                >
+                  <SessionIconGlyph icon={{ name: p.slug, color }} size={18} />
+                </button>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
       {value && (

@@ -2092,6 +2092,25 @@ button.recording {
   color: var(--danger, #d9534f);
 }
 
+/* A newer release: small, in the corner, never blocking. */
+.update-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
+  font-size: 13px;
+}
+.update-toast button {
+  padding: 3px 10px;
+}
 /* A background tab got new output. */
 .tab-activity {
   width: 6px;

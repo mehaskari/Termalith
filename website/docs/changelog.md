@@ -4,6 +4,11 @@
 
 - **Browse files as root.** On SSH, **root** in the Files panel switches
   file access to root through sudo (password asked once, never saved).
+- **New version notice.** When a newer Termalith is out, a small notice in
+  the corner offers **Download** or **Later** (that version is not shown
+  again). The startup check is now on by default for everyone, including
+  existing installs; turn it off in *Settings → Tell me when a new version
+  is available*. Nothing is downloaded automatically.
 - **Shared session files.** *Settings → Shared sessions* reads a team's
   session export from a shared folder or an https:// address; its sessions
   appear read-only under their own folder and refresh at every start.

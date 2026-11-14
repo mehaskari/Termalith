@@ -65,9 +65,11 @@ Back up your sessions with **Import → Export sessions…**.
 
 - **No telemetry, no account.** Termalith connects only to the hosts you
   choose.
-- **No automatic updates or downloads.** The update check runs only when
-  you ask, or at startup if you turn it on; it reads the latest version from
-  GitHub and links to it.
+- **No automatic updates or downloads.** At startup Termalith reads the
+  latest version number from GitHub (one request, no data about you) and
+  shows a small notice when there is a newer one; **Settings → Tell me when
+  a new version is available** turns this off. It never downloads or
+  installs anything by itself.
 - **Crash reports stay local.** After a crash, the next start shows the
   report (version, system, where the error happened; no passwords or
   terminal contents). You decide whether to copy it into a GitHub issue.

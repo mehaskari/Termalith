@@ -428,7 +428,8 @@ export interface Settings {
   /** Proxy for outgoing SSH/Telnet connections (first hop only). */
   proxy: { kind: "socks5" | "http"; host: string; port: number; username?: string | null } | null;
   /** Look for a newer release on GitHub at startup. */
-  checkUpdates: boolean;
+  /** Look for a newer release at startup and show a small notice. */
+  updateCheck: boolean;
   /** Show RDP sessions in a tab (experimental) instead of the external client. */
   embeddedRdp: boolean;
   serverMonitor: boolean;
@@ -450,7 +451,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoReconnect: true,
   terminalScheme: "app",
   proxy: null,
-  checkUpdates: false,
+  updateCheck: true,
   embeddedRdp: false,
   serverMonitor: false,
   highlightOutput: false,

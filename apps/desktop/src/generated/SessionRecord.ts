@@ -13,7 +13,12 @@ hasSavedSecret: boolean, favorite: boolean,
 /**
  * Seconds since the Unix epoch (a JSON number).
  */
-updatedAt: number, name: string, host: string, port: number, username: string, auth: AuthMethod, folder: string | null, 
+updatedAt: number, 
+/**
+ * Comes from a shared session file (that source's id): read-only here,
+ * replaced on every sync.
+ */
+shared: string | null, name: string, host: string, port: number, username: string, auth: AuthMethod, folder: string | null, 
 /**
  * Saved session to tunnel through (OpenSSH `ProxyJump`).
  */

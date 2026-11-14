@@ -627,6 +627,11 @@ export function App() {
     };
   }, [refresh, openLocal]);
 
+  /** The sudo password for browsing files as root; used once, never saved. */
+  const askSudoPassword = (target: string) =>
+    askPassword({ target: `sudo on ${target}`, kind: "password", canSave: false, retry: null }).then(
+      (a) => a?.password ?? null,
+    );
   /** A connection typed in the palette: SSH opens at once, others prefill New session. */
   function connectTyped(t: TypedConnection) {
     const form = applyTypedConnection({ ...emptyForm(), name: t.host }, t);
@@ -1109,6 +1114,7 @@ export function App() {
                         onEdit={(dir, name) => t.terminalId !== undefined && openEditor(t.terminalId, dir, name)}
                         onCompare={(a, b) => t.terminalId !== undefined && openDiff(t.terminalId, a, b)}
                         connection={t.title.replace(/ \(files\)$/, "")}
+                        sudo={t.noShell ? undefined : { askPassword: () => askSudoPassword(t.title) }}
                       />
                     </>
                   ) : (
@@ -1391,6 +1397,7 @@ export function App() {
                     onEdit={(dir, name) => t.terminalId !== undefined && openEditor(t.terminalId, dir, name)}
                     onCompare={(a, b) => t.terminalId !== undefined && openDiff(t.terminalId, a, b)}
                     connection={t.title}
+                    sudo={t.kind === "ssh" ? { askPassword: () => askSudoPassword(t.title) } : undefined}
                     follow={{
                       on: !!t.followFolder,
                       folder: t.shellFolder?.path,

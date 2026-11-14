@@ -97,6 +97,8 @@ impl From<SshError> for IpcError {
             SshError::Sftp(_) => Self::new("sftp_error", message),
             SshError::DestinationExists(_) => Self::new("destination_exists", message),
             SshError::Cancelled => Self::new("cancelled", message),
+            SshError::SudoPasswordRequired => Self::new("password_required", message),
+            SshError::SudoRefused(_) => Self::new("sudo_refused", message),
             SshError::TooLarge { .. } => Self::new("too_large", message),
             SshError::Modified(_) => Self::new("remote_modified", message),
             SshError::NotAFile(_) => Self::new("not_a_file", message),

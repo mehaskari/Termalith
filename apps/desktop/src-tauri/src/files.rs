@@ -37,6 +37,32 @@ impl From<RemoteEntry> for EntryDto {
     }
 }
 
+/// Browses files as root through sudo on this SSH connection. Without a
+/// password only passwordless sudo works (`password_required` otherwise);
+/// the password is used once and not kept.
+#[tauri::command]
+pub async fn sftp_sudo_start(
+    state: State<'_, AppState>,
+    terminal_id: u64,
+    password: Option<String>,
+) -> Result<(), IpcError> {
+    let password = password.map(zeroize::Zeroizing::new);
+    Ok(state
+        .hub
+        .sftp_sudo_start(terminal_id, password.as_deref().map(String::as_str))
+        .await?)
+}
+
+#[tauri::command]
+pub async fn sftp_sudo_stop(state: State<'_, AppState>, terminal_id: u64) -> Result<(), IpcError> {
+    Ok(state.hub.sftp_sudo_stop(terminal_id).await?)
+}
+
+#[tauri::command]
+pub async fn sftp_is_root(state: State<'_, AppState>, terminal_id: u64) -> Result<bool, IpcError> {
+    Ok(state.hub.sftp_is_root(terminal_id).await)
+}
+
 #[tauri::command]
 pub async fn sftp_home(state: State<'_, AppState>, terminal_id: u64) -> Result<String, IpcError> {
     let files = state.hub.files(terminal_id).await?;

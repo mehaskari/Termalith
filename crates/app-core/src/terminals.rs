@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use protocol_ftp::FtpClient;
-use protocol_ssh::{SftpClient, ShellEvent, ShellWriter, SshSession};
+use protocol_ssh::{SftpClient, ShellEvent, ShellWriter, SshError, SshSession};
 use terminal_pty::{
     ExitInfo, FlowConfig, MAX_INPUT_CHUNK, PtyError, ShellSpec, TerminalEvent, TerminalEventSink,
     TerminalId, TerminalManager, TerminalSize,
@@ -74,6 +74,9 @@ struct SshConnection {
     users: AtomicUsize,
     /// Created on first use, shared by the file browser and transfers.
     sftp: tokio::sync::Mutex<Option<Arc<SftpClient>>>,
+    /// SFTP as root through sudo, while the user browses as root; file
+    /// operations on this connection use it instead.
+    sftp_root: tokio::sync::Mutex<Option<Arc<SftpClient>>>,
 }
 
 struct SshTerminal {
@@ -158,6 +161,7 @@ impl TerminalHub {
             session,
             users: AtomicUsize::new(1),
             sftp: tokio::sync::Mutex::new(None),
+            sftp_root: tokio::sync::Mutex::new(None),
         });
         let id = self.alloc();
         self.lock().insert(id, Entry::Files(conn));
@@ -184,6 +188,7 @@ impl TerminalHub {
             session,
             users: AtomicUsize::new(0),
             sftp: tokio::sync::Mutex::new(None),
+            sftp_root: tokio::sync::Mutex::new(None),
         });
         self.open_shell_on(conn, size, sink).await
     }
@@ -527,16 +532,52 @@ impl TerminalHub {
         }
     }
 
-    /// SFTP on the connection behind an SSH terminal (opened once, then
-    /// reused).
-    pub async fn sftp(&self, id: u64) -> Result<Arc<SftpClient>, AppError> {
-        let conn = match self.target(id)? {
-            Target::Ssh(t) => Arc::clone(&t.conn),
-            Target::Files(c) => c,
+    fn ssh_connection(&self, id: u64) -> Result<Arc<SshConnection>, AppError> {
+        match self.target(id)? {
+            Target::Ssh(t) => Ok(Arc::clone(&t.conn)),
+            Target::Files(c) => Ok(c),
             Target::Local(_) | Target::Serial(_) | Target::Telnet(_) | Target::Ftp(_) => {
-                return Err(AppError::invalid("terminal", "not an SSH terminal"));
+                Err(AppError::invalid("terminal", "not an SSH terminal"))
             }
+        }
+    }
+
+    /// Switches file access on terminal `id`'s connection to root (sudo).
+    /// `None` tries passwordless sudo; [`AppError::PasswordRequired`] asks
+    /// the UI for the sudo password.
+    pub async fn sftp_sudo_start(&self, id: u64, password: Option<&str>) -> Result<(), AppError> {
+        let conn = self.ssh_connection(id)?;
+        let client = match conn.session.sftp_sudo(password).await {
+            Ok(c) => c,
+            Err(SshError::SudoPasswordRequired) => return Err(AppError::PasswordRequired),
+            Err(e) => return Err(e.into()),
         };
+        *conn.sftp_root.lock().await = Some(Arc::new(client));
+        Ok(())
+    }
+
+    /// Back to file access as the login user.
+    pub async fn sftp_sudo_stop(&self, id: u64) -> Result<(), AppError> {
+        let conn = self.ssh_connection(id)?;
+        conn.sftp_root.lock().await.take();
+        Ok(())
+    }
+
+    /// Whether file access on terminal `id` runs as root.
+    pub async fn sftp_is_root(&self, id: u64) -> bool {
+        match self.ssh_connection(id) {
+            Ok(conn) => conn.sftp_root.lock().await.is_some(),
+            Err(_) => false,
+        }
+    }
+
+    /// SFTP on the connection behind an SSH terminal (opened once, then
+    /// reused); the root session while one is active.
+    pub async fn sftp(&self, id: u64) -> Result<Arc<SftpClient>, AppError> {
+        let conn = self.ssh_connection(id)?;
+        if let Some(root) = conn.sftp_root.lock().await.as_ref() {
+            return Ok(Arc::clone(root));
+        }
         let mut slot = conn.sftp.lock().await;
         if let Some(c) = slot.as_ref() {
             return Ok(Arc::clone(c));

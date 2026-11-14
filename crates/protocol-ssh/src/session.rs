@@ -609,12 +609,103 @@ impl SshSession {
         Ok(SftpClient::new(session))
     }
 
+    /// Starts SFTP as root through `sudo` on a new channel, for files the
+    /// login user may not read or change. Without a password this works
+    /// only with passwordless sudo ([`SshError::SudoPasswordRequired`]
+    /// otherwise). The password is written once to sudo's standard input
+    /// and never kept; `-k` makes sudo always read it, so it can never
+    /// reach the SFTP server instead.
+    pub async fn sftp_sudo(&self, password: Option<&str>) -> Result<SftpClient, SshError> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        // Passwordless sudo (NOPASSWD), ignoring any cached credentials.
+        let passwordless = self
+            .exec("sudo -n -k true")
+            .await
+            .is_ok_and(|o| o.exit_status == Some(0));
+        let command = match (passwordless, password) {
+            (true, _) => format!("sudo -n -- sh -c {}", shell_quote(SUDO_SFTP_SCRIPT)),
+            (false, Some(_)) => format!(
+                "sudo -k -S -p '' -- sh -c {}",
+                shell_quote(SUDO_SFTP_SCRIPT)
+            ),
+            (false, None) => return Err(SshError::SudoPasswordRequired),
+        };
+        let ch = self.handle.channel_open_session().await?;
+        ch.exec(true, command).await?;
+        let mut stream = ch.into_stream();
+        if !passwordless && let Some(pw) = password {
+            let mut line = Zeroizing::new(Vec::with_capacity(pw.len() + 1));
+            line.extend_from_slice(pw.as_bytes());
+            line.push(b'\n');
+            stream
+                .write_all(&line)
+                .await
+                .map_err(|e| SshError::SudoRefused(e.to_string()))?;
+            stream
+                .flush()
+                .await
+                .map_err(|e| SshError::SudoRefused(e.to_string()))?;
+        }
+        // The script prints a marker right before it starts the SFTP server;
+        // until then nothing else is read, so the SFTP stream starts clean.
+        let marker = SUDO_SFTP_MARKER.as_bytes();
+        let mut seen = Vec::with_capacity(marker.len());
+        let waited = tokio::time::timeout(SUDO_TIMEOUT, async {
+            let mut byte = [0u8; 1];
+            while !seen.ends_with(marker) {
+                match stream.read(&mut byte).await {
+                    Ok(0) | Err(_) => return false,
+                    Ok(_) => {
+                        seen.push(byte[0]);
+                        if seen.len() > 4096 {
+                            return false;
+                        }
+                    }
+                }
+            }
+            true
+        })
+        .await;
+        match waited {
+            Ok(true) => {}
+            Ok(false) => {
+                return Err(SshError::SudoRefused(
+                    "wrong password, no sudo rights, or no SFTP server on the host".into(),
+                ));
+            }
+            Err(_) => {
+                return Err(SshError::SudoRefused(
+                    "no answer from sudo (wrong password?)".into(),
+                ));
+            }
+        }
+        let session = SftpSession::new(stream).await?;
+        Ok(SftpClient::new(session))
+    }
+
     pub async fn disconnect(&self) -> Result<(), SshError> {
         self.handle
             .disconnect(Disconnect::ByApplication, "", "en")
             .await?;
         Ok(())
     }
+}
+
+/// Printed by [`SUDO_SFTP_SCRIPT`] right before the SFTP server starts.
+const SUDO_SFTP_MARKER: &str = "\u{1}TERMALITH-SUDO-SFTP\u{1}";
+/// How long sudo may take to accept the password and start the server.
+const SUDO_TIMEOUT: Duration = Duration::from_secs(15);
+/// Finds the SFTP server in the usual places (Debian, RHEL, Arch, BSD,
+/// macOS) and starts it after printing the marker.
+const SUDO_SFTP_SCRIPT: &str = "for p in /usr/lib/openssh/sftp-server /usr/libexec/openssh/sftp-server \
+/usr/lib/ssh/sftp-server /usr/libexec/sftp-server /usr/lib/sftp-server /usr/local/libexec/sftp-server; \
+do if [ -x \"$p\" ]; then printf '\\001TERMALITH-SUDO-SFTP\\001'; exec \"$p\"; fi; done; \
+echo 'sftp-server not found' >&2; exit 127";
+
+/// Single-quotes a string for a POSIX shell.
+fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
 }
 
 mod agent {

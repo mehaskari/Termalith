@@ -53,6 +53,14 @@ pub enum SshError {
     #[error("cancelled")]
     Cancelled,
 
+    /// Browsing files as root needs the user's sudo password.
+    #[error("sudo needs a password")]
+    SudoPasswordRequired,
+
+    /// sudo refused: wrong password, no sudo rights, or no SFTP server.
+    #[error("sudo refused: {0}")]
+    SudoRefused(String),
+
     #[error("file is larger than {limit} bytes")]
     TooLarge { limit: u64 },
 

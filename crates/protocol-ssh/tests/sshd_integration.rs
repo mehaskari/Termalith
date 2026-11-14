@@ -430,6 +430,50 @@ async fn password_auth_against_system_sshd() {
     sess.disconnect().await.unwrap();
 }
 
+/// SFTP as root through sudo. CI gives the test account password-protected
+/// sudo; elsewhere the test skips.
+#[tokio::test(flavor = "multi_thread")]
+async fn sftp_as_root_through_sudo() {
+    let (Ok(host), Ok(port), Ok(user), Ok(pw)) = (
+        std::env::var("TERMALITH_TEST_SSH_HOST"),
+        std::env::var("TERMALITH_TEST_SSH_PORT"),
+        std::env::var("TERMALITH_TEST_SSH_USER"),
+        std::env::var("TERMALITH_TEST_SSH_PASSWORD"),
+    ) else {
+        eprintln!("SKIPPED: TERMALITH_TEST_SSH_* not set");
+        return;
+    };
+    if std::env::var_os("TERMALITH_TEST_SUDO").is_none() {
+        eprintln!("SKIPPED: TERMALITH_TEST_SUDO not set");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let kh: Arc<dyn KnownHostsStore> = Arc::new(FileKnownHosts::new(dir.path().join("kh")));
+    let o = opts(kh, Fixed::new(HostKeyDecision::AcceptOnce));
+    let t = Target {
+        host,
+        port: port.parse().unwrap(),
+        user,
+    };
+    let sess = SshSession::connect(&t, &Auth::Password(Zeroizing::new(pw.clone())), &o)
+        .await
+        .expect("password auth");
+    // As the login user, /root cannot be listed.
+    assert!(sess.sftp().await.unwrap().list("/root").await.is_err());
+    assert!(matches!(
+        sess.sftp_sudo(None).await,
+        Err(SshError::SudoPasswordRequired)
+    ));
+    let wrong = format!("{pw}-wrong");
+    assert!(matches!(
+        sess.sftp_sudo(Some(&wrong)).await,
+        Err(SshError::SudoRefused(_))
+    ));
+    let root = sess.sftp_sudo(Some(&pw)).await.expect("sudo SFTP");
+    root.list("/root").await.expect("root can list /root");
+    sess.disconnect().await.unwrap();
+}
+
 // ---------------------------------------------------------------- channels
 
 #[tokio::test(flavor = "multi_thread")]

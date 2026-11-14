@@ -14,6 +14,8 @@ import {
   sftpRename,
   sftpHome,
   sftpList,
+  sftpSudoStart,
+  sftpSudoStop,
   sftpUpload,
 } from "../terminal/api";
 import { Dialog } from "./Dialog";
@@ -112,6 +114,8 @@ interface Props {
   onCompare?: (a: { dir: string; name: string }, b: { dir: string; name: string }) => void;
   /** Connection label recorded in the transfer history. */
   connection?: string;
+  /** SSH only: browse as root through sudo; asks for the sudo password when needed. */
+  sudo?: { askPassword: () => Promise<string | null> };
   /** Present on a panel beside a terminal: following that terminal's folder. */
   follow?: {
     on: boolean;
@@ -130,6 +134,7 @@ function message(e: unknown): string {
 }
 
 export function FilesPanel({
+  sudo,
   terminalId,
   dropped,
   fileHover,
@@ -141,6 +146,9 @@ export function FilesPanel({
   follow,
 }: Props) {
   const [showHistory, setShowHistory] = useState(false);
+  /** Browsing as root through sudo (SSH). */
+  const [root, setRoot] = useState(false);
+  const [rootBusy, setRootBusy] = useState(false);
   const [compareBase, setCompareBase] = useState<{ dir: string; name: string } | null>(null);
   const [path, setPath] = useState<string | null>(null);
   const [pathInput, setPathInput] = useState("");
@@ -308,6 +316,32 @@ export function FilesPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dropped, path === null]);
 
+  async function toggleRoot() {
+    if (!sudo) return;
+    setRootBusy(true);
+    try {
+      if (root) {
+        await sftpSudoStop(terminalId);
+        setRoot(false);
+      } else {
+        try {
+          await sftpSudoStart(terminalId, null);
+        } catch (e) {
+          if (!isIpcError(e) || e.code !== "password_required") throw e;
+          const password = await sudo.askPassword();
+          if (password === null) return;
+          await sftpSudoStart(terminalId, password);
+        }
+        setRoot(true);
+      }
+      if (path) await load(path);
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setRootBusy(false);
+    }
+  }
+
   return (
     <section className={fileHover ? "files-panel drop-target" : "files-panel"} aria-label="Remote files">
       {fileHover && path && (
@@ -333,6 +367,18 @@ export function FilesPanel({
           <button type="button" className="icon" title="Follow the terminal's folder" aria-label="Follow the terminal's folder"
             aria-pressed={follow.on} onClick={follow.onToggle}>
             ⇣
+          </button>
+        )}
+        {sudo && (
+          <button
+            type="button"
+            className={root ? "files-root on" : "files-root"}
+            title={root ? "Browsing as root (sudo). Click to go back to your user." : "Browse as root (sudo)"}
+            aria-pressed={root}
+            disabled={rootBusy}
+            onClick={() => void toggleRoot()}
+          >
+            root
           </button>
         )}
         <button type="button" className="icon" title="Transfer history" aria-label="Transfer history" aria-pressed={showHistory}

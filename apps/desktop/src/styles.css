@@ -2291,3 +2291,33 @@ button.recording {
   background: var(--accent);
   border-radius: 2px 2px 0 0;
 }
+/* Icon picker: search and grouped, scrollable list */
+.icon-picker-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.icon-picker-head .icon-choice.auto {
+  flex: none;
+  padding: 0 12px;
+}
+.icon-search {
+  flex: 1;
+  min-width: 0;
+}
+.icon-groups {
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.icon-groups h4 {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

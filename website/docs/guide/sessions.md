@@ -74,9 +74,10 @@ running Termalith is not reused.
 Give sessions and folders an icon so servers, switches, firewalls and the
 rest are easy to tell apart in the list and on tabs.
 
-- **Session:** in the session dialog, **Icon** offers pictures such as
-  server, router, switch, firewall, access point, database, storage, cloud,
-  web, container, virtual machine, printer, camera and more, plus a color.
+- **Session:** in the session dialog, **Icon** offers about 190 pictures
+  in groups (servers, computers, network, security, devices, places, files
+  and apps, tools, shapes) with a search box, e.g. *router*, *database*,
+  *firewall* (*brick wall*), *cloud*, *printer*, plus 13 colors.
   **By type** (the default) shows the protocol badge (SSH, RDP…) instead.
 - **Folder:** right-click a folder → **Icon…**, pick a picture and a color,
   **Save**. **Folder** goes back to the plain folder picture. A folder icon

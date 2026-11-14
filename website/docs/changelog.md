@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Many more icons.** The icon picker now offers about 190 pictures in
+  groups, with search and 13 colors. Icons chosen before keep working.
+
 ## 0.5.9 (2026-11-14)
 
 - **Browse files as root.** On SSH, **root** in the Files panel switches

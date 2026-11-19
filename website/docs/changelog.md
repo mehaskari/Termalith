@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.10 (2026-11-19)
 
 - **X11 on Windows without setup.** When a session forwards X11 and no X
   server is running, Termalith starts an installed VcXsrv or Xming itself,

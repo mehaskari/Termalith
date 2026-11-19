@@ -2351,7 +2351,7 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `libz-sys 1.1.31`
+Used by: `libz-sys 1.1.33`
 
 ```text
 Copyright (c) 2014 Alex Crichton

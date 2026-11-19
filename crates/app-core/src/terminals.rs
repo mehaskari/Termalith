@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use protocol_ftp::FtpClient;
+use protocol_s3::S3Client;
 use protocol_ssh::{SftpClient, ShellEvent, ShellWriter, SshError, SshSession};
 use terminal_pty::{
     ExitInfo, FlowConfig, MAX_INPUT_CHUNK, PtyError, ShellSpec, TerminalEvent, TerminalEventSink,
@@ -30,6 +31,8 @@ enum Entry {
     /// An SSH connection used only for files (no shell).
     Files(Arc<SshConnection>),
     Ftp(Arc<FtpClient>),
+    /// S3 object storage, a file browser without a terminal (ADR-040).
+    S3(Arc<S3Client>),
 }
 
 /// A byte stream a Telnet session runs over: TCP, or a tunnel channel.
@@ -168,6 +171,13 @@ impl TerminalHub {
         id
     }
 
+    /// Keeps an S3 connection for file browsing, like [`Self::open_ftp`].
+    pub fn open_s3(&self, client: Arc<S3Client>) -> u64 {
+        let id = self.alloc();
+        self.lock().insert(id, Entry::S3(client));
+        id
+    }
+
     /// Keeps an FTP connection for file browsing, like [`Self::open_files`].
     pub fn open_ftp(&self, client: Arc<FtpClient>) -> u64 {
         let id = self.alloc();
@@ -205,7 +215,11 @@ impl TerminalHub {
             Target::Ssh(t) => Arc::clone(&t.conn),
             // A shell on a file browser's connection: no second login.
             Target::Files(c) => c,
-            Target::Local(_) | Target::Serial(_) | Target::Telnet(_) | Target::Ftp(_) => {
+            Target::Local(_)
+            | Target::Serial(_)
+            | Target::Telnet(_)
+            | Target::Ftp(_)
+            | Target::S3(_) => {
                 return Err(AppError::invalid("terminal", "not an SSH terminal"));
             }
         };
@@ -287,9 +301,11 @@ impl TerminalHub {
         match self.target(id)? {
             Target::Ssh(t) => Ok(Arc::clone(&t.conn.session)),
             Target::Files(c) => Ok(Arc::clone(&c.session)),
-            Target::Local(_) | Target::Serial(_) | Target::Telnet(_) | Target::Ftp(_) => {
-                Err(AppError::invalid("terminal", "not an SSH terminal"))
-            }
+            Target::Local(_)
+            | Target::Serial(_)
+            | Target::Telnet(_)
+            | Target::Ftp(_)
+            | Target::S3(_) => Err(AppError::invalid("terminal", "not an SSH terminal")),
         }
     }
 
@@ -471,9 +487,11 @@ impl TerminalHub {
         match self.target(id)? {
             Target::Ssh(t) => Ok(t.conn.users.load(Ordering::SeqCst)),
             Target::Files(c) => Ok(c.users.load(Ordering::SeqCst)),
-            Target::Local(_) | Target::Serial(_) | Target::Telnet(_) | Target::Ftp(_) => {
-                Err(AppError::invalid("terminal", "not an SSH terminal"))
-            }
+            Target::Local(_)
+            | Target::Serial(_)
+            | Target::Telnet(_)
+            | Target::Ftp(_)
+            | Target::S3(_) => Err(AppError::invalid("terminal", "not an SSH terminal")),
         }
     }
 
@@ -503,7 +521,7 @@ impl TerminalHub {
                 .await
             }
             Target::Telnet(t) => t.send(&protocol_telnet::Telnet::encode(data)).await,
-            Target::Files(_) | Target::Ftp(_) => {
+            Target::Files(_) | Target::Ftp(_) | Target::S3(_) => {
                 Err(AppError::invalid("terminal", "a file browser has no shell"))
             }
         }
@@ -517,7 +535,7 @@ impl TerminalHub {
                 .resize(u32::from(size.cols()), u32::from(size.rows()))
                 .await?),
             // A serial line (or a file browser) has no window size.
-            Target::Serial(_) | Target::Files(_) | Target::Ftp(_) => Ok(()),
+            Target::Serial(_) | Target::Files(_) | Target::Ftp(_) | Target::S3(_) => Ok(()),
             Target::Telnet(t) => {
                 let update = t
                     .codec
@@ -536,9 +554,11 @@ impl TerminalHub {
         match self.target(id)? {
             Target::Ssh(t) => Ok(Arc::clone(&t.conn)),
             Target::Files(c) => Ok(c),
-            Target::Local(_) | Target::Serial(_) | Target::Telnet(_) | Target::Ftp(_) => {
-                Err(AppError::invalid("terminal", "not an SSH terminal"))
-            }
+            Target::Local(_)
+            | Target::Serial(_)
+            | Target::Telnet(_)
+            | Target::Ftp(_)
+            | Target::S3(_) => Err(AppError::invalid("terminal", "not an SSH terminal")),
         }
     }
 
@@ -589,8 +609,10 @@ impl TerminalHub {
 
     /// File access on the connection behind terminal `id`.
     pub async fn files(&self, id: u64) -> Result<RemoteFiles, AppError> {
-        if let Target::Ftp(client) = self.target(id)? {
-            return Ok(RemoteFiles::Ftp(client));
+        match self.target(id)? {
+            Target::Ftp(client) => return Ok(RemoteFiles::Ftp(client)),
+            Target::S3(client) => return Ok(RemoteFiles::S3(client)),
+            _ => {}
         }
         Ok(self.sftp(id).await?.into())
     }
@@ -610,7 +632,7 @@ impl TerminalHub {
                 t.gate.ack(bytes);
                 Ok(())
             }
-            Target::Files(_) | Target::Ftp(_) => Ok(()),
+            Target::Files(_) | Target::Ftp(_) | Target::S3(_) => Ok(()),
         }
     }
 
@@ -637,7 +659,7 @@ impl TerminalHub {
                 t.gate.close();
                 Ok(())
             }
-            Entry::Ftp(_) => Ok(()),
+            Entry::Ftp(_) | Entry::S3(_) => Ok(()),
             Entry::Files(conn) => {
                 if conn.users.fetch_sub(1, Ordering::SeqCst) == 1 {
                     let _ = conn.session.disconnect().await;
@@ -671,7 +693,7 @@ impl TerminalHub {
                     t.cancel.cancel();
                     t.gate.close();
                 }
-                Entry::Local(_) | Entry::Files(_) | Entry::Ftp(_) => {}
+                Entry::Local(_) | Entry::Files(_) | Entry::Ftp(_) | Entry::S3(_) => {}
             }
         }
         self.local.close_all();
@@ -693,6 +715,7 @@ impl TerminalHub {
             Some(Entry::Telnet(t)) => Ok(Target::Telnet(Arc::clone(t))),
             Some(Entry::Files(c)) => Ok(Target::Files(Arc::clone(c))),
             Some(Entry::Ftp(c)) => Ok(Target::Ftp(Arc::clone(c))),
+            Some(Entry::S3(c)) => Ok(Target::S3(Arc::clone(c))),
             None => Err(AppError::NotFound),
         }
     }
@@ -705,6 +728,8 @@ enum Target {
     Telnet(Arc<TelnetTerminal>),
     Files(Arc<SshConnection>),
     Ftp(Arc<FtpClient>),
+    /// S3 object storage, a file browser without a terminal (ADR-040).
+    S3(Arc<S3Client>),
 }
 
 async fn blocking<T: Send + 'static>(

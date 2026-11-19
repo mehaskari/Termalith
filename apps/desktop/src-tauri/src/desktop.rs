@@ -61,7 +61,8 @@ pub async fn desktop_open(
         SessionProtocol::Ssh
         | SessionProtocol::Telnet
         | SessionProtocol::Ftp
-        | SessionProtocol::Ftps => {
+        | SessionProtocol::Ftps
+        | SessionProtocol::S3 => {
             return Err(AppError::Invalid {
                 field: "session",
                 reason: "not a remote desktop session".into(),

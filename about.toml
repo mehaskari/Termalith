@@ -12,7 +12,8 @@ accepted = [
     "Unicode-3.0",
     "CC0-1.0",
     "MPL-2.0",
-    # webpki-roots only (Mozilla root certificates as data); see deny.toml.
+    # webpki-roots and webpki-root-certs only (Mozilla root certificates as
+    # data); see deny.toml.
     "CDLA-Permissive-2.0",
     # async_io_stream only (via vnc-rs); see deny.toml.
     "Unlicense",

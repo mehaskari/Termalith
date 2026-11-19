@@ -14,7 +14,7 @@ use serde::Serialize;
 use crate::AppError;
 use crate::folders::normalize_folder;
 use crate::sessions::{
-    Icon, SessionId, SessionStore, appearance_json, auth_columns, now, tags_json,
+    Icon, S3Options, SessionId, SessionStore, appearance_json, auth_columns, now, tags_json,
 };
 use crate::settings::{MAX_IMPORT_BYTES, parse_export};
 
@@ -191,14 +191,15 @@ impl SessionStore {
                         "UPDATE sessions SET name = ?2, host = ?3, port = ?4, username = ?5, auth_kind = ?6,
                          key_path = ?7, folder = ?8, updated_at = ?9, jump_session_id = NULL, protocol = ?10,
                          domain = ?11, tags = ?12, forward_agent = ?13, x11_forward = ?14,
-                         startup_command = ?15, files_only = ?16, mosh = ?17, appearance = ?18, icon = ?19
+                         startup_command = ?15, files_only = ?16, mosh = ?17, appearance = ?18, icon = ?19, s3 = ?20
                          WHERE id = ?1",
                         params![
                             sid, input.name.trim(), input.host.trim(), input.port, input.username,
                             kind, key, input.folder, t, input.protocol.column(), input.domain,
                             tags_json(&input.tags), input.forward_agent, input.x11_forward,
                             input.startup_command, input.files_only, input.mosh,
-                            appearance_json(&input.appearance), Icon::to_json(&input.icon)
+                            appearance_json(&input.appearance), Icon::to_json(&input.icon),
+                            S3Options::to_json(&input.s3)
                         ],
                     )?;
                     sid.clone()
@@ -208,14 +209,15 @@ impl SessionStore {
                     tx.execute(
                         "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder,
                          created_at, updated_at, protocol, domain, tags, forward_agent, x11_forward,
-                         startup_command, files_only, mosh, appearance, icon, shared_source)
-                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
+                         startup_command, files_only, mosh, appearance, icon, shared_source, s3)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
                         params![
                             sid, input.name.trim(), input.host.trim(), input.port, input.username,
                             kind, key, input.folder, t, input.protocol.column(), input.domain,
                             tags_json(&input.tags), input.forward_agent, input.x11_forward,
                             input.startup_command, input.files_only, input.mosh,
-                            appearance_json(&input.appearance), Icon::to_json(&input.icon), id
+                            appearance_json(&input.appearance), Icon::to_json(&input.icon), id,
+                            S3Options::to_json(&input.s3)
                         ],
                     )?;
                     sid

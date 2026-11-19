@@ -298,6 +298,8 @@ struct ExportedSession {
     appearance: Option<crate::sessions::Appearance>,
     #[serde(default)]
     icon: Option<crate::sessions::Icon>,
+    #[serde(default)]
+    s3: Option<crate::sessions::S3Options>,
 }
 
 /// Serializes every session as versioned JSON. Never includes secrets.
@@ -332,6 +334,7 @@ pub fn export_sessions(store: &SessionStore) -> Result<String, AppError> {
                 mosh: s.input.mosh,
                 appearance: s.input.appearance.clone(),
                 icon: s.input.icon.clone(),
+                s3: s.input.s3.clone(),
             })
             .collect(),
     };
@@ -449,6 +452,7 @@ fn to_input(s: &ExportedSession) -> SessionInput {
         appearance: s.appearance.clone(),
         // A damaged icon in the file must not refuse the session.
         icon: s.icon.clone().filter(|i| i.validate().is_ok()),
+        s3: s.s3.clone(),
     }
 }
 
@@ -533,6 +537,7 @@ mod tests {
             mosh: false,
             appearance: None,
             icon: None,
+            s3: None,
         }
     }
 

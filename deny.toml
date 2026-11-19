@@ -40,6 +40,9 @@ ignore = [
     # libunftp (FTP server), russh-sftp and suppaftp. Drop this when they
     # move to jiff or time.
     { id = "RUSTSEC-2026-0543", reason = "unmaintained only; via libunftp, russh-sftp, suppaftp" },
+    # Unmaintained (not a vulnerability): humantime, used by object_store
+    # (S3 sessions, ADR-040) to parse durations in its configuration.
+    { id = "RUSTSEC-2026-0542", reason = "unmaintained only; via object_store" },
 ]
 
 [licenses]
@@ -66,6 +69,9 @@ confidence-threshold = 0.9
 # used by the update check's HTTPS client. See ADR-029.
 exceptions = [
     { allow = ["CDLA-Permissive-2.0"], crate = "webpki-roots" },
+    # The same Mozilla root list as certificates, via reqwest's rustls
+    # verifier under object_store (S3 sessions, ADR-040).
+    { allow = ["CDLA-Permissive-2.0"], crate = "webpki-root-certs" },
     # Public-domain dedication (OSI and FSF approved); via vnc-rs.
     { allow = ["Unlicense"], crate = "async_io_stream" },
 ]

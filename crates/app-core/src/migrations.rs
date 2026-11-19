@@ -210,6 +210,43 @@ pub(crate) const MIGRATIONS: &[&str] = &[
         last_error TEXT
      );
      ALTER TABLE sessions ADD COLUMN shared_source TEXT;",
+    // v23: S3 object storage sessions (bucket, region, options as JSON).
+    // Rebuilt for the protocol CHECK constraint, as in v11 and v17.
+    "CREATE TABLE sessions_v23 (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        host TEXT NOT NULL,
+        port INTEGER NOT NULL CHECK (port BETWEEN 1 AND 65535),
+        username TEXT NOT NULL,
+        auth_kind TEXT NOT NULL CHECK (auth_kind IN ('password', 'key_file', 'agent')),
+        key_path TEXT,
+        credential_ref TEXT,
+        folder TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        jump_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+        favorite INTEGER NOT NULL DEFAULT 0,
+        protocol TEXT NOT NULL DEFAULT 'ssh'
+            CHECK (protocol IN ('ssh', 'rdp', 'vnc', 'telnet', 'ftp', 'ftps', 's3')),
+        domain TEXT,
+        tags TEXT NOT NULL DEFAULT '[]',
+        forward_agent INTEGER NOT NULL DEFAULT 0,
+        x11_forward INTEGER NOT NULL DEFAULT 0,
+        startup_command TEXT,
+        files_only INTEGER NOT NULL DEFAULT 0,
+        mosh INTEGER NOT NULL DEFAULT 0,
+        appearance TEXT,
+        icon TEXT,
+        shared_source TEXT,
+        s3 TEXT
+    );
+    INSERT INTO sessions_v23 SELECT id, name, host, port, username, auth_kind, key_path,
+        credential_ref, folder, created_at, updated_at, jump_session_id, favorite, protocol,
+        domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh,
+        appearance, icon, shared_source, NULL FROM sessions;
+    DROP TABLE sessions;
+    ALTER TABLE sessions_v23 RENAME TO sessions;
+    CREATE INDEX sessions_name ON sessions (name COLLATE NOCASE);",
 ];
 
 pub(crate) fn migrate(conn: &mut Connection) -> Result<(), AppError> {

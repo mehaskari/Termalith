@@ -118,6 +118,7 @@ pub fn run() {
             ssh::ssh_files_open,
             terminal::mosh_open,
             ssh::ftp_files_open,
+            ssh::s3_files_open,
             desktop::desktop_clients,
             desktop::desktop_open,
             desktop::desktop_list,

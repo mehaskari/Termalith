@@ -2,6 +2,7 @@
 import type { Appearance } from "./Appearance";
 import type { AuthMethod } from "./AuthMethod";
 import type { Icon } from "./Icon";
+import type { S3Options } from "./S3Options";
 import type { SessionId } from "./SessionId";
 import type { SessionProtocol } from "./SessionProtocol";
 
@@ -60,4 +61,8 @@ appearance: Appearance | null,
 /**
  * Icon in the session list and on tabs; `None` shows the protocol.
  */
-icon: Icon | null, };
+icon: Icon | null, 
+/**
+ * S3 sessions: bucket, region and connection options.
+ */
+s3: S3Options | null, };

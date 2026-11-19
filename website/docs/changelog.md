@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **S3 object storage sessions.** Browse a bucket of AWS S3 or an
+  S3-compatible service (MinIO, Cloudflare R2, Backblaze B2, Wasabi, Ceph):
+  upload, download with resume, edit, rename and delete, like SFTP and FTP.
 - **Many more icons.** The icon picker now offers about 190 pictures in
   groups, with search and 13 colors. Icons chosen before keep working.
 

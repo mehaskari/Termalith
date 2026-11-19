@@ -99,6 +99,7 @@ mod tests {
             mosh: true,
             appearance: None,
             icon: None,
+            s3: None,
         }
     }
 

@@ -58,10 +58,15 @@ export function groupSessions(sessions: SessionRecord[]): SessionGroup[] {
   return groups;
 }
 
-export const DEFAULT_PORT: Record<SessionProtocol, number> = { ssh: 22, rdp: 3389, vnc: 5900, telnet: 23, ftp: 21, ftps: 21 };
+export const DEFAULT_PORT: Record<SessionProtocol, number> = { ssh: 22, rdp: 3389, vnc: 5900, telnet: 23, ftp: 21, ftps: 21, s3: 443 };
 
 export function isFtp(s: Pick<SessionInput, "protocol">): boolean {
   return s.protocol === "ftp" || s.protocol === "ftps";
+}
+
+/** Opens as a file browser without a terminal and without SSH (FTP, FTPS, S3). */
+export function isFileStore(s: Pick<SessionInput, "protocol">): boolean {
+  return isFtp(s) || s.protocol === "s3";
 }
 
 /** Opens a terminal (SSH shell, Telnet or Mosh), so it can take broadcast input. */
@@ -190,7 +195,7 @@ export function authLabel(s: Pick<SessionRecord, "auth" | "hasSavedSecret" | "pr
   if (s.protocol === "rdp") return s.hasSavedSecret ? "saved" : "RDP";
   if (s.protocol === "vnc") return "VNC";
   if (s.protocol === "telnet") return "Telnet";
-  if (isFtp(s)) return s.hasSavedSecret ? "saved" : (s.protocol ?? "").toUpperCase();
+  if (isFileStore(s)) return s.hasSavedSecret ? "saved" : (s.protocol ?? "").toUpperCase();
   if (s.auth.kind === "keyFile") return "key";
   if (s.auth.kind === "agent") return "agent";
   return s.hasSavedSecret ? "saved" : "";
@@ -227,6 +232,11 @@ export interface SessionFormState {
   lookFontSize: string;
   lookFont: string;
   icon: SessionIcon | null;
+  /** S3 sessions. */
+  s3Bucket: string;
+  s3Region: string;
+  s3PathStyle: boolean;
+  s3Https: boolean;
 }
 
 /** Switches protocol, moving the port along if it was the old default. */
@@ -257,6 +267,10 @@ export function emptyForm(): SessionFormState {
     lookFontSize: "",
     lookFont: "",
     icon: null,
+    s3Bucket: "",
+    s3Region: "",
+    s3PathStyle: false,
+    s3Https: true,
   };
 }
 
@@ -282,6 +296,10 @@ export function formFromSession(s: SessionInput): SessionFormState {
     lookFontSize: s.appearance?.fontSize ? String(s.appearance.fontSize) : "",
     lookFont: s.appearance?.fontFamily ?? "",
     icon: s.icon ?? null,
+    s3Bucket: s.s3?.bucket ?? "",
+    s3Region: s.s3?.region ?? "",
+    s3PathStyle: s.s3?.pathStyle ?? false,
+    s3Https: s.s3?.https ?? true,
   };
 }
 
@@ -355,6 +373,14 @@ export function parseForm(
   };
   const appearance = terminal && (look.fontFamily || look.fontSize || look.terminalScheme) ? look : null;
   if (!username && !desktop) return { ok: false, field: "username", message: "Username is required" };
+  const s3 = f.protocol === "s3";
+  if (s3 && !username) return { ok: false, field: "username", message: "The access key ID is required" };
+  const bucket = f.s3Bucket.trim();
+  if (s3 && !/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket))
+    return { ok: false, field: "s3Bucket", message: "3-63 lowercase letters, digits, '.' or '-'" };
+  const region = f.s3Region.trim();
+  if (s3 && !/^[A-Za-z0-9-]{0,32}$/.test(region))
+    return { ok: false, field: "s3Region", message: "A region like eu-central-1" };
   if (/\s/.test(username)) return { ok: false, field: "username", message: "No spaces allowed" };
   if (/^[-/]/.test(username)) return { ok: false, field: "username", message: "Must not start with - or /" };
   const domain = f.protocol === "rdp" ? f.domain.trim() : "";
@@ -392,7 +418,7 @@ export function parseForm(
       username,
       auth,
       folder: f.folder.trim() || null,
-      jumpVia: (!isFtp(f) && !mosh && f.jumpVia) || null,
+      jumpVia: (!isFileStore(f) && !mosh && f.jumpVia) || null,
       protocol: f.protocol,
       domain: domain || null,
       tags,
@@ -403,6 +429,7 @@ export function parseForm(
       mosh,
       appearance,
       icon: f.icon,
+      s3: s3 ? { bucket, region, pathStyle: f.s3PathStyle, https: f.s3Https } : null,
     },
   };
 }

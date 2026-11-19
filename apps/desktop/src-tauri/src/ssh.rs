@@ -102,6 +102,24 @@ pub async fn ftp_files_open(
     })
 }
 
+/// Connects a saved S3 session (ADR-040); the id works like
+/// [`ftp_files_open`]'s.
+#[tauri::command]
+pub async fn s3_files_open(
+    state: State<'_, AppState>,
+    request: SshOpenRequest,
+) -> Result<SshOpened, IpcError> {
+    let ConnectRequest::Saved { id, secret } = connect_request(&state, request)? else {
+        return Err(IpcError::internal("S3 sessions must be saved"));
+    };
+    let (client, label, save_error) = state.connector.connect_s3(&id, secret).await?;
+    Ok(SshOpened {
+        id: state.hub.open_s3(std::sync::Arc::new(client)),
+        label,
+        save_error,
+    })
+}
+
 #[tauri::command]
 pub async fn ssh_open(
     state: State<'_, AppState>,

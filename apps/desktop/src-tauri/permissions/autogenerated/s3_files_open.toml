@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-s3-files-open"
+description = "Enables the s3_files_open command without any pre-configured scope."
+commands.allow = ["s3_files_open"]
+
+[[permission]]
+identifier = "deny-s3-files-open"
+description = "Denies the s3_files_open command without any pre-configured scope."
+commands.deny = ["s3_files_open"]

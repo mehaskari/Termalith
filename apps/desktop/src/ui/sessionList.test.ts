@@ -66,7 +66,7 @@ describe("parseForm", () => {
     const r = parseForm(base, { requireName: true });
     expect(r).toEqual({
       ok: true,
-      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null, icon: null },
+      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null, icon: null, s3: null },
     });
   });
 
@@ -103,7 +103,7 @@ describe("parseForm", () => {
     const rec = s("web", "prod");
     const r = parseForm(formFromSession(rec), { requireName: true });
     expect(r.ok && r.value).toEqual({
-      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null, icon: null,
+      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null, icon: null, s3: null,
     });
   });
 });
@@ -214,7 +214,7 @@ describe("startup command", () => {
       ok: true,
       value: { mosh: true, jumpVia: null, forwardAgent: false, x11Forward: false },
     });
-    expect(parseForm({ ...f, filesOnly: true }, { requireName: true })).toMatchObject({ ok: true, value: { mosh: false, appearance: null, icon: null } });
+    expect(parseForm({ ...f, filesOnly: true }, { requireName: true })).toMatchObject({ ok: true, value: { mosh: false, appearance: null, icon: null, s3: null } });
   });
 
   it("connects FTP sessions directly", () => {
@@ -228,7 +228,7 @@ describe("startup command", () => {
       ok: true,
       value: { filesOnly: true, startupCommand: null, forwardAgent: false, x11Forward: false },
     });
-    expect(parseForm({ ...f, protocol: "telnet", port: "23" }, { requireName: true })).toMatchObject({ ok: true, value: { filesOnly: false, mosh: false, appearance: null, icon: null } });
+    expect(parseForm({ ...f, protocol: "telnet", port: "23" }, { requireName: true })).toMatchObject({ ok: true, value: { filesOnly: false, mosh: false, appearance: null, icon: null, s3: null } });
   });
 });
 
@@ -324,5 +324,23 @@ describe("moveTargets", () => {
   it("never offers a folder itself, its children or its current parent", () => {
     expect(moveTargets(paths, { kind: "folder", path: "Prod/DB" })).toEqual(["", "Lab"]);
     expect(moveTargets(paths, { kind: "folder", path: "Lab" })).toEqual(["Prod", "Prod/DB", "Prod/DB/Replicas"]);
+  });
+});
+
+describe("S3 sessions", () => {
+  const base = () => ({ ...emptyForm(), protocol: "s3" as const, name: "logs", host: "s3.eu-central-1.amazonaws.com", port: "443", username: "AKIAEXAMPLE" });
+
+  it("builds the S3 options and refuses bad buckets", () => {
+    expect(parseForm({ ...base(), s3Bucket: "team-logs", s3Region: "eu-central-1" }, { requireName: true })).toMatchObject({
+      ok: true,
+      value: { protocol: "s3", jumpVia: null, auth: { kind: "password" }, s3: { bucket: "team-logs", region: "eu-central-1", pathStyle: false, https: true } },
+    });
+    expect(parseForm({ ...base(), s3Bucket: "Bad_Bucket" }, { requireName: true })).toMatchObject({ ok: false, field: "s3Bucket" });
+    expect(parseForm({ ...base(), username: "", s3Bucket: "team-logs" }, { requireName: true })).toMatchObject({ ok: false, field: "username" });
+  });
+
+  it("keeps S3 options out of other session types", () => {
+    const ssh = { ...emptyForm(), name: "web", host: "web1", username: "me", s3Bucket: "team-logs" };
+    expect(parseForm(ssh, { requireName: true })).toMatchObject({ ok: true, value: { s3: null } });
   });
 });

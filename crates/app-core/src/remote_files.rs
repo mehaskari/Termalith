@@ -5,6 +5,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use protocol_ftp::{EntryKind, FtpClient, FtpError, Stat};
+use protocol_s3::{S3Client, S3Error};
 use protocol_ssh::{
     CancellationToken, RemoteEntry, RemoteKind, RemoteStat, SftpClient, SshError, TransferOptions,
 };
@@ -14,6 +15,31 @@ use protocol_ssh::{
 pub enum RemoteFiles {
     Sftp(Arc<SftpClient>),
     Ftp(Arc<FtpClient>),
+    S3(Arc<S3Client>),
+}
+
+/// S3 errors in the shared error type (ADR-031, ADR-040).
+pub(crate) fn s3_error(e: S3Error) -> SshError {
+    match e {
+        S3Error::Connect(m) => SshError::Connect(m),
+        S3Error::Denied => SshError::AuthFailed,
+        S3Error::Cancelled => SshError::Cancelled,
+        S3Error::DestinationExists(p) => SshError::DestinationExists(p),
+        S3Error::TooLarge { limit } => SshError::TooLarge { limit },
+        S3Error::Modified(p) => SshError::Modified(p),
+        S3Error::Io(e) => SshError::Io(e),
+        e @ (S3Error::NotFound(_) | S3Error::Refused(_) | S3Error::InvalidPath) => {
+            SshError::Remote(e.to_string())
+        }
+    }
+}
+
+fn s3_stat(s: protocol_s3::Stat) -> RemoteStat {
+    RemoteStat {
+        size: s.size,
+        modified: s.modified,
+        permissions: None,
+    }
 }
 
 /// FTP errors in the shared error type (ADR-031).
@@ -54,6 +80,7 @@ impl RemoteFiles {
         match self {
             Self::Sftp(c) => c.canonicalize(".").await,
             Self::Ftp(c) => c.home().await.map_err(ftp_error),
+            Self::S3(c) => c.home().await.map_err(s3_error),
         }
     }
 
@@ -77,6 +104,23 @@ impl RemoteFiles {
                     permissions: None,
                 })
                 .collect()),
+            Self::S3(c) => Ok(c
+                .list(dir)
+                .await
+                .map_err(s3_error)?
+                .into_iter()
+                .map(|e| RemoteEntry {
+                    name: e.name,
+                    kind: if e.dir {
+                        RemoteKind::Dir
+                    } else {
+                        RemoteKind::File
+                    },
+                    size: Some(e.size),
+                    modified: e.modified,
+                    permissions: None,
+                })
+                .collect()),
         }
     }
 
@@ -94,6 +138,10 @@ impl RemoteFiles {
                 .upload(local, remote, opts.overwrite, cancel, progress)
                 .await
                 .map_err(ftp_error),
+            Self::S3(c) => c
+                .upload(local, remote, opts.overwrite, cancel, progress)
+                .await
+                .map_err(s3_error),
         }
     }
 
@@ -111,6 +159,10 @@ impl RemoteFiles {
                 .download(remote, local, opts.overwrite, cancel, progress)
                 .await
                 .map_err(ftp_error),
+            Self::S3(c) => c
+                .download(remote, local, opts.overwrite, cancel, progress)
+                .await
+                .map_err(s3_error),
         }
     }
 
@@ -140,6 +192,10 @@ impl RemoteFiles {
                 .download_resume(remote, local, partial, cancel, progress)
                 .await
                 .map_err(ftp_error),
+            Self::S3(c) => c
+                .download_resume(remote, local, partial, cancel, progress)
+                .await
+                .map_err(s3_error),
         }
     }
 
@@ -148,6 +204,7 @@ impl RemoteFiles {
         match self {
             Self::Sftp(c) => c.stat(remote).await,
             Self::Ftp(c) => c.stat(remote).await.map(remote_stat).map_err(ftp_error),
+            Self::S3(c) => c.stat(remote).await.map(s3_stat).map_err(s3_error),
         }
     }
 
@@ -161,6 +218,10 @@ impl RemoteFiles {
             Self::Ftp(c) => {
                 let (data, stat) = c.read_file(remote, limit).await.map_err(ftp_error)?;
                 Ok((data, remote_stat(stat)))
+            }
+            Self::S3(c) => {
+                let (data, stat) = c.read_file(remote, limit).await.map_err(s3_error)?;
+                Ok((data, s3_stat(stat)))
             }
         }
     }
@@ -183,6 +244,16 @@ impl RemoteFiles {
                     .map(remote_stat)
                     .map_err(ftp_error)
             }
+            Self::S3(c) => {
+                let expected = protocol_s3::Stat {
+                    size: expected.size,
+                    modified: expected.modified,
+                };
+                c.replace_file(remote, data, &expected)
+                    .await
+                    .map(s3_stat)
+                    .map_err(s3_error)
+            }
         }
     }
 
@@ -190,6 +261,7 @@ impl RemoteFiles {
         match self {
             Self::Sftp(c) => c.create_dir(remote).await,
             Self::Ftp(c) => c.create_dir(remote).await.map_err(ftp_error),
+            Self::S3(c) => c.create_dir(remote).await.map_err(s3_error),
         }
     }
 
@@ -197,6 +269,7 @@ impl RemoteFiles {
         match self {
             Self::Sftp(c) => c.rename(from, to).await,
             Self::Ftp(c) => c.rename(from, to).await.map_err(ftp_error),
+            Self::S3(c) => c.rename(from, to).await.map_err(s3_error),
         }
     }
 
@@ -204,6 +277,7 @@ impl RemoteFiles {
         match self {
             Self::Sftp(c) => c.delete(remote).await,
             Self::Ftp(c) => c.delete(remote).await.map_err(ftp_error),
+            Self::S3(c) => c.delete(remote).await.map_err(s3_error),
         }
     }
 }

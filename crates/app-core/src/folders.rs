@@ -265,6 +265,7 @@ mod tests {
                 mosh: false,
                 appearance: None,
                 icon: None,
+                s3: None,
             })
             .unwrap()
             .id

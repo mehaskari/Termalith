@@ -17,5 +17,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // The slowest CI runners (Windows arm64) can take more than the default
+    // 5 s for a file's first test while modules load; none of these tests
+    // waits on anything, so a longer limit hides no real hang.
+    testTimeout: 20_000,
   },
 });

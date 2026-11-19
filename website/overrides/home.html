@@ -5,21 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
 <title>Termalith — free, open-source SSH, SFTP, RDP and VNC client for macOS, Windows and Linux</title>
-<meta name="description" content="Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry.">
+<meta name="description" content="Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS and S3, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Termalith">
 <meta property="og:title" content="Termalith — one workspace, every connection">
-<meta property="og:description" content="Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry.">
+<meta property="og:description" content="Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS and S3, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry.">
 <meta property="og:url" content="https://mehaskari.github.io/Termalith/">
 <meta property="og:image" content="https://mehaskari.github.io/Termalith/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Termalith — one workspace, every connection">
-<meta name="twitter:description" content="Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry.">
+<meta name="twitter:description" content="Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS and S3, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry.">
 <meta name="twitter:image" content="https://mehaskari.github.io/Termalith/assets/og.png">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Termalith","applicationCategory":"DeveloperApplication","applicationSubCategory":"Remote administration","operatingSystem":"macOS 11+, Windows 10/11, Linux","softwareVersion":"0.5.10","license":"https://opensource.org/licenses/MIT","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://mehaskari.github.io/Termalith/","downloadUrl":"https://github.com/mehaskari/Termalith/releases/latest","codeRepository":"https://github.com/mehaskari/Termalith","description":"Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry."}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Termalith","applicationCategory":"DeveloperApplication","applicationSubCategory":"Remote administration","operatingSystem":"macOS 11+, Windows 10/11, Linux","softwareVersion":"0.5.10","license":"https://opensource.org/licenses/MIT","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://mehaskari.github.io/Termalith/","downloadUrl":"https://github.com/mehaskari/Termalith/releases/latest","codeRepository":"https://github.com/mehaskari/Termalith","description":"Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS and S3, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry."}
 </script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
@@ -563,10 +563,11 @@
           <h3>Work in many places at once</h3>
           <ul>
             <li>Local shells, tabs, up to 2×2 split panes</li>
-            <li>Broadcast typing with a loud banner</li>
+            <li>Type into a whole folder of servers at once, side by side</li>
             <li>Snippets with <code>&#123;&#123;variables&#125;&#125;</code>, macros</li>
             <li>Session logs, keyword colors, per-session look</li>
-            <li>Command palette <code>⌘K</code></li>
+            <li>Command palette <code>⌘K</code>: type <code>ssh me@host</code> to connect</li>
+            <li>Icons for sessions and folders, shared team session files</li>
           </ul>
         </div>
         <div class="group">
@@ -577,7 +578,7 @@
             <li>Strict host keys, keychain secrets</li>
             <li>Jump hosts, SOCKS/HTTP proxy</li>
             <li>Tunnels <code>-L</code> <code>-R</code> <code>-D</code>, Mosh</li>
-            <li>X11 &amp; agent forwarding, server monitor</li>
+            <li>X11 (starts VcXsrv on Windows) &amp; agent forwarding, server monitor</li>
           </ul>
         </div>
         <div class="group">
@@ -585,7 +586,8 @@
           <h3>Move and edit files</h3>
           <ul>
             <li>SFTP panel or file-browser tab</li>
-            <li>FTP and FTPS (pinned certificate)</li>
+            <li>FTP, FTPS (pinned certificate) and S3 buckets</li>
+            <li>Browse as root through sudo</li>
             <li>Drag and drop, queue with retry</li>
             <li>Files follow the terminal's folder</li>
             <li>Edit remote files with conflict check</li>
@@ -598,8 +600,9 @@
           <ul>
             <li>RDP and VNC in a tab, or your own client</li>
             <li>Serial consoles and Telnet</li>
-            <li>Ping, traceroute, port scan, DNS</li>
-            <li>Subnet calculator, Wake-on-LAN</li>
+            <li>Ping, traceroute, port scan, LAN scan, DNS</li>
+            <li>Bandwidth test (iperf3), subnet calculator, Wake-on-LAN</li>
+            <li>Built-in TFTP, HTTP and FTP file servers</li>
             <li>Import from <code>~/.ssh/config</code> &amp; MobaXterm</li>
           </ul>
         </div>
@@ -735,7 +738,7 @@ corepack pnpm dev</div>
       <div class="why">
         <div class="why-card"><h3>Is it really free?</h3><p>Yes: MIT licensed, free for personal and commercial use, no paid tier.</p></div>
         <div class="why-card"><h3>Which systems?</h3><p>macOS 11+ (Apple Silicon, Intel), Windows 10/11 (x64, ARM64), Linux (x64, ARM64; AppImage and deb).</p></div>
-        <div class="why-card"><h3>Is it a MobaXterm alternative?</h3><p>For daily SSH, files, RDP/VNC and tunnels, yes, on all three systems; it imports MobaXterm sessions. A built-in X server on Windows is not there yet.</p></div>
+        <div class="why-card"><h3>Is it a MobaXterm alternative?</h3><p>For daily SSH, files, RDP/VNC, tunnels, broadcast typing and file servers, yes, on all three systems; it imports MobaXterm sessions. On Windows it starts an installed VcXsrv or Xming for X11; it does not ship its own X server or Unix tools yet.</p></div>
         <div class="why-card"><h3>Where do passwords go?</h3><p>Into the system keychain, only after a login worked, optionally sealed with a master password. Never into exports or logs.</p></div>
         <div class="why-card"><h3>Why the security warning?</h3><p>The installers are not code-signed with a paid certificate yet. Check the download against <code>SHA256SUMS.txt</code>, or build from source.</p></div>
         <div class="why-card"><h3>How can I help?</h3><p>Star the project, report problems and ideas in <a href="https://github.com/mehaskari/Termalith/issues" target="_blank" rel="noopener">Issues</a>, or send a pull request.</p></div>

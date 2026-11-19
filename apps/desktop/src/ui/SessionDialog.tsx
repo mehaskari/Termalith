@@ -11,7 +11,7 @@ import { Dialog } from "./Dialog";
 import { IconPicker } from "./sessionIcons";
 import { TERMINAL_SCHEMES } from "./theme";
 import { parseTypedConnection } from "./commandLine";
-import { type SessionFormState, allFolderPaths, applyTypedConnection, emptyForm, formFromSession, isFtp, parseForm, withProtocol } from "./sessionList";
+import { type SessionFormState, allFolderPaths, applyTypedConnection, emptyForm, formFromSession, isFileStore, parseForm, withProtocol } from "./sessionList";
 
 const INSTALL_HINT: Record<"rdp" | "vnc", string> = {
   rdp: "No RDP client is installed, so this session opens inside Termalith (no client needed). To use an external client, install Windows App (macOS) or FreeRDP (xfreerdp, Linux); Windows normally includes Remote Desktop Connection.",
@@ -114,6 +114,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
               <option value="telnet">Telnet (unencrypted)</option>
               <option value="ftps">FTPS files (encrypted)</option>
               <option value="ftp">FTP files (unencrypted)</option>
+              <option value="s3">S3 object storage (AWS, MinIO, R2, B2…)</option>
             </select>
           </label>
         )}
@@ -142,6 +143,13 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             Uses explicit TLS on the FTP port. You are shown the server&apos;s certificate the first time;
             the connection fails if the server does not offer TLS. Leave the username empty to log in
             anonymously.
+          </p>
+        )}
+        {form.protocol === "s3" && (
+          <p className="hint span-2">
+            Host is the endpoint, e.g. <code>s3.eu-central-1.amazonaws.com</code>, <code>&lt;account&gt;.r2.cloudflarestorage.com</code>{" "}
+            or your MinIO server. You are asked for the secret access key when connecting; it can be saved in
+            the keychain like a password.
           </p>
         )}
         {mode !== "quick" && (
@@ -181,7 +189,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
           />
         </label>
         <label>
-          {ssh ? "Username" : "Username (optional)"}
+          {ssh ? "Username" : form.protocol === "s3" ? "Access key ID" : "Username (optional)"}
           <input
             value={form.username}
             spellCheck={false}
@@ -190,6 +198,43 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             onChange={(e) => set({ username: e.target.value })}
           />
         </label>
+        {form.protocol === "s3" && (
+          <>
+            <label>
+              Bucket
+              <input
+                value={form.s3Bucket}
+                spellCheck={false}
+                autoCapitalize="off"
+                aria-invalid={invalid("s3Bucket")}
+                onChange={(e) => set({ s3Bucket: e.target.value })}
+              />
+            </label>
+            <label>
+              Region (optional)
+              <input
+                value={form.s3Region}
+                placeholder="us-east-1"
+                spellCheck={false}
+                autoCapitalize="off"
+                aria-invalid={invalid("s3Region")}
+                onChange={(e) => set({ s3Region: e.target.value })}
+              />
+            </label>
+            <label className="checkbox span-2">
+              <input type="checkbox" checked={form.s3PathStyle} onChange={(e) => set({ s3PathStyle: e.target.checked })} />
+              Path-style addressing (MinIO, Ceph and most self-hosted servers)
+            </label>
+            <label className="checkbox span-2">
+              <input
+                type="checkbox"
+                checked={form.s3Https}
+                onChange={(e) => set({ s3Https: e.target.checked, port: e.target.checked && form.port === "80" ? "443" : !e.target.checked && form.port === "443" ? "80" : form.port })}
+              />
+              Use HTTPS (turn off only for a local server without TLS)
+            </label>
+          </>
+        )}
         {form.protocol === "rdp" && (
           <label>
             Domain (optional)
@@ -228,7 +273,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             />
           </label>
         )}
-        {mode !== "quick" && !isFtp(form) && !(form.mosh && shell) && (
+        {mode !== "quick" && !isFileStore(form) && !(form.mosh && shell) && (
           <label className="span-2">
             {desktop ? "Tunnel through (SSH session)" : "Connect via (jump host)"}
             <select value={form.jumpVia} onChange={(e) => set({ jumpVia: e.target.value })}>

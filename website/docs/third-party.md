@@ -9,9 +9,9 @@ packages via pnpm) and covers what ships in the app on all platforms.
 
 | License | Crates |
 |---|---|
-| MIT License | 558 |
+| MIT License | 580 |
+| Apache License 2.0 | 20 |
 | Unicode License v3 | 19 |
-| Apache License 2.0 | 18 |
 | BSD 3-Clause "New" or "Revised" License | 8 |
 | ISC License | 6 |
 | Mozilla Public License 2.0 | 6 |
@@ -1503,7 +1503,7 @@ Apache License
 
 ### Apache License 2.0
 
-Used by: `aws-lc-sys 0.47.0`, `pageant 0.2.5`, `russh-cryptovec 0.62.0`, `russh-util 0.52.0`, `russh 0.65.1`, `serial2 0.2.39`, `unftp-core 0.1.1`, `unftp-sbe-fs 0.4.1`
+Used by: `aws-lc-sys 0.47.0`, `pageant 0.2.5`, `russh-cryptovec 0.62.0`, `russh-util 0.52.0`, `russh 0.65.1`, `ryu 1.0.23`, `serial2 0.2.39`, `sync_wrapper 1.0.2`, `unftp-core 0.1.1`, `unftp-sbe-fs 0.4.1`
 
 ```text
 Apache License
@@ -2318,7 +2318,7 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `cfg-if 1.0.5`, `socket2 0.6.5`, `toml_datetime 0.6.3`
+Used by: `cfg-if 1.0.5`, `openssl-probe 0.2.2`, `socket2 0.6.5`, `toml_datetime 0.6.3`
 
 ```text
 Copyright (c) 2014 Alex Crichton
@@ -2782,7 +2782,7 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `serde_with 3.24.0`, `serde_with_macros 3.24.0`
+Used by: `either 1.19.0`, `itertools 0.15.0`, `serde_with 3.24.0`, `serde_with_macros 3.24.0`
 
 ```text
 Copyright (c) 2015
@@ -3060,6 +3060,21 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
+Used by: `schannel 0.1.30`
+
+```text
+Copyright (c) 2015 steffengy
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
 Used by: `winapi 0.3.9`
 
 ```text
@@ -3249,6 +3264,39 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
+Used by: `serde_urlencoded 0.7.1`
+
+```text
+Copyright (c) 2016 Anthony Ramine
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
 Used by: `webkit2gtk-sys 2.0.2`
 
 ```text
@@ -3303,7 +3351,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `rustls 0.23.46`
+Used by: `hyper-rustls 0.27.10`, `rustls-native-certs 0.8.5`, `rustls 0.23.46`
 
 ```text
 Copyright (c) 2016 Joseph Birr-Pixton <jpixton@gmail.com>
@@ -3433,6 +3481,40 @@ Used by: `fallible-streaming-iterator 0.1.9`
 
 ```text
 Copyright (c) 2016 The fallible-streaming-iterator Developers
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
+
+### MIT License
+
+Used by: `humantime 2.4.0`
+
+```text
+Copyright (c) 2016 The humantime Developers
+
+Includes parts of http date with the following copyright:
+Copyright (c) 2016 Pyfisch
+
+Includes portions of musl libc with the following copyright:
+Copyright © 2005-2013 Rich Felker
+
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -3715,6 +3797,34 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
+Used by: `reqwest 0.13.5`
+
+```text
+Copyright (c) 2016-2026 Sean McArthur
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
 
 ```
 
@@ -4199,6 +4309,39 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
+Used by: `h2 0.4.20`
+
+```text
+Copyright (c) 2017 h2 authors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
 Used by: `http 1.5.0`
 
 ```text
@@ -4615,6 +4758,34 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
+Used by: `want 0.3.2`
+
+```text
+Copyright (c) 2018-2019 Sean McArthur
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+```
+
+### MIT License
+
 Used by: `block-buffer 0.10.4`
 
 ```text
@@ -4704,6 +4875,35 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
+Used by: `try-lock 0.2.5`
+
+```text
+Copyright (c) 2018-2023 Sean McArthur
+Copyright (c) 2016 Alex Crichton
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
 
 ```
 
@@ -5114,6 +5314,72 @@ Used by: `tracing-attributes 0.1.31`, `tracing-core 0.1.36`, `tracing 0.1.44`
 
 ```text
 Copyright (c) 2019 Tokio Contributors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
+Used by: `tower-layer 0.3.3`, `tower-service 0.3.3`, `tower 0.5.3`
+
+```text
+Copyright (c) 2019 Tower Contributors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
+Used by: `tower-http 0.6.11`
+
+```text
+Copyright (c) 2019-2021 Tower Contributors
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -6743,6 +7009,32 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
+Used by: `crc-fast 1.10.0`
+
+```text
+Copyright 2025 Don MacAskill
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
 Used by: `utf8_iter 1.1.0`, `utf_types 1.0.0`
 
 ```text
@@ -7635,6 +7927,35 @@ SOFTWARE.
 
 ### MIT License
 
+Used by: `rustls-platform-verifier 0.7.1`
+
+```text
+MIT License
+
+Copyright (c) 2022 1Password
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
+
+### MIT License
+
 Used by: `rfd 0.15.4`
 
 ```text
@@ -7888,7 +8209,7 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `termalith-desktop 0.5.9`, `app-core 0.5.9`, `credential-store 0.5.9`, `local-servers 0.5.9`, `network-tools 0.5.9`, `protocol-ftp 0.5.9`, `protocol-ssh 0.5.9`, `protocol-telnet 0.5.9`, `remote-desktop 0.5.9`, `serial-console 0.5.9`, `terminal-pty 0.5.9`, `test-sshd 0.5.9`, `asn1-rs-impl 0.2.0`, `block2 0.6.2`, `brotli-decompressor 6.2.0`, `chrono 0.4.45`, `delegate 0.13.5`, `dispatch2 0.3.1`, `dlopen2 0.8.2`, `dlopen2_derive 0.4.3`, `dpi 0.1.2`, `ironrdp-bulk 0.2.0`, `ironrdp-rdpei 0.3.0`, `lazy-regex-proc_macros 3.6.2`, `md5 0.8.1`, `objc2-app-kit 0.3.2`, `objc2-core-foundation 0.3.2`, `objc2-core-graphics 0.3.2`, `objc2-encode 4.1.0`, `objc2-exception-helper 0.1.1`, `objc2-foundation 0.3.2`, `objc2-quartz-core 0.3.2`, `objc2-web-kit 0.3.2`, `objc2 0.6.5`, `suppaftp 12.2.1`, `webview2-com-macros 0.8.1`, `webview2-com-sys 0.39.1`, `webview2-com 0.39.1`, `wide 0.7.33`, `windows-collections 0.3.2`, `windows-core 0.62.2`, `windows-future 0.3.2`, `windows-implement 0.60.2`, `windows-interface 0.59.3`, `windows-link 0.2.1`, `windows-numerics 0.3.1`, `windows-registry 0.6.1`, `windows-result 0.4.1`, `windows-strings 0.5.1`, `windows-sys 0.52.0`, `windows-sys 0.59.0`, `windows-sys 0.61.2`, `windows-targets 0.52.6`, `windows-threading 0.2.1`, `windows-version 0.1.7`, `windows 0.62.2`, `windows_x86_64_gnu 0.52.6`, `windows_x86_64_msvc 0.52.6`, `winscard 0.4.0`
+Used by: `termalith-desktop 0.5.9`, `app-core 0.5.9`, `credential-store 0.5.9`, `local-servers 0.5.9`, `network-tools 0.5.9`, `protocol-ftp 0.5.9`, `protocol-s3 0.5.9`, `protocol-ssh 0.5.9`, `protocol-telnet 0.5.9`, `remote-desktop 0.5.9`, `serial-console 0.5.9`, `terminal-pty 0.5.9`, `test-sshd 0.5.9`, `asn1-rs-impl 0.2.0`, `block2 0.6.2`, `brotli-decompressor 6.2.0`, `chrono 0.4.45`, `delegate 0.13.5`, `dispatch2 0.3.1`, `dlopen2 0.8.2`, `dlopen2_derive 0.4.3`, `dpi 0.1.2`, `ironrdp-bulk 0.2.0`, `ironrdp-rdpei 0.3.0`, `lazy-regex-proc_macros 3.6.2`, `md5 0.8.1`, `objc2-app-kit 0.3.2`, `objc2-core-foundation 0.3.2`, `objc2-core-graphics 0.3.2`, `objc2-encode 4.1.0`, `objc2-exception-helper 0.1.1`, `objc2-foundation 0.3.2`, `objc2-quartz-core 0.3.2`, `objc2-web-kit 0.3.2`, `objc2 0.6.5`, `object_store 0.14.2`, `suppaftp 12.2.1`, `webview2-com-macros 0.8.1`, `webview2-com-sys 0.39.1`, `webview2-com 0.39.1`, `wide 0.7.33`, `windows-collections 0.3.2`, `windows-core 0.62.2`, `windows-future 0.3.2`, `windows-implement 0.60.2`, `windows-interface 0.59.3`, `windows-link 0.2.1`, `windows-numerics 0.3.1`, `windows-registry 0.6.1`, `windows-result 0.4.1`, `windows-strings 0.5.1`, `windows-sys 0.52.0`, `windows-sys 0.59.0`, `windows-sys 0.61.2`, `windows-targets 0.52.6`, `windows-threading 0.2.1`, `windows-version 0.1.7`, `windows 0.62.2`, `windows_x86_64_gnu 0.52.6`, `windows_x86_64_msvc 0.52.6`, `winscard 0.4.0`
 
 ```text
 MIT License
@@ -8367,7 +8688,7 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `spin 0.9.9`
+Used by: `spin 0.10.1`, `spin 0.9.9`
 
 ```text
 The MIT License (MIT)
@@ -8951,6 +9272,37 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+### MIT License
+
+Used by: `quick-xml 0.41.0`
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2016 Johann Tuffe
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
 ```
 
 ### MIT License

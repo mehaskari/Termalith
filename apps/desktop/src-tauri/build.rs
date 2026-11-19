@@ -33,6 +33,7 @@ fn main() {
             "ssh_files_open",
             "mosh_open",
             "ftp_files_open",
+            "s3_files_open",
             "desktop_clients",
             "desktop_open",
             "desktop_list",

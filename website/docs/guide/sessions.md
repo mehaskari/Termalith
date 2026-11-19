@@ -18,6 +18,7 @@ keychain (see [Passwords and your data](passwords-and-data.md)).
 | **Telnet (unencrypted)** | A terminal tab | For devices without SSH; can go through a jump host. |
 | **FTPS files (encrypted)** | A file browser tab | Explicit TLS; certificate checked once and pinned. |
 | **FTP files (unencrypted)** | A file browser tab | Prefer SFTP or FTPS. |
+| **S3 object storage** | A file browser tab | AWS S3 and compatible services (MinIO, Cloudflare R2, Backblaze B2, Wasabi, Ceph); see [Files](files.md#s3-object-storage). |
 
 Serial consoles and local terminals are opened from the buttons at the top
 of the sidebar and are not saved as sessions.

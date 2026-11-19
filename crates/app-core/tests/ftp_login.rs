@@ -64,6 +64,7 @@ fn session(addr: &str, protocol: SessionProtocol) -> SessionInput {
         mosh: false,
         appearance: None,
         icon: None,
+        s3: None,
     }
 }
 

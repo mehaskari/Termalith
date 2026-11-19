@@ -97,6 +97,7 @@ impl Connector {
                     mosh: false,
                     appearance: None,
                     icon: None,
+                    s3: None,
                 };
                 input.validate()?;
                 let typed = match secret {
@@ -174,6 +175,59 @@ impl Connector {
             Ok(c) => c,
             Err(FtpError::AuthFailed) if used_saved => return Err(AppError::PasswordRequired),
             Err(e) => return Err(ftp_error(e).into()),
+        };
+        let save_error = self.remember(id, rec.credential.clone(), typed, save).await;
+        Ok((client, rec.input.name, save_error))
+    }
+
+    /// Connects a saved S3 session (ADR-040): the user name is the access
+    /// key id, the password the secret key (saved after a successful login).
+    pub async fn connect_s3(
+        &self,
+        id: &SessionId,
+        secret: PasswordInput,
+    ) -> Result<(protocol_s3::S3Client, String, Option<String>), AppError> {
+        let rec = self.sessions.get(id)?;
+        let Some(opts) = rec.input.s3.clone() else {
+            return Err(AppError::invalid("session", "not an S3 session"));
+        };
+        if rec.input.protocol != SessionProtocol::S3 {
+            return Err(AppError::invalid("session", "not an S3 session"));
+        }
+        if self.proxy().await?.is_some() {
+            return Err(AppError::invalid(
+                "proxy",
+                "S3 cannot use the proxy yet; turn it off in Settings to connect",
+            ));
+        }
+        let (typed, save) = match secret {
+            PasswordInput::Provided { secret, save } => (Some(secret), save),
+            PasswordInput::None => (None, false),
+        };
+        let used_saved = typed.is_none() && rec.credential.is_some();
+        let secret_key = match typed.clone() {
+            Some(s) => s,
+            None => match self.saved_secret(rec.credential.clone()).await {
+                Some(s) => s,
+                None => return Err(AppError::PasswordRequired),
+            },
+        };
+        let config = protocol_s3::S3Config {
+            endpoint_host: rec.input.host.clone(),
+            port: rec.input.port,
+            https: opts.https,
+            region: opts.region.clone(),
+            bucket: opts.bucket.clone(),
+            path_style: opts.path_style,
+            access_key: rec.input.username.clone(),
+            secret_key,
+        };
+        let client = match protocol_s3::S3Client::connect(&config).await {
+            Ok(c) => c,
+            Err(protocol_s3::S3Error::Denied) if used_saved => {
+                return Err(AppError::PasswordRequired);
+            }
+            Err(e) => return Err(crate::remote_files::s3_error(e).into()),
         };
         let save_error = self.remember(id, rec.credential.clone(), typed, save).await;
         Ok((client, rec.input.name, save_error))

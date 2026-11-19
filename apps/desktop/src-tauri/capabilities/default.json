@@ -35,6 +35,7 @@
     "allow-ssh-files-open",
     "allow-mosh-open",
     "allow-ftp-files-open",
+    "allow-s3-files-open",
     "allow-desktop-clients",
     "allow-desktop-open",
     "allow-desktop-list",

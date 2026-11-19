@@ -87,6 +87,8 @@ pub enum SessionProtocol {
     Ftp,
     /// The same over explicit TLS, with the certificate pinned.
     Ftps,
+    /// S3 or S3-compatible object storage, as a file browser (ADR-040).
+    S3,
 }
 
 impl SessionProtocol {
@@ -102,6 +104,7 @@ impl SessionProtocol {
             SessionProtocol::Telnet => "telnet",
             SessionProtocol::Ftp => "ftp",
             SessionProtocol::Ftps => "ftps",
+            SessionProtocol::S3 => "s3",
         }
     }
 
@@ -113,6 +116,7 @@ impl SessionProtocol {
             "telnet" => SessionProtocol::Telnet,
             "ftp" => SessionProtocol::Ftp,
             "ftps" => SessionProtocol::Ftps,
+            "s3" => SessionProtocol::S3,
             _ => return None,
         })
     }
@@ -167,6 +171,69 @@ pub struct SessionInput {
     /// Icon in the session list and on tabs; `None` shows the protocol.
     #[serde(default)]
     pub icon: Option<Icon>,
+    /// S3 sessions: bucket, region and connection options.
+    #[serde(default)]
+    pub s3: Option<S3Options>,
+}
+
+/// Where an S3 session's files are: the host and port are the endpoint,
+/// the user name is the access key id, the password the secret key.
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct S3Options {
+    pub bucket: String,
+    /// Empty: `us-east-1` (most S3-compatible servers ignore it).
+    #[serde(default)]
+    pub region: String,
+    /// `host/bucket/key` addressing (MinIO, Ceph and most self-hosted ones).
+    #[serde(default)]
+    pub path_style: bool,
+    /// Plain HTTP only when turned off on purpose (a local MinIO).
+    #[serde(default = "yes")]
+    pub https: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+impl S3Options {
+    pub fn validate(&self) -> Result<(), AppError> {
+        let b = &self.bucket;
+        let bucket_ok = (3..=63).contains(&b.len())
+            && b.chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '.' || c == '-')
+            && b.starts_with(|c: char| c.is_ascii_alphanumeric())
+            && b.ends_with(|c: char| c.is_ascii_alphanumeric());
+        if !bucket_ok {
+            return Err(AppError::invalid(
+                "bucket",
+                "3 to 63 lowercase letters, digits, '.' or '-'",
+            ));
+        }
+        if self.region.len() > 32
+            || !self
+                .region
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-')
+        {
+            return Err(AppError::invalid("region", "like eu-central-1"));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn to_json(s3: &Option<S3Options>) -> Option<String> {
+        s3.as_ref().and_then(|o| serde_json::to_string(o).ok())
+    }
+
+    pub(crate) fn from_json(json: Option<String>) -> Option<S3Options> {
+        json.and_then(|j| serde_json::from_str(&j).ok())
+    }
 }
 
 /// A session's or folder's icon: one of the app's built-in pictures and an
@@ -397,6 +464,25 @@ impl SessionInput {
                 "FTP sessions connect directly",
             ));
         }
+        match (&self.protocol, &self.s3) {
+            (SessionProtocol::S3, Some(o)) => {
+                o.validate()?;
+                validate_text("access key", &self.username, 128)?;
+                if self.jump_via.is_some() {
+                    return Err(AppError::invalid(
+                        "jump host",
+                        "S3 sessions connect directly",
+                    ));
+                }
+            }
+            (SessionProtocol::S3, None) => {
+                return Err(AppError::invalid("bucket", "an S3 session needs a bucket"));
+            }
+            (_, Some(_)) => {
+                return Err(AppError::invalid("S3 options", "only for S3 sessions"));
+            }
+            _ => {}
+        }
         if self.files_only {
             if self.protocol != SessionProtocol::Ssh {
                 return Err(AppError::invalid("files only", "only for SSH sessions"));
@@ -492,7 +578,7 @@ impl SessionStore {
     pub fn list(&self) -> Result<Vec<SessionRecord>, AppError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source, s3
              FROM sessions ORDER BY folder IS NOT NULL, folder COLLATE NOCASE, name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], row_to_record)?;
@@ -503,7 +589,7 @@ impl SessionStore {
     pub fn get(&self, id: &SessionId) -> Result<SessionRecord, AppError> {
         let conn = self.conn();
         conn.query_row(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source, s3
              FROM sessions WHERE id = ?1",
             [id.as_str()],
             row_to_record,
@@ -519,8 +605,8 @@ impl SessionStore {
         let (kind, key) = auth_columns(&input.auth);
         let t = now();
         self.conn().execute(
-            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
+            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, s3)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
             params![
                 id.as_str(),
                 input.name.trim(),
@@ -541,7 +627,8 @@ impl SessionStore {
                 input.files_only,
                 input.mosh,
                 appearance_json(&input.appearance),
-                Icon::to_json(&input.icon)
+                Icon::to_json(&input.icon),
+                S3Options::to_json(&input.s3)
             ],
         )?;
         self.get(&id)
@@ -607,7 +694,7 @@ impl SessionStore {
             "UPDATE sessions SET name = ?2, host = ?3, port = ?4, username = ?5, auth_kind = ?6,
              key_path = ?7, folder = ?8, credential_ref = ?9, updated_at = ?10, jump_session_id = ?11,
              protocol = ?12, domain = ?13, tags = ?14, forward_agent = ?15,
-             x11_forward = ?16, startup_command = ?17, files_only = ?18, mosh = ?19, appearance = ?20, icon = ?21
+             x11_forward = ?16, startup_command = ?17, files_only = ?18, mosh = ?19, appearance = ?20, icon = ?21, s3 = ?22
              WHERE id = ?1",
             params![
                 id.as_str(),
@@ -630,7 +717,8 @@ impl SessionStore {
                 input.files_only,
                 input.mosh,
                 appearance_json(&input.appearance),
-                Icon::to_json(&input.icon)
+                Icon::to_json(&input.icon),
+                S3Options::to_json(&input.s3)
             ],
         )?;
         Ok((self.get(id)?, stale))
@@ -745,6 +833,7 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
                 .and_then(|j| serde_json::from_str(&j).ok()),
             // An unreadable icon shows the protocol instead.
             icon: Icon::from_json(r.get(21)?),
+            s3: S3Options::from_json(r.get(23)?),
         },
         updated_at: r.get(9)?,
         shared: r.get(22)?,
@@ -774,6 +863,7 @@ mod tests {
             mosh: false,
             appearance: None,
             icon: None,
+            s3: None,
         }
     }
 
@@ -967,6 +1057,7 @@ mod tests {
             mosh: false,
             appearance: None,
             icon: None,
+            s3: None,
         };
         let rec = store.create(&rdp).unwrap();
         assert_eq!(store.get(&rec.id).unwrap().input, rdp);
@@ -1055,6 +1146,39 @@ mod tests {
             )
             .unwrap();
         assert_eq!(store.get(&rec.id).unwrap().input.icon, None);
+    }
+
+    #[test]
+    fn s3_sessions_need_a_valid_bucket_and_round_trip() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let mut s = input();
+        s.protocol = SessionProtocol::S3;
+        s.port = 443;
+        assert!(s.validate().is_err(), "needs a bucket");
+        s.s3 = Some(S3Options {
+            bucket: "team-logs".into(),
+            region: "eu-central-1".into(),
+            path_style: false,
+            https: true,
+        });
+        let rec = store.create(&s).unwrap();
+        assert_eq!(store.get(&rec.id).unwrap().input.s3, s.s3);
+        for bad in ["ab", "Upper", "-start", "end-", "has space"] {
+            s.s3.as_mut().unwrap().bucket = bad.into();
+            assert!(s.validate().is_err(), "{bad}");
+        }
+        s.s3.as_mut().unwrap().bucket = "ok-bucket".into();
+        s.s3.as_mut().unwrap().region = "eu central".into();
+        assert!(s.validate().is_err());
+        // S3 options belong to S3 sessions only.
+        let mut ssh = input();
+        ssh.s3 = Some(S3Options {
+            bucket: "team-logs".into(),
+            region: String::new(),
+            path_style: true,
+            https: true,
+        });
+        assert!(ssh.validate().is_err());
     }
 
     #[test]

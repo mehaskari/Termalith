@@ -114,7 +114,7 @@ export function closeTerminal(id: TerminalId): Promise<void> {
 
 export type AuthMethod = { kind: "password" } | { kind: "keyFile"; path: string } | { kind: "agent" };
 
-export type SessionProtocol = "ssh" | "rdp" | "vnc" | "telnet" | "ftp" | "ftps";
+export type SessionProtocol = "ssh" | "rdp" | "vnc" | "telnet" | "ftp" | "ftps" | "s3";
 
 export interface SessionInput {
   name: string;
@@ -144,6 +144,17 @@ export interface SessionInput {
   appearance?: Appearance | null;
   /** Icon in the session list and on tabs; null shows the protocol. */
   icon?: SessionIcon | null;
+  /** S3 sessions: bucket, region and options (host/port = endpoint, user name = access key id). */
+  s3?: S3Options | null;
+}
+
+export interface S3Options {
+  bucket: string;
+  /** Empty: us-east-1. */
+  region: string;
+  /** host/bucket/key addressing (MinIO, Ceph). */
+  pathStyle: boolean;
+  https: boolean;
 }
 
 /** A built-in picture (see ui/sessionIcons.tsx) and an optional #rrggbb color. */
@@ -967,6 +978,11 @@ export const telnetTerminal =
 /** Connects a saved session without a shell, for a file browser tab. */
 export function openFtpFiles(request: SshOpenRequest): Promise<SshOpened> {
   return invoke("ftp_files_open", { request });
+}
+
+/** Connects a saved S3 session for a file browser tab (ADR-040). */
+export function openS3Files(request: SshOpenRequest): Promise<SshOpened> {
+  return invoke("s3_files_open", { request });
 }
 
 export function openSshFiles(request: SshOpenRequest): Promise<SshOpened> {

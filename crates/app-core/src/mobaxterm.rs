@@ -66,6 +66,7 @@ pub fn parse_mobaxterm(text: &str) -> (Vec<ImportCandidate>, Vec<String>) {
             SessionProtocol::Vnc => 5900,
             SessionProtocol::Telnet => 23,
             SessionProtocol::Ftp | SessionProtocol::Ftps => 21,
+            SessionProtocol::S3 => 443,
         };
         let port = fields
             .get(2)
@@ -91,6 +92,7 @@ pub fn parse_mobaxterm(text: &str) -> (Vec<ImportCandidate>, Vec<String>) {
             mosh: false,
             appearance: None,
             icon: None,
+            s3: None,
         };
         if let Err(e) = input.validate() {
             notes.push(format!("{key}: {e}"));

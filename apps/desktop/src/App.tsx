@@ -60,6 +60,7 @@ import {
   closeDesktop,
   telnetTerminal,
   openFtpFiles,
+  openS3Files,
   openSshFiles,
   closeTerminal,
   type ShellChoice,
@@ -108,7 +109,7 @@ import { SessionIconGlyph } from "./ui/sessionIcons";
 import { isMacPlatform, matchShortcut } from "./ui/shortcuts";
 import { Sidebar } from "./ui/Sidebar";
 import { type TypedConnection, parseTypedConnection } from "./ui/commandLine";
-import { applyTypedConnection, emptyForm, isFtp, normalizeFolder, parseForm, targetLabel } from "./ui/sessionList";
+import { applyTypedConnection, emptyForm, isFileStore, isFtp, normalizeFolder, parseForm, targetLabel } from "./ui/sessionList";
 
 const RECONNECT_DELAY_MS = 5000;
 
@@ -364,13 +365,14 @@ export function App() {
   const openFilesTab = useCallback(
     (s: SessionRecord) => {
       const ftp = isFtp(s);
+      const s3 = s.protocol === "s3";
       const key = addTab(`${s.name} (files)`, "files", openLocalTerminal);
-      patchTab(key, { sessionId: s.id, noShell: ftp });
+      patchTab(key, { sessionId: s.id, noShell: ftp || s3 });
       withLogin(
         s.name,
         { canSave, keyAuth: s.auth.kind === "keyFile", savedSecret: s.hasSavedSecret },
         (password, savePassword) =>
-          (ftp ? openFtpFiles : openSshFiles)({ sessionId: s.id, password, savePassword }),
+          (s3 ? openS3Files : ftp ? openFtpFiles : openSshFiles)({ sessionId: s.id, password, savePassword }),
       ).then(
         (r) => patchTab(key, { terminalId: r.id }),
         (e) => patchTab(key, { ended: true, desktopError: isIpcError(e) ? e.message : String(e) }),
@@ -446,7 +448,7 @@ export function App() {
           });
         return;
       }
-      if (s.filesOnly || isFtp(s)) {
+      if (s.filesOnly || isFileStore(s)) {
         openFilesTab(s);
         return;
       }

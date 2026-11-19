@@ -124,6 +124,7 @@ seed({ name: "replica-2", host: "10.0.0.12", port: 22, username: "postgres", aut
 seed({ name: "backups", host: "10.0.1.30", port: 22, username: "admin", auth: { kind: "password" }, folder: null, filesOnly: true });
 seed({ name: "file drop", host: "files.example.com", port: 21, username: "admin", auth: { kind: "password" }, folder: null, protocol: "ftps" });
 seed({ name: "public mirror", host: "ftp.example.com", port: 21, username: "", auth: { kind: "password" }, folder: null, protocol: "ftp" });
+seed({ name: "backups bucket", host: "s3.eu-central-1.amazonaws.com", port: 443, username: "AKIAEXAMPLE", auth: { kind: "password" }, folder: null, protocol: "s3", s3: { bucket: "team-backups", region: "eu-central-1", pathStyle: false, https: true } });
 seed({ name: "lab vnc", host: "192.168.1.40", port: 5900, username: "", auth: { kind: "password" }, folder: null, protocol: "vnc" });
 
 const mockFolders = new Set<string>(["Lab/Switches"]);
@@ -261,6 +262,7 @@ mockIPC(
       case "key_install":
         return { added: !installedKeys.has(a.name as string) && !!installedKeys.add(a.name as string), path: "/home/deploy/.ssh/authorized_keys" };
       case "ftp_files_open":
+      case "s3_files_open":
       case "ssh_files_open": {
         const req = a.request as { sessionId?: string; password?: string };
         const s = req.sessionId ? sessions.get(req.sessionId) : undefined;

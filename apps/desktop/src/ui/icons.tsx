@@ -97,6 +97,7 @@ const PROTOCOL_LABEL: Record<string, string> = {
   telnet: "TEL",
   ftp: "FTP",
   ftps: "FTPS",
+  s3: "S3",
   mosh: "MOSH",
   serial: "COM",
   local: "SH",

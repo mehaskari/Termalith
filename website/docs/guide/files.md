@@ -79,6 +79,26 @@ the terminal's current folder. Shells that report their folder work at once;
 for others Termalith offers to type one line into the terminal so that bash
 or zsh reports it until the shell exits. Nothing on the server is changed.
 
+## S3 object storage
+
+An **S3 object storage** session browses one bucket of AWS S3 or an
+S3-compatible service (MinIO, Cloudflare R2, Backblaze B2, Wasabi, Ceph)
+in a file browser tab.
+
+- **Host** is the endpoint, e.g. `s3.eu-central-1.amazonaws.com`,
+  `<account>.r2.cloudflarestorage.com` or your MinIO server; **Port** 443.
+- **Access key ID** goes in the session; the **secret access key** is asked
+  for when connecting and can be saved in the keychain like a password.
+- **Bucket** is required; **Region** may stay empty (`us-east-1`).
+  **Path-style addressing** is needed by MinIO, Ceph and most self-hosted
+  servers. **Use HTTPS** stays on except for a local server without TLS.
+- Folders are key prefixes. **New folder** creates a hidden, empty `.keep`
+  object inside it, so the folder stays when it is empty. Files can be
+  uploaded (large files in 8 MiB parts), downloaded (and resumed), edited,
+  renamed and deleted; folders cannot be renamed, and only empty folders
+  can be deleted.
+- S3 connects directly; the proxy setting does not apply yet.
+
 ## FTP and FTPS
 
 - **FTPS** uses explicit TLS on the FTP port. You check the server's

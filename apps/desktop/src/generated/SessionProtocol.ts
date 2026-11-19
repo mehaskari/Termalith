@@ -3,4 +3,4 @@
 /**
  * What a saved session connects with.
  */
-export type SessionProtocol = "ssh" | "rdp" | "vnc" | "telnet" | "ftp" | "ftps";
+export type SessionProtocol = "ssh" | "rdp" | "vnc" | "telnet" | "ftp" | "ftps" | "s3";

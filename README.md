@@ -2,7 +2,7 @@
 
 **One workspace. Every connection.** A free, open-source remote
 administration app for macOS, Windows and Linux: SSH and Mosh terminals,
-SFTP/FTP/FTPS, RDP and VNC, tunnels, serial and Telnet consoles and network
+SFTP/FTP/FTPS and S3, RDP and VNC, tunnels, serial and Telnet consoles and network
 tools in one window.
 
 [![Latest release](https://img.shields.io/github/v/release/mehaskari/Termalith?label=release)](https://github.com/mehaskari/Termalith/releases/latest)
@@ -84,7 +84,7 @@ optional server monitor (CPU, memory, disk, network).
 [Guide](https://mehaskari.github.io/Termalith/guide/ssh/)
 
 **Files** — SFTP panel next to the terminal or as its own tab; FTP and FTPS
-(certificate pinned); drag-and-drop upload of files and folders; transfer
+(certificate pinned); S3 and S3-compatible object storage (MinIO, R2, B2); drag-and-drop upload of files and folders; transfer
 queue with retry; edit remote files with conflict detection; side-by-side
 compare; the panel can follow the terminal's folder.
 [Guide](https://mehaskari.github.io/Termalith/guide/files/)

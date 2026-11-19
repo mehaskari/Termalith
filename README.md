@@ -72,21 +72,24 @@ Step by step with screenshots:
 
 **Terminals** — local shells (zsh, bash, fish, PowerShell, cmd, Git Bash,
 WSL) in tabs and up to 2×2 split panes; broadcast typing to several
-terminals; snippets with `{{variables}}`; macros; session logs; find;
-keyword colors; color schemes and per-session fonts and colors; command
-palette.
+terminals, or to a whole folder of sessions opened side by side; snippets
+with `{{variables}}`; macros; session logs; find; keyword colors; color
+schemes and per-session fonts and colors; command palette (type
+`ssh me@host` to connect without saving).
 [Guide](https://mehaskari.github.io/Termalith/guide/terminals/)
 
 **SSH** — password, private key, ssh-agent and one-time codes; strict host
 keys; jump hosts; SOCKS5/HTTP proxy; tunnels (`-L`, `-R`, `-D`); X11 and
-agent forwarding (opt-in); automatic reconnect; Mosh; SSH key manager;
+agent forwarding (opt-in; on Windows an installed VcXsrv or Xming is started
+for you); automatic reconnect; Mosh; SSH key manager;
 optional server monitor (CPU, memory, disk, network).
 [Guide](https://mehaskari.github.io/Termalith/guide/ssh/)
 
 **Files** — SFTP panel next to the terminal or as its own tab; FTP and FTPS
 (certificate pinned); S3 and S3-compatible object storage (MinIO, R2, B2); drag-and-drop upload of files and folders; transfer
 queue with retry; edit remote files with conflict detection; side-by-side
-compare; the panel can follow the terminal's folder.
+compare; the panel can follow the terminal's folder; browse as root
+through `sudo`.
 [Guide](https://mehaskari.github.io/Termalith/guide/files/)
 
 **Remote desktop** — RDP and VNC inside a tab (resizes with it, sharp on
@@ -95,9 +98,10 @@ through an SSH tunnel; RDP certificates checked like SSH host keys.
 [Guide](https://mehaskari.github.io/Termalith/guide/remote-desktop/)
 
 **And** — serial consoles, Telnet (through a jump host if you like), ping,
-traceroute, port check and scan, DNS lookup, subnet calculator,
-Wake-on-LAN, built-in TFTP, HTTP and FTP file servers; folders, favorites, tags and search; import from MobaXterm and
-`~/.ssh/config`; master password; portable mode on a USB stick; keyboard
+traceroute, port check and scan, LAN scan, bandwidth test (iperf3), DNS
+lookup, subnet calculator, Wake-on-LAN, built-in TFTP, HTTP and FTP file
+servers; folders, favorites, tags, search and session icons; session files
+shared with a team; import from MobaXterm and `~/.ssh/config`; master password; portable mode on a USB stick; keyboard
 navigation and screen-reader labels.
 [All topics](https://mehaskari.github.io/Termalith/guide/)
 
@@ -112,8 +116,9 @@ navigation and screen-reader labels.
 </tr>
 </table>
 
-**Not yet:** code-signed installers, automatic updates, sound and file
-clipboard in embedded RDP, a built-in X server on Windows. Coming from
+**Not yet:** code-signed installers, installing updates by itself (it tells
+you when one is out), sound and file clipboard in embedded RDP, a bundled X
+server on Windows. Coming from
 MobaXterm? See [what maps where](https://mehaskari.github.io/Termalith/guide/mobaxterm/).
 
 ## Privacy and security

@@ -28,6 +28,10 @@ MobaXterm or Mobatek.
 | SSH session with the SFTP browser | SSH tab → **Files** ([Files](files.md)) |
 | "Follow terminal folder" | **⇣** in the Files panel |
 | SFTP / FTP session | SSH session with *Files only*, or an FTPS/FTP session |
+| S3 session | S3 session (AWS and S3-compatible storage) ([Files](files.md#s3-object-storage)) |
+| SFTP "sudo" browsing | *Browse as root* ([Files](files.md#browse-as-root-sudo)) |
+| Quick connect | **Quick connect**, or type `ssh me@host` in the command palette ([Sessions](sessions.md#create-edit-connect)) |
+| Shared sessions | Shared session files on a network folder ([Sessions](sessions.md#shared-session-files-team)) |
 | RDP, VNC sessions | RDP/VNC sessions, inside a tab or in your client ([Remote desktop](remote-desktop.md)) |
 | MobaSSHTunnel | **Tunnels** on an SSH tab ([Tunnels](ssh.md#tunnels)) |
 | Session icons | **Icon** in the session dialog; folder → *Icon…* ([Sessions](sessions.md#icons)) |
@@ -36,7 +40,9 @@ MobaXterm or Mobatek.
 | Split terminals | Split side by side, top and bottom, or four panes |
 | Remote monitoring bar | *Server monitor* setting ([SSH](ssh.md#server-monitor)) |
 | Serial, Telnet, Mosh | Serial button, Telnet sessions, *Connect with Mosh* |
-| Network tools (ping, port scan, WoL…) | **Tools** ([Network tools](serial-telnet-tools.md#network-tools)) |
+| Network tools (ping, port scan, WoL…) | **Tools** ([Network tools](serial-telnet-tools.md#network-tools)), with LAN scan and an iperf3 bandwidth test |
+| TFTP, HTTP, FTP servers | **Tools → File servers** ([File servers](serial-telnet-tools.md#file-servers-tftp-http-ftp)) |
+| Built-in X server | *Forward X11*; on Windows Termalith starts an installed VcXsrv or Xming ([SSH](ssh.md#per-session-options)) |
 | Master password | **Settings → Master password** |
 | Portable edition | `TermalithData` folder next to the app ([Portable copy](passwords-and-data.md#portable-copy)) |
 
@@ -51,11 +57,12 @@ MobaXterm or Mobatek.
 
 ## Not available (yet)
 
-- A built-in X server on Windows: use VcXsrv or Xming with *Forward X11*.
+- A bundled X server on Windows: install VcXsrv or Xming once and
+  Termalith starts it when a session forwards X11.
 - Built-in Unix tools on Windows (use WSL or Git Bash as the local shell).
 - A built-in NFS server (TFTP, HTTP and FTP are in
   [Tools → File servers](serial-telnet-tools.md#file-servers-tftp-http-ftp)),
-  and S3, RSH or XDMCP sessions.
+  and RSH or XDMCP sessions.
 - Sound and drive sharing in embedded RDP.
 
 These are on the [roadmap](https://github.com/mehaskari/Termalith/issues);

@@ -137,6 +137,9 @@ async function openTab(url) {
   await cmd("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] });
   await cmd("Page.reload");
   await sleep(2500);
+  // The mock always reports a newer version; keep its notice out of the pictures.
+  await js(`document.querySelectorAll("button").forEach(b => { if (b.textContent.trim() === "Later") b.click(); })`);
+  await sleep(300);
 }
 
 try {

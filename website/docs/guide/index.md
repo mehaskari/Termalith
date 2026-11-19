@@ -21,12 +21,12 @@ source (MIT) and works the same on macOS, Windows and Linux.
 
 | Topic | What you will find |
 |---|---|
-| [Sessions](sessions.md) | Saving connections, folders, favorites, tags, search, import from MobaXterm and `~/.ssh/config`, export |
+| [Sessions](sessions.md) | Saving connections, folders, favorites, tags, search, icons, shared session files, import from MobaXterm and `~/.ssh/config`, export |
 | [SSH](ssh.md) | Passwords, keys, agent, one-time codes, host keys, jump hosts, proxies, tunnels, X11 and agent forwarding, Mosh, key manager, server monitor |
-| [Terminals](terminals.md) | Tabs, split panes, broadcast typing, snippets, macros, logs, find, colors and fonts |
-| [Files](files.md) | SFTP panel and file browser, FTP and FTPS, uploads and downloads, editing remote files, compare |
+| [Terminals](terminals.md) | Tabs, split panes, broadcast typing (also to a whole folder), command palette, snippets, macros, logs, find, colors and fonts |
+| [Files](files.md) | SFTP panel and file browser, FTP, FTPS and S3, browsing as root, uploads and downloads, editing remote files, compare |
 | [Remote desktop](remote-desktop.md) | RDP and VNC inside Termalith or in your own client, certificates, tunnels |
-| [Serial, Telnet and network tools](serial-telnet-tools.md) | Consoles for devices, ping, traceroute, port scan, DNS, subnet calculator, Wake-on-LAN |
+| [Serial, Telnet and network tools](serial-telnet-tools.md) | Consoles for devices, ping, traceroute, port scan, LAN scan, bandwidth test, DNS, subnet calculator, Wake-on-LAN, built-in file servers |
 | [Passwords and your data](passwords-and-data.md) | Keychain, master password, portable copy, where data is stored, what is never sent |
 | [Settings](settings.md) | Every setting and what it does |
 | [Keyboard shortcuts](shortcuts.md) | Shortcuts for macOS, Windows and Linux, keyboard-only use |

@@ -213,6 +213,8 @@ pub fn run() {
         {
             state.hub.close_all();
             state.desktops.close_all();
+            // The X server Termalith started for X11 forwarding (Windows).
+            app_core::xserver::LOCAL_X_SERVER.stop();
             state.logs.stop_all();
         }
     });

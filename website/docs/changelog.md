@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **X11 on Windows without setup.** When a session forwards X11 and no X
+  server is running, Termalith starts an installed VcXsrv or Xming itself,
+  protected by a random cookie, and stops it on quit.
 - **S3 object storage sessions.** Browse a bucket of AWS S3 or an
   S3-compatible service (MinIO, Cloudflare R2, Backblaze B2, Wasabi, Ceph):
   upload, download with resume, edit, rename and delete, like SFTP and FTP.

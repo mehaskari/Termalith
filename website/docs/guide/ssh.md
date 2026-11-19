@@ -52,8 +52,13 @@ fingerprints. Only after the server's administrator confirms the change, use
   root on that server can use them too (not copy them), so enable it only
   for hosts you trust. Not applied to the jump host.
 - **Forward X11:** graphical programs on the server open windows on your
-  screen. You need a local X server: XQuartz on macOS, VcXsrv or Xming on
-  Windows. The server receives only a random substitute cookie.
+  screen. You need a local X server: XQuartz on macOS; on Windows install
+  VcXsrv (free), Xming or X410. On Windows Termalith starts VcXsrv or Xming
+  by itself when no X server is running, with a random per-run access
+  cookie instead of turning access control off, so other computers cannot
+  draw on your screen; it stops it when Termalith quits. An X server you
+  started yourself (e.g. X410) is used as it is. The SSH server receives
+  only a random substitute cookie.
 - **Files only (SFTP, no terminal):** connecting opens the file browser
   directly.
 - **Appearance:** colors, font size and font for this session only; see

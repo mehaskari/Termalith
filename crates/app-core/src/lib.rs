@@ -31,6 +31,7 @@ mod terminals;
 mod transfers;
 mod tunnels;
 mod updates;
+pub mod xserver;
 
 pub use auth_prompts::{AuthPrompt, AuthPromptBroker, AuthPromptField};
 pub use connect::{ConnectRequest, Connected, Connector, PasswordInput};

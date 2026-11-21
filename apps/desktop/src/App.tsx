@@ -62,9 +62,11 @@ import { CrashNotice } from "./ui/CrashNotice";
 import { CommandPalette, type PaletteItem } from "./ui/CommandPalette";
 import { Dialog } from "./ui/Dialog";
 import { FilesPanel } from "./ui/FilesPanel";
+import { FilesTab, filesTabConnection } from "./ui/FilesTab";
 import { HostKeyDialog } from "./ui/HostKeyDialog";
 import { LocalNetworkDialog } from "./ui/LocalNetworkDialog";
 import { RdpViewer } from "./ui/RdpViewer";
+import { TerminalPaneHeader, togglePanel } from "./ui/TerminalPaneHeader";
 import { focusFirstItem, menuKeyDown } from "./ui/menuKeys";
 import { ImportDialog } from "./ui/ImportDialog";
 import { PasswordDialog } from "./ui/PasswordDialog";
@@ -773,52 +775,21 @@ export function App() {
                   }}
                 />
               ) : t.kind === "files" ? (
-                <div className="files-tab">
-                  {t.terminalId !== undefined ? (
-                    <>
-                      <div className="pane-toolbar">
-                        <span />
-                        <span className="pane-actions">
-                          {!t.noShell && (
-                            <button
-                              type="button"
-                              title="Open a terminal on this connection (no second login)"
-                              onClick={() => {
-                                if (t.terminalId !== undefined)
-                                  addTab(t.title.replace(/ \(files\)$/, ""), "ssh", splitTerminal(t.terminalId));
-                              }}
-                            >
-                              Open terminal
-                            </button>
-                          )}
-                        </span>
-                      </div>
-                      <FilesPanel
-                        terminalId={t.terminalId}
-                        dropped={t.key === active ? dropped : null}
-                        fileHover={t.key === active && fileHover}
-                        onDroppedHandled={() => setDropped(null)}
-                        onClose={() => closeTab(t.key)}
-                        onEdit={(dir, name) => t.terminalId !== undefined && openEditor(t.terminalId, dir, name)}
-                        onCompare={(a, b) => t.terminalId !== undefined && openDiff(t.terminalId, a, b)}
-                        connection={t.title.replace(/ \(files\)$/, "")}
-                        sudo={t.noShell ? undefined : { askPassword: () => askSudoPassword(t.title) }}
-                      />
-                    </>
-                  ) : (
-                    <div className="desktop-pane">
-                      <div className="desktop-card">
-                        {t.desktopError ? (
-                          <p className="form-error" role="alert">
-                            {t.desktopError}
-                          </p>
-                        ) : (
-                          <p>Connecting…</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <FilesTab
+                  tab={t}
+                  onOpenTerminal={() => {
+                    if (t.terminalId !== undefined) addTab(filesTabConnection(t.title), "ssh", splitTerminal(t.terminalId));
+                  }}
+                  panel={{
+                    dropped: t.key === active ? dropped : null,
+                    fileHover: t.key === active && fileHover,
+                    onDroppedHandled: () => setDropped(null),
+                    onClose: () => closeTab(t.key),
+                    onEdit: (dir, name) => t.terminalId !== undefined && openEditor(t.terminalId, dir, name),
+                    onCompare: (a, b) => t.terminalId !== undefined && openDiff(t.terminalId, a, b),
+                    sudo: t.noShell ? undefined : { askPassword: () => askSudoPassword(t.title) },
+                  }}
+                />
               ) : t.kind === "rdp" && t.sessionId ? (
                 <RdpViewer
                   sessionId={t.sessionId}
@@ -852,152 +823,33 @@ export function App() {
                 />
               ) : (
               <>
-              <div className="pane-toolbar">
-                  {t.reconnectAt !== undefined ? (
-                    <span className="pane-warning" role="status">
-                      Connection lost. Reconnecting in {Math.max(0, Math.ceil((t.reconnectAt - now) / 1000))} s…
-                      <button type="button" onClick={() => patchTab(t.key, { reconnectAt: undefined })}>
-                        Cancel
-                      </button>
-                    </span>
-                  ) : t.changedKey ? (
-                    <span className="pane-warning">
-                      Host key changed for {t.changedKey.host}.
-                      <button type="button" className="danger" onClick={() => setConfirmForget(t)}>
-                        Remove recorded key…
-                      </button>
-                    </span>
-                  ) : (
-                    <span />
-                  )}
-                  <span className="pane-actions">
-                    <button
-                      type="button"
-                      title="Split side by side"
-                      aria-label="Split side by side"
-                      disabled={t.terminalId === undefined || t.ended || t.kind === "serial" || t.kind === "telnet"}
-                      onClick={() => splitTab(t, "row")}
-                    >
-                      ◫
-                    </button>
-                    <button
-                      type="button"
-                      title="Split top and bottom"
-                      aria-label="Split top and bottom"
-                      disabled={t.terminalId === undefined || t.ended || t.kind === "serial" || t.kind === "telnet"}
-                      onClick={() => splitTab(t, "column")}
-                    >
-                      ⊟
-                    </button>
-                    <button
-                      type="button"
-                      title="Four panes"
-                      aria-label="Four panes"
-                      disabled={t.terminalId === undefined || t.ended || t.kind === "serial" || t.kind === "telnet"}
-                      onClick={() => splitTab(t, "grid")}
-                    >
-                      ⊞
-                    </button>
-                    {broadcast?.source === t.key ? (
-                      <button type="button" className="danger" onClick={() => setBroadcast(null)}>
-                        Stop broadcast
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        title="Type into several terminals at once"
-                        disabled={t.terminalId === undefined || t.ended || broadcast !== null}
-                        onClick={() => setBroadcastPicker(t.key)}
-                      >
-                        Broadcast…
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      aria-pressed={!!t.log}
-                      className={t.log ? "recording" : undefined}
-                      title={t.log ? `Logging to ${t.log.path}. Click to stop.` : "Save this terminal's output to a text file"}
-                      disabled={t.terminalId === undefined || t.ended}
-                      onClick={() => void toggleLog(t)}
-                    >
-                      {t.log ? "● Log" : "Log"}
-                    </button>
-                    <button
-                      type="button"
-                      aria-pressed={recording?.key === t.key}
-                      className={recording?.key === t.key ? "recording" : undefined}
-                      title={recording?.key === t.key ? "Stop recording" : "Record what you type as a macro"}
-                      disabled={t.terminalId === undefined || t.ended || (recording !== null && recording.key !== t.key)}
-                      onClick={() => {
-                        if (recording?.key === t.key) {
-                          setMacroToSave(recording.recorder.steps);
-                          setRecording(null);
-                        } else {
-                          setRecording({ key: t.key, recorder: new MacroRecorder() });
-                        }
-                      }}
-                    >
-                      {recording?.key === t.key ? "■ Macro" : "Macro"}
-                    </button>
-                    <button
-                      type="button"
-                      aria-pressed={!!t.snippetsOpen}
-                      disabled={t.terminalId === undefined || t.ended}
-                      onClick={() => patchTab(t.key, { snippetsOpen: !t.snippetsOpen, filesOpen: false, tunnelsOpen: false })}
-                    >
-                      Snippets
-                    </button>
-                    {t.reconnect && t.ended && (
-                      <button type="button" onClick={() => { closeTab(t.key); t.reconnect?.(); }}>
-                        Reconnect
-                      </button>
-                    )}
-                    {t.kind === "ssh" && (
-                      <>
-                        <button
-                          type="button"
-                          aria-pressed={!!t.tunnelsOpen}
-                          disabled={t.terminalId === undefined || t.ended}
-                          onClick={() => patchTab(t.key, { tunnelsOpen: !t.tunnelsOpen, filesOpen: false, snippetsOpen: false })}
-                        >
-                          Tunnels
-                        </button>
-                        <button
-                          type="button"
-                          aria-pressed={!!t.filesOpen}
-                          disabled={t.terminalId === undefined || t.ended}
-                          onClick={() => patchTab(t.key, { filesOpen: !t.filesOpen, tunnelsOpen: false, snippetsOpen: false })}
-                        >
-                          Files
-                        </button>
-                      </>
-                    )}
-                  </span>
-              </div>
-              {broadcast?.source === t.key && (
-                <div className="broadcast-banner" role="status">
-                  BROADCASTING to {resolveTargets(broadcast, tabs).live.map((x) => tabs.find((y) => y.key === x.key)?.title).join(", ") || "no live terminals"}
-                  {resolveTargets(broadcast, tabs).skipped.length > 0 &&
-                    ` · waiting (not connected): ${resolveTargets(broadcast, tabs).skipped.map((x) => x.title).join(", ")}`}
-                  <button
-                    type="button"
-                    className="banner-action"
-                    onClick={() => setBroadcast({ ...broadcast, tiled: !broadcast.tiled })}
-                  >
-                    {broadcast.tiled ? "Show as tabs" : "Show side by side"}
-                  </button>
-                </div>
-              )}
-              {broadcast?.targets.includes(t.key) && broadcast.source !== t.key && (
-                <div className="broadcast-banner receiving" role="status">
-                  Receiving input broadcast from {tabs.find((y) => y.key === broadcast.source)?.title}
-                </div>
-              )}
-              {recording?.key === t.key && (
-                <div className="broadcast-banner" role="status">
-                  RECORDING: everything you type here is captured, including passwords.
-                </div>
-              )}
+              <TerminalPaneHeader
+                tab={t}
+                tabs={tabs}
+                now={now}
+                broadcast={broadcast}
+                recordingKey={recording?.key ?? null}
+                onCancelReconnect={() => patchTab(t.key, { reconnectAt: undefined })}
+                onForgetKey={() => setConfirmForget(t)}
+                onSplit={(direction) => splitTab(t, direction)}
+                onBroadcast={() => setBroadcastPicker(t.key)}
+                onStopBroadcast={() => setBroadcast(null)}
+                onToggleTiled={() => broadcast && setBroadcast({ ...broadcast, tiled: !broadcast.tiled })}
+                onToggleLog={() => void toggleLog(t)}
+                onToggleMacro={() => {
+                  if (recording?.key === t.key) {
+                    setMacroToSave(recording.recorder.steps);
+                    setRecording(null);
+                  } else {
+                    setRecording({ key: t.key, recorder: new MacroRecorder() });
+                  }
+                }}
+                onTogglePanel={(panel) => patchTab(t.key, togglePanel(t, panel))}
+                onReconnect={() => {
+                  closeTab(t.key);
+                  t.reconnect?.();
+                }}
+              />
               <div className="pane-body">
                 <div className={`pane-terminals ${t.direction}`}>
                   <div className="pane-terminal">

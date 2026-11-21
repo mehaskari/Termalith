@@ -16,10 +16,8 @@ import {
   type DroppedFile,
   type IpcError,
   type TerminalId,
-  type Opener,
   type SessionInput,
   type SessionRecord,
-  type SshTarget,
   appInfo,
   listFolders,
   listSharedSources,
@@ -43,8 +41,6 @@ import {
   isIpcError,
   listSessions,
   openLocalTerminal,
-  moshTerminal,
-  openSsh,
   openSerial,
   onLocalNetworkBlocked,
   serialSummary,
@@ -52,15 +48,9 @@ import {
   updateSession,
   startLog,
   stopLog,
-  telnetTerminal,
-  openFtpFiles,
-  openS3Files,
-  openSshFiles,
   type ShellChoice,
   listShells,
   localTerminal,
-  openDesktop,
-  desktopClients,
 } from "./terminal/api";
 import { DesktopPane } from "./ui/DesktopPane";
 import { EditorPane } from "./ui/EditorPane";
@@ -77,7 +67,7 @@ import { LocalNetworkDialog } from "./ui/LocalNetworkDialog";
 import { RdpViewer } from "./ui/RdpViewer";
 import { focusFirstItem, menuKeyDown } from "./ui/menuKeys";
 import { ImportDialog } from "./ui/ImportDialog";
-import { type PasswordAnswer, PasswordDialog } from "./ui/PasswordDialog";
+import { PasswordDialog } from "./ui/PasswordDialog";
 import { SessionDialog } from "./ui/SessionDialog";
 import { TunnelsPanel } from "./ui/TunnelsPanel";
 import { FOLDER_REPORT_SETUP } from "./terminal/osc7";
@@ -99,11 +89,13 @@ import { useTheme } from "./app/useTheme";
 import { useConnectionPrompts } from "./app/useConnectionPrompts";
 import { useShortcuts } from "./app/useShortcuts";
 import { useTabLifecycle } from "./app/useTabLifecycle";
+import { useConnections } from "./app/useConnections";
+import { usePasswordPrompts } from "./app/usePasswordPrompts";
 import { UpdateToast, dismissedVersion } from "./ui/UpdateToast";
 import { SessionIconGlyph } from "./ui/sessionIcons";
 import { Sidebar } from "./ui/Sidebar";
 import { type TypedConnection, parseTypedConnection } from "./ui/commandLine";
-import { applyTypedConnection, emptyForm, isFileStore, isFtp, normalizeFolder, parseForm, targetLabel } from "./ui/sessionList";
+import { applyTypedConnection, emptyForm, normalizeFolder, parseForm, targetLabel } from "./ui/sessionList";
 
 const RECONNECT_DELAY_MS = 5000;
 
@@ -111,16 +103,6 @@ type SessionDialogState =
   | { mode: "create"; folder?: string; prefill?: SessionInput }
   | { mode: "edit"; session: SessionRecord }
   | { mode: "quick" };
-
-interface PasswordRequest {
-  target: string;
-  kind: "password" | "passphrase";
-  canSave: boolean;
-  retry: "wrong" | "savedRejected" | null;
-  resolve: (answer: PasswordAnswer | null) => void;
-}
-
-const cancelled = () => ({ code: "cancelled", message: "Connection cancelled" });
 
 export function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -131,9 +113,7 @@ export function App() {
   const { tabs, setTabs, tabsRef, active, setActive, addTab, renameTab, patchTab, splitTab, closeSplit, closeTab } =
     useTabs();
   const [sessionDialog, setSessionDialog] = useState<SessionDialogState | null>(null);
-  // Several connections may ask at once (e.g. "Open all"): one dialog at a time.
-  const [passwordRequests, setPasswordRequests] = useState<PasswordRequest[]>([]);
-  const passwordRequest = passwordRequests[0] ?? null;
+  const { passwordRequest, askPassword, answerPassword } = usePasswordPrompts();
   const { hostKeyPrompt: currentPrompt, answerHostKey, authPrompt, answerAuth } = useConnectionPrompts();
   const [confirmDelete, setConfirmDelete] = useState<SessionRecord | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState<Tab | null>(null);
@@ -282,183 +262,17 @@ export function App() {
     [addTab, patchTab],
   );
 
-  const askPassword = useCallback(
-    (req: Omit<PasswordRequest, "resolve">) =>
-      new Promise<PasswordAnswer | null>((resolve) => setPasswordRequests((q) => [...q, { ...req, resolve }])),
-    [],
-  );
 
-  /**
-   * Runs a login (`attempt`), asking for a password or key passphrase when
-   * the backend needs one and retrying; saving happens only after success.
-   */
-  const withLogin = useCallback(
-    async <T extends { saveError?: string | null },>(
-      label: string,
-      opts: { canSave: boolean; keyAuth: boolean; savedSecret: boolean },
-      attempt: (password: string | undefined, save: boolean) => Promise<T>,
-    ): Promise<T> => {
-      let secret: string | undefined;
-      let save = false;
-      let retry = false;
-      for (;;) {
-        try {
-          const r = await attempt(secret, save);
-          if (save) refresh();
-          if (r.saveError) setNotice(`Connected, but the password was not saved: ${r.saveError}`);
-          return r;
-        } catch (e) {
-          if (!isIpcError(e)) throw e;
-          const needsPassword =
-            e.code === "password_required" || (e.code === "auth_failed" && secret !== undefined && !opts.keyAuth);
-          const needsPassphrase = opts.keyAuth && e.code === "key_error";
-          if (!needsPassword && !needsPassphrase) throw e;
-          const answer = await askPassword({
-            target: label,
-            kind: needsPassphrase ? "passphrase" : "password",
-            canSave: opts.canSave,
-            retry: retry ? "wrong" : e.code === "password_required" && opts.savedSecret ? "savedRejected" : null,
-          });
-          if (!answer) throw cancelled();
-          secret = answer.password;
-          save = answer.save;
-          retry = true;
-        }
-      }
-    },
-    [askPassword, refresh],
-  );
-
-  const connect = useCallback(
-    (
-      target: SshTarget,
-      label: string,
-      opts: { canSave: boolean; keyAuth: boolean; savedSecret: boolean; startup?: string | null },
-    ) => {
-      let tabKey = 0;
-      const open: Opener = async (cols, rows, onOutput, onExit) => {
-        const r = await withLogin(label, opts, (password, savePassword) =>
-          openSsh({ ...target, password, savePassword }, cols, rows, onOutput, onExit),
-        );
-        renameTab(tabKey, r.label);
-        return r.id;
-      };
-      tabKey = addTab(label, "ssh", open);
-      patchTab(tabKey, {
-        reconnect: () => connect(target, label, opts),
-        startup: opts.startup ?? undefined,
-        sessionId: "sessionId" in target ? target.sessionId : undefined,
-      });
-      return tabKey;
-    },
-    [addTab, withLogin, renameTab, patchTab],
-  );
-
-  /** A file browser tab on a saved SSH session (no shell). */
-  const openFilesTab = useCallback(
-    (s: SessionRecord) => {
-      const ftp = isFtp(s);
-      const s3 = s.protocol === "s3";
-      const key = addTab(`${s.name} (files)`, "files", openLocalTerminal);
-      patchTab(key, { sessionId: s.id, noShell: ftp || s3 });
-      withLogin(
-        s.name,
-        { canSave, keyAuth: s.auth.kind === "keyFile", savedSecret: s.hasSavedSecret },
-        (password, savePassword) =>
-          (s3 ? openS3Files : ftp ? openFtpFiles : openSshFiles)({ sessionId: s.id, password, savePassword }),
-      ).then(
-        (r) => patchTab(key, { terminalId: r.id }),
-        (e) => patchTab(key, { ended: true, desktopError: isIpcError(e) ? e.message : String(e) }),
-      );
-    },
-    [addTab, canSave, patchTab, withLogin],
-  );
-
-  /** Opens an RDP/VNC session in its external client, in tab `key`. */
-  const runDesktop = useCallback(
-    async (key: number, s: SessionRecord) => {
-      patchTab(key, { desktop: null, desktopError: null });
-      let password: string | undefined;
-      for (;;) {
-        try {
-          const d = await openDesktop(s.id, password);
-          password = undefined;
-          patchTab(key, { desktop: d });
-          return;
-        } catch (e) {
-          if (isIpcError(e) && e.code === "password_required") {
-            const answer = await askPassword({ target: s.name, kind: "password", canSave: false, retry: null });
-            if (answer) {
-              password = answer.password;
-              continue;
-            }
-            patchTab(key, { desktopError: "Cancelled." });
-            return;
-          }
-          patchTab(key, { desktopError: isIpcError(e) ? e.message : String(e) });
-          return;
-        }
-      }
-    },
-    [askPassword, patchTab],
-  );
-
-  /** Opens a saved session; returns the tab key when it opened a terminal tab. */
-  const connectSaved = useCallback(
-    (s: SessionRecord): number | undefined => {
-      if (s.protocol === "telnet") {
-        const key = addTab(s.name, "telnet", telnetTerminal(s.id));
-        patchTab(key, { sessionId: s.id, reconnect: () => connectSaved(s) });
-        return key;
-      }
-      if (s.protocol === "rdp" || s.protocol === "vnc") {
-        const protocol = s.protocol;
-        const embedded = () => {
-          const key = addTab(s.name, "rdp", openLocalTerminal);
-          patchTab(key, { sessionId: s.id });
-        };
-        if (settings.embeddedRdp) {
-          embedded();
-          return;
-        }
-        // Without an installed client the built-in viewer opens instead of
-        // an error: it works on every system and needs nothing installed.
-        void desktopClients()
-          .then((c) => (protocol === "rdp" ? c.rdp : c.vnc))
-          .catch(() => undefined)
-          .then((client) => {
-            if (client === null) {
-              setNotice(
-                `No ${protocol.toUpperCase()} client is installed, so ${s.name} opens inside Termalith. ` +
-                  "Settings → Show RDP and VNC sessions inside Termalith makes this the default.",
-              );
-              embedded();
-              return;
-            }
-            const key = addTab(s.name, "desktop", openLocalTerminal);
-            patchTab(key, { sessionId: s.id });
-            void runDesktop(key, s);
-          });
-        return;
-      }
-      if (s.filesOnly || isFileStore(s)) {
-        openFilesTab(s);
-        return;
-      }
-      if (s.mosh) {
-        const key = addTab(s.name, "local", moshTerminal(s.id));
-        patchTab(key, { sessionId: s.id, startup: s.startupCommand ?? undefined });
-        return key;
-      }
-      return connect({ sessionId: s.id }, s.name, {
-        canSave,
-        keyAuth: s.auth.kind === "keyFile",
-        savedSecret: s.hasSavedSecret,
-        startup: s.startupCommand,
-      });
-    },
-    [addTab, canSave, connect, openFilesTab, patchTab, runDesktop, settings.embeddedRdp],
-  );
+  const { connect, openFilesTab, runDesktop, connectSaved } = useConnections({
+    addTab,
+    patchTab,
+    renameTab,
+    askPassword,
+    refresh,
+    notify: setNotice,
+    canSave,
+    embeddedDesktops: settings.embeddedRdp,
+  });
 
   /** Opens the sessions of a folder and offers to type into all of them at once. */
   const openAndBroadcast = useCallback(
@@ -1314,19 +1128,13 @@ export function App() {
       )}
       {passwordRequest && (
         <PasswordDialog
-          key={passwordRequests.length + passwordRequest.target}
+          key={passwordRequest.id}
           target={passwordRequest.target}
           kind={passwordRequest.kind}
           canSave={passwordRequest.canSave}
           retry={passwordRequest.retry}
-          onSubmit={(a) => {
-            setPasswordRequests((q) => q.slice(1));
-            passwordRequest.resolve(a);
-          }}
-          onCancel={() => {
-            setPasswordRequests((q) => q.slice(1));
-            passwordRequest.resolve(null);
-          }}
+          onSubmit={answerPassword}
+          onCancel={() => answerPassword(null)}
         />
       )}
       {authPrompt && (

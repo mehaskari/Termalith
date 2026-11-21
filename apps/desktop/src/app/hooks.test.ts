@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DesktopInfo } from "../terminal/api";
 import type { Tab } from "./tabs";
 import { released, withDesktopStates } from "./useTabLifecycle";
+import { loginQuestion, retryReason } from "./useConnections";
 import { nthTab, zoomedFontSize } from "./useShortcuts";
 
 const desktop = (id: number, state: Partial<DesktopInfo> = {}): DesktopInfo =>
@@ -56,5 +57,31 @@ describe("tab lifecycle", () => {
     expect(next[0]?.desktop?.kind).toBe("exited");
     expect(next[1]).toBe(tabs[1]);
     expect(next[2]).toBe(tabs[2]);
+  });
+});
+
+describe("login questions", () => {
+  const err = (code: string) => ({ code, message: code });
+  const password = { keyAuth: false };
+  const key = { keyAuth: true };
+
+  it("asks for a password when the backend needs one, or after a typed one failed", () => {
+    expect(loginQuestion(err("password_required"), false, password)).toBe("password");
+    expect(loginQuestion(err("auth_failed"), true, password)).toBe("password");
+    // A saved password or the agent failed: final, nothing typed to correct.
+    expect(loginQuestion(err("auth_failed"), false, password)).toBeNull();
+    expect(loginQuestion(err("host_key_rejected"), true, password)).toBeNull();
+  });
+
+  it("asks for a key passphrase only for key logins", () => {
+    expect(loginQuestion(err("key_error"), false, key)).toBe("passphrase");
+    expect(loginQuestion(err("key_error"), false, password)).toBeNull();
+    expect(loginQuestion(err("auth_failed"), true, key)).toBeNull();
+  });
+
+  it("says why it asks again", () => {
+    expect(retryReason(err("auth_failed"), true, false)).toBe("wrong");
+    expect(retryReason(err("password_required"), false, true)).toBe("savedRejected");
+    expect(retryReason(err("password_required"), false, false)).toBeNull();
   });
 });

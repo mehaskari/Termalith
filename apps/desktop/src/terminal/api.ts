@@ -112,65 +112,16 @@ export function closeTerminal(id: TerminalId): Promise<void> {
 
 // ---------------------------------------------------------------- sessions
 
-export type AuthMethod = { kind: "password" } | { kind: "keyFile"; path: string } | { kind: "agent" };
-
-export type SessionProtocol = "ssh" | "rdp" | "vnc" | "telnet" | "ftp" | "ftps" | "s3";
-
-export interface SessionInput {
-  name: string;
-  host: string;
-  port: number;
-  username: string;
-  auth: AuthMethod;
-  folder: string | null;
-  /** Saved session to tunnel through (ProxyJump). */
-  jumpVia?: string | null;
-  /** Defaults to "ssh" when absent. */
-  protocol?: SessionProtocol;
-  /** Windows domain (RDP only). */
-  domain?: string | null;
-  tags?: string[];
-  /** Forward the local SSH agent to this host (SSH only). */
-  forwardAgent?: boolean;
-  /** Forward X11 to the local X server (SSH only). */
-  x11Forward?: boolean;
-  /** Typed into the shell once after login (SSH only). */
-  startupCommand?: string | null;
-  /** Opens as a file browser (SFTP) without a terminal. */
-  filesOnly?: boolean;
-  /** Connects with the installed Mosh client (ADR-034). */
-  mosh?: boolean;
-  /** The session's own terminal look; unset fields follow the settings. */
-  appearance?: Appearance | null;
-  /** Icon in the session list and on tabs; null shows the protocol. */
-  icon?: SessionIcon | null;
-  /** S3 sessions: bucket, region and options (host/port = endpoint, user name = access key id). */
-  s3?: S3Options | null;
-}
-
-export interface S3Options {
-  bucket: string;
-  /** Empty: us-east-1. */
-  region: string;
-  /** host/bucket/key addressing (MinIO, Ceph). */
-  pathStyle: boolean;
-  https: boolean;
-}
-
+// Session types come from the Rust definitions (ts-rs, R-005, ADR-039).
+import type { AuthMethod } from "../generated/AuthMethod";
+import type { Icon } from "../generated/Icon";
+import type { S3Options } from "../generated/S3Options";
+import type { SessionInput } from "../generated/SessionInput";
+import type { SessionProtocol } from "../generated/SessionProtocol";
+import type { SessionRecord } from "../generated/SessionRecord";
+export type { AuthMethod, S3Options, SessionInput, SessionProtocol, SessionRecord };
 /** A built-in picture (see ui/sessionIcons.tsx) and an optional #rrggbb color. */
-export interface SessionIcon {
-  name: string;
-  color?: string | null;
-}
-
-export interface SessionRecord extends SessionInput {
-  id: string;
-  /** From a shared session file (its source id): read-only. */
-  shared?: string | null;
-  hasSavedSecret: boolean;
-  favorite?: boolean;
-  updatedAt: number;
-}
+export type SessionIcon = Icon;
 
 export interface AppInfo {
   version: string;
@@ -261,11 +212,8 @@ export interface QuickTarget {
 
 export type SshTarget = { sessionId: string } | { quick: QuickTarget };
 
-export interface Appearance {
-  fontFamily?: string | null;
-  fontSize?: number | null;
-  terminalScheme?: string | null;
-}
+import type { Appearance } from "../generated/Appearance";
+export type { Appearance };
 
 export interface SshOpened {
   id: TerminalId;
@@ -415,37 +363,9 @@ export const stopTunnel = (id: number) => invoke<boolean>("tunnel_stop", { id })
 
 // ---------------------------------------------------------------- settings
 
-export interface Settings {
-  theme: "system" | "dark" | "light";
-  fontSize: number;
-  fontFamily: string;
-  cursorStyle: "block" | "bar" | "underline";
-  cursorBlink: boolean;
-  scrollback: number;
-  /** Start a session log for every new terminal. */
-  logSessions: boolean;
-  /** Shell id for new local terminals; null = system default. */
-  defaultShell: string | null;
-  /** Copy terminal selections to the clipboard automatically. */
-  copyOnSelect: boolean;
-  /** Right-click in a terminal pastes the clipboard. */
-  rightClickPaste: boolean;
-  /** Ask before risky pastes (several lines, curl | sh, hidden characters). */
-  pasteWarning: boolean;
-  /** Reconnect SSH tabs whose connection was lost (not on `exit`). */
-  autoReconnect: boolean;
-  /** Terminal color scheme id (see TERMINAL_SCHEMES); "app" follows the app theme. */
-  terminalScheme: string;
-  /** Proxy for outgoing SSH/Telnet connections (first hop only). */
-  proxy: { kind: "socks5" | "http"; host: string; port: number; username?: string | null } | null;
-  /** Look for a newer release on GitHub at startup. */
-  /** Look for a newer release at startup and show a small notice. */
-  updateCheck: boolean;
-  /** Show RDP sessions in a tab (experimental) instead of the external client. */
-  embeddedRdp: boolean;
-  serverMonitor: boolean;
-  highlightOutput: boolean;
-}
+import type { Settings } from "../generated/Settings";
+/** App settings (generated from the Rust type, R-005). */
+export type { Settings };
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "system",

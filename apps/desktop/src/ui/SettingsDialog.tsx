@@ -127,7 +127,12 @@ export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvail
               const kind = e.target.value as "" | "socks5" | "http";
               set({
                 proxy: kind
-                  ? { kind, host: s.proxy?.host ?? "", port: s.proxy?.port ?? (kind === "socks5" ? 1080 : 3128) }
+                  ? {
+                      kind,
+                      host: s.proxy?.host ?? "",
+                      port: s.proxy?.port ?? (kind === "socks5" ? 1080 : 3128),
+                      username: s.proxy?.username ?? null,
+                    }
                   : null,
               });
             }}

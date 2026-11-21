@@ -20,19 +20,17 @@ import {
   allSessions,
   targetLabel,
   withProtocol,
+  withSessionDefaults,
 } from "./sessionList";
 
 function s(name: string, folder: string | null, host = "10.0.0.1", username = "root"): SessionRecord {
   return {
+    ...withSessionDefaults({ name, host, port: 22, username, auth: { kind: "password" }, folder }),
     id: `ses-${name}`,
-    name,
-    host,
-    port: 22,
-    username,
-    auth: { kind: "password" },
-    folder,
     hasSavedSecret: false,
+    favorite: false,
     updatedAt: 0,
+    shared: null,
   };
 }
 
@@ -110,8 +108,8 @@ describe("parseForm", () => {
 
 describe("targetLabel", () => {
   it("omits the default port", () => {
-    expect(targetLabel({ username: "me", host: "h", port: 22 })).toBe("me@h");
-    expect(targetLabel({ username: "me", host: "h", port: 2222 })).toBe("me@h:2222");
+    expect(targetLabel({ username: "me", host: "h", port: 22, protocol: "ssh" })).toBe("me@h");
+    expect(targetLabel({ username: "me", host: "h", port: 2222, protocol: "ssh" })).toBe("me@h:2222");
   });
 });
 
@@ -119,9 +117,9 @@ describe("agent auth", () => {
   it("parses and labels agent sessions", () => {
     const r = parseForm({ ...emptyForm(), name: "n", host: "h", username: "u", authKind: "agent" }, { requireName: true });
     expect(r.ok && r.value.auth).toEqual({ kind: "agent" });
-    expect(authLabel({ auth: { kind: "agent" }, hasSavedSecret: false })).toBe("agent");
-    expect(authLabel({ auth: { kind: "password" }, hasSavedSecret: true })).toBe("saved");
-    expect(authLabel({ auth: { kind: "password" }, hasSavedSecret: false })).toBe("");
+    expect(authLabel({ auth: { kind: "agent" }, hasSavedSecret: false, protocol: "ssh" })).toBe("agent");
+    expect(authLabel({ auth: { kind: "password" }, hasSavedSecret: true, protocol: "ssh" })).toBe("saved");
+    expect(authLabel({ auth: { kind: "password" }, hasSavedSecret: false, protocol: "ssh" })).toBe("");
   });
 });
 

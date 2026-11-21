@@ -10,6 +10,11 @@ use crate::sessions::SessionStore;
 
 pub const MAX_HISTORY: i64 = 500;
 
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TransferDirection {
@@ -17,6 +22,11 @@ pub enum TransferDirection {
     Upload,
 }
 
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TransferOutcome {
@@ -36,19 +46,27 @@ pub struct TransferMeta {
     pub size: Option<u64>,
 }
 
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferRecord {
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub id: i64,
     pub direction: TransferDirection,
     pub name: String,
     pub remote_path: String,
     pub local_path: Option<String>,
+    #[cfg_attr(feature = "ts", ts(type = "number | null"))]
     pub size: Option<u64>,
     pub outcome: TransferOutcome,
     pub message: Option<String>,
     pub connection: String,
     /// Seconds since the Unix epoch.
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub finished_at: i64,
 }
 

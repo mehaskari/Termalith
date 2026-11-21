@@ -16,8 +16,6 @@ import {
   type DroppedFile,
   type IpcError,
   type TerminalId,
-  type HostKeyAnswer,
-  type HostKeyPrompt,
   type Opener,
   type SessionInput,
   type SessionRecord,
@@ -49,24 +47,18 @@ import {
   openSsh,
   openSerial,
   onLocalNetworkBlocked,
-  respondHostKey,
   serialSummary,
   splitTerminal,
   updateSession,
-  type AuthPrompt,
-  respondAuthPrompt,
   startLog,
   stopLog,
-  closeDesktop,
   telnetTerminal,
   openFtpFiles,
   openS3Files,
   openSshFiles,
-  closeTerminal,
   type ShellChoice,
   listShells,
   localTerminal,
-  listDesktops,
   openDesktop,
   desktopClients,
 } from "./terminal/api";
@@ -104,9 +96,11 @@ import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
 import { type Tab, useTabs } from "./app/tabs";
 import { useMasterPassword } from "./app/useMasterPassword";
 import { useTheme } from "./app/useTheme";
+import { useConnectionPrompts } from "./app/useConnectionPrompts";
+import { useShortcuts } from "./app/useShortcuts";
+import { useTabLifecycle } from "./app/useTabLifecycle";
 import { UpdateToast, dismissedVersion } from "./ui/UpdateToast";
 import { SessionIconGlyph } from "./ui/sessionIcons";
-import { isMacPlatform, matchShortcut } from "./ui/shortcuts";
 import { Sidebar } from "./ui/Sidebar";
 import { type TypedConnection, parseTypedConnection } from "./ui/commandLine";
 import { applyTypedConnection, emptyForm, isFileStore, isFtp, normalizeFolder, parseForm, targetLabel } from "./ui/sessionList";
@@ -140,8 +134,7 @@ export function App() {
   // Several connections may ask at once (e.g. "Open all"): one dialog at a time.
   const [passwordRequests, setPasswordRequests] = useState<PasswordRequest[]>([]);
   const passwordRequest = passwordRequests[0] ?? null;
-  const [hostKeyPrompts, setHostKeyPrompts] = useState<HostKeyPrompt[]>([]);
-  const [authPrompts, setAuthPrompts] = useState<AuthPrompt[]>([]);
+  const { hostKeyPrompt: currentPrompt, answerHostKey, authPrompt, answerAuth } = useConnectionPrompts();
   const [confirmDelete, setConfirmDelete] = useState<SessionRecord | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState<Tab | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
@@ -484,41 +477,6 @@ export function App() {
     [broadcast, connectSaved, setActive],
   );
 
-  // Remote desktop status: poll while a client is running.
-  const watchDesktops = tabs.some((t) => t.desktop?.kind === "running");
-  useEffect(() => {
-    if (!watchDesktops) return;
-    const timer = window.setInterval(() => {
-      listDesktops().then(
-        (list) =>
-          setTabs((ts) =>
-            ts.map((t) => {
-              const d = t.desktop && list.find((x) => x.id === t.desktop?.id);
-              return d && d.kind !== t.desktop?.kind ? { ...t, desktop: d } : t;
-            }),
-          ),
-        () => {},
-      );
-    }, 2000);
-    return () => window.clearInterval(timer);
-  }, [watchDesktops]);
-
-  // Closing a file browser tab releases its SSH connection.
-  const openFileIds = useRef(new Set<number>());
-  useEffect(() => {
-    const now = new Set(tabs.flatMap((t) => (t.kind === "files" && t.terminalId !== undefined ? [t.terminalId] : [])));
-    for (const id of openFileIds.current) if (!now.has(id)) void closeTerminal(id).catch(() => {});
-    openFileIds.current = now;
-  }, [tabs]);
-
-  // Closing a desktop tab (by any route) stops its client and tunnel.
-  const openDesktopIds = useRef(new Set<number>());
-  useEffect(() => {
-    const now = new Set(tabs.flatMap((t) => (t.desktop ? [t.desktop.id] : [])));
-    for (const id of openDesktopIds.current) if (!now.has(id)) void closeDesktop(id).catch(() => {});
-    openDesktopIds.current = now;
-  }, [tabs]);
-
   /** Opens what the command line asked for (kept current for the startup effect). */
   const launchRef = useRef<(requests: LaunchRequest[], saved: SessionRecord[]) => void>(() => {});
   launchRef.current = (requests, saved) => {
@@ -602,10 +560,6 @@ export function App() {
       const saved = await listSessions().catch(() => [] as SessionRecord[]);
       launchRef.current(requests, saved);
     });
-    const unlisten = listen<HostKeyPrompt>("host-key-prompt", (e) =>
-      setHostKeyPrompts((q) => [...q, e.payload]),
-    );
-    const unlistenAuth = listen<AuthPrompt>("auth-prompt", (e) => setAuthPrompts((q) => [...q, e.payload]));
     const unlistenDrop = listen<DroppedFile[]>("files-dropped", (e) => {
       const tab = activeRef.current;
       if (tab?.kind === "tools") {
@@ -622,10 +576,8 @@ export function App() {
     });
     const unlistenHover = listen<boolean>("files-hover", (e) => setFileHover(e.payload));
     return () => {
-      void unlisten.then((f) => f());
       void unlistenDrop.then((f) => f());
       void unlistenHover.then((f) => f());
-      void unlistenAuth.then((f) => f());
     };
   }, [refresh, openLocal]);
 
@@ -671,90 +623,18 @@ export function App() {
     refresh();
   }
 
-  function answerHostKey(prompt: HostKeyPrompt, answer: HostKeyAnswer) {
-    setHostKeyPrompts((q) => q.filter((p) => p.requestId !== prompt.requestId));
-    void respondHostKey(prompt.requestId, answer);
-  }
-
-  // Keyboard shortcuts (captured before the terminal sees the key).
-  const shortcutState = useRef({ tabs, active, settings });
-  shortcutState.current = { tabs, active, settings };
-  useEffect(() => {
-    const mac = isMacPlatform();
-    const onKey = (e: KeyboardEvent) => {
-      const action = matchShortcut(e, mac);
-      if (!action) return;
-      if (document.querySelector("dialog[open]")) return; // dialogs keep their keys
-      e.preventDefault();
-      e.stopPropagation();
-      const { tabs: ts, active: a, settings: s } = shortcutState.current;
-      const i = ts.findIndex((t) => t.key === a);
-      switch (action) {
-        case "newTab":
-          openLocal();
-          break;
-        case "closeTab":
-          if (a !== null) requestClose(a);
-          break;
-        case "nextTab":
-        case "prevTab":
-          if (ts.length) {
-            const n = (i + (action === "nextTab" ? 1 : -1) + ts.length) % ts.length;
-            setActive(ts[n]?.key ?? null);
-          }
-          break;
-        case "zoomIn":
-        case "zoomOut":
-        case "zoomReset": {
-          const size = action === "zoomReset" ? 13 : Math.min(32, Math.max(8, s.fontSize + (action === "zoomIn" ? 1 : -1)));
-          const next = { ...s, fontSize: size };
-          setSettings(next);
-          void saveSettings(next).catch(() => {});
-          break;
-        }
-        case "palette":
-          setPaletteOpen(true);
-          break;
-        case "tab1":
-        case "tab2":
-        case "tab3":
-        case "tab4":
-        case "tab5":
-        case "tab6":
-        case "tab7":
-        case "tab8":
-        case "tab9": {
-          // Like browsers: 9 is the last tab.
-          const n = Number(action.slice(3));
-          const t = n === 9 ? ts[ts.length - 1] : ts[n - 1];
-          if (t) setActive(t.key);
-          break;
-        }
-        default:
-          if (a !== null) patchTab(a, { command: { seq: performance.now(), action } });
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [openLocal, requestClose, patchTab]);
-
-  // Automatic reconnect of dropped SSH tabs, with a visible countdown.
-  const [now, setNow] = useState(() => Date.now());
-  const pendingReconnect = tabs.some((t) => t.reconnectAt !== undefined);
-  useEffect(() => {
-    if (!pendingReconnect) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 500);
-    return () => window.clearInterval(timer);
-  }, [pendingReconnect]);
-  useEffect(() => {
-    for (const t of tabs) {
-      if (t.reconnectAt !== undefined && now >= t.reconnectAt && t.reconnect) {
-        const again = t.reconnect;
-        closeTab(t.key);
-        again();
-      }
-    }
-  }, [now, tabs, closeTab]);
+  useShortcuts({
+    tabs,
+    active,
+    settings,
+    setActive,
+    setSettings,
+    openLocal,
+    requestClose,
+    openPalette: () => setPaletteOpen(true),
+    patchTab,
+  });
+  const now = useTabLifecycle({ tabs, setTabs, tabsRef, active, patchTab, closeTab });
 
   useEffect(() => {
     if (!tabMenu) return;
@@ -782,13 +662,6 @@ export function App() {
     setActive(keep);
     if (dirty.length) setNotice(`Kept ${dirty.map((t) => t.title).join(", ")}: unsaved changes.`);
   }
-
-  // Showing a tab clears its new-output dot.
-  useEffect(() => {
-    if (active !== null && tabsRef.current.find((t) => t.key === active)?.activity) {
-      patchTab(active, { activity: false });
-    }
-  }, [active, patchTab, tabsRef]);
 
   const tiled = broadcast?.tiled ?? false;
   const inBroadcast = (key: number) =>
@@ -859,7 +732,6 @@ export function App() {
     }
   }
 
-  const currentPrompt = hostKeyPrompts[0];
   const activeTab = tabs.find((t) => t.key === active);
   activeRef.current = activeTab;
 
@@ -1457,16 +1329,11 @@ export function App() {
           }}
         />
       )}
-      {!currentPrompt && authPrompts[0] && (
+      {authPrompt && (
         <AuthPromptDialog
-          key={authPrompts[0].requestId}
-          prompt={authPrompts[0]}
-          onAnswer={(answers) => {
-            const p = authPrompts[0];
-            if (!p) return;
-            setAuthPrompts((q) => q.filter((x) => x.requestId !== p.requestId));
-            void respondAuthPrompt(p.requestId, answers);
-          }}
+          key={authPrompt.requestId}
+          prompt={authPrompt}
+          onAnswer={(answers) => answerAuth(authPrompt, answers)}
         />
       )}
       {localNetworkHelp && (

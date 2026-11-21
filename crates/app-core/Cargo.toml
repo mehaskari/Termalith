@@ -48,4 +48,4 @@ workspace = true
 [features]
 # Generates the TypeScript IPC types (R-005, ADR-039):
 # `cargo test -p app-core --features ts export_bindings`.
-ts = ["dep:ts-rs"]
+ts = ["dep:ts-rs", "local-servers/ts"]

@@ -24,10 +24,15 @@ libunftp = { version = "0.24", default-features = false, features = ["aws_lc_rs"
 unftp-core = "0.1"
 unftp-sbe-fs = "0.4"
 base64 = "0.22"
+ts-rs = { version = "12", default-features = false, features = ["serde-compat"], optional = true }
 
 [dev-dependencies]
 tempfile = "3.27"
 tokio = { version = "1.54", features = ["macros", "rt-multi-thread"] }
+
+[features]
+# TypeScript types for the UI (R-005, ADR-039); enabled by app-core's `ts`.
+ts = ["dep:ts-rs"]
 
 [lints]
 workspace = true

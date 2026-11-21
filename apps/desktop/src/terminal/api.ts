@@ -1,6 +1,21 @@
 // Typed wrappers around the IPC commands. The backend validates all
 // arguments; nothing here is a security boundary.
 import { Channel, type InvokeArgs, invoke as tauriInvoke } from "@tauri-apps/api/core";
+// IPC types generated from the Rust definitions (ts-rs, R-005, ADR-039).
+import type { ActivityEntry } from "../generated/ActivityEntry";
+import type { Appearance } from "../generated/Appearance";
+import type { AuthMethod } from "../generated/AuthMethod";
+import type { Icon } from "../generated/Icon";
+import type { S3Options } from "../generated/S3Options";
+import type { ServerInfo } from "../generated/ServerInfo";
+import type { ServerKind } from "../generated/ServerKind";
+import type { ServerState } from "../generated/ServerState";
+import type { SessionInput } from "../generated/SessionInput";
+import type { SessionProtocol } from "../generated/SessionProtocol";
+import type { SessionRecord } from "../generated/SessionRecord";
+import type { Settings } from "../generated/Settings";
+import type { TransferEvent } from "../generated/TransferEvent";
+import type { TransferRecord } from "../generated/TransferRecord";
 
 export type TerminalId = number;
 
@@ -112,13 +127,6 @@ export function closeTerminal(id: TerminalId): Promise<void> {
 
 // ---------------------------------------------------------------- sessions
 
-// Session types come from the Rust definitions (ts-rs, R-005, ADR-039).
-import type { AuthMethod } from "../generated/AuthMethod";
-import type { Icon } from "../generated/Icon";
-import type { S3Options } from "../generated/S3Options";
-import type { SessionInput } from "../generated/SessionInput";
-import type { SessionProtocol } from "../generated/SessionProtocol";
-import type { SessionRecord } from "../generated/SessionRecord";
 export type { AuthMethod, S3Options, SessionInput, SessionProtocol, SessionRecord };
 /** A built-in picture (see ui/sessionIcons.tsx) and an optional #rrggbb color. */
 export type SessionIcon = Icon;
@@ -212,7 +220,6 @@ export interface QuickTarget {
 
 export type SshTarget = { sessionId: string } | { quick: QuickTarget };
 
-import type { Appearance } from "../generated/Appearance";
 export type { Appearance };
 
 export interface SshOpened {
@@ -269,14 +276,7 @@ export interface RemoteEntry {
   permissions: number | null;
 }
 
-export type TransferEvent =
-  | { kind: "queued" }
-  | { kind: "progress"; transferred: number; total: number | null }
-  | { kind: "retrying"; attempt: number; max: number; message: string }
-  | { kind: "done"; destination: string }
-  | { kind: "failed"; message: string; retryable: boolean }
-  | { kind: "cancelled" }
-  | { kind: "paused" };
+export type { TransferEvent };
 
 export interface DroppedFile {
   token: number;
@@ -363,7 +363,6 @@ export const stopTunnel = (id: number) => invoke<boolean>("tunnel_stop", { id })
 
 // ---------------------------------------------------------------- settings
 
-import type { Settings } from "../generated/Settings";
 /** App settings (generated from the Rust type, R-005). */
 export type { Settings };
 
@@ -597,34 +596,9 @@ export const wakeOnLan = (mac: string, broadcast: string | null) => invoke<void>
 
 // ---------------------------------------------------------------- file servers
 
-export type ServerKind = "tftp" | "http" | "ftp";
-
-export interface ServerActivity {
-  seq: number;
-  /** Seconds since the Unix epoch. */
-  at: number;
-  peer: string;
-  action: "download" | "upload" | "list" | "login";
-  path: string;
-  bytes: number;
-  error: string | null;
-}
-
-export interface ServerInfo {
-  id: number;
-  kind: ServerKind;
-  folder: string;
-  port: number;
-  lan: boolean;
-  allowUploads: boolean;
-  urls: string[];
-  /** FTP, and HTTP with a login: user name and password of this start. */
-  credentials: { user: string; password: string } | null;
-}
-
-export interface ServerState extends ServerInfo {
-  activity: ServerActivity[];
-}
+export type { ServerInfo, ServerKind, ServerState };
+/** One thing a client did on a file server. */
+export type ServerActivity = ActivityEntry;
 
 /** The folder the next file server shares, kept by the backend. */
 export interface SharedFolder {
@@ -931,19 +905,7 @@ export const reportFrontendError = (message: string, details: string) =>
 
 // ---------------------------------------------------------------- transfer history
 
-export interface TransferRecord {
-  id: number;
-  direction: "download" | "upload";
-  name: string;
-  remotePath: string;
-  localPath: string | null;
-  size: number | null;
-  outcome: "done" | "failed" | "cancelled";
-  message: string | null;
-  connection: string;
-  /** Seconds since the Unix epoch. */
-  finishedAt: number;
-}
+export type { TransferRecord };
 
 export const transferHistory = (limit = 200) => invoke<TransferRecord[]>("transfer_history", { limit });
 export const clearTransferHistory = () => invoke<void>("transfer_history_clear");

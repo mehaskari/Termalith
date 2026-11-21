@@ -22,6 +22,11 @@ pub mod tftp;
 pub use ftp::FTP_USER;
 
 /// Which protocol a server speaks.
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ServerKind {
@@ -103,6 +108,11 @@ pub fn check_login(user: &str, password: &str) -> Result<(), ServerError> {
 }
 
 /// What a client did, for the activity list.
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Activity {
@@ -110,11 +120,17 @@ pub struct Activity {
     pub action: Action,
     /// Path inside the shared folder, with `/` separators.
     pub path: String,
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub bytes: u64,
     /// Why it failed; `None` when it succeeded.
     pub error: Option<String>,
 }
 
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Action {

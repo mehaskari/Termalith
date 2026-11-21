@@ -31,6 +31,11 @@ pub const AUTO_RETRIES: u32 = 2;
 /// Failed/cancelled transfers remembered for manual retry.
 const RETRY_MEMORY: usize = 100;
 
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum TransferEvent {
@@ -38,7 +43,9 @@ pub enum TransferEvent {
     Queued,
     #[serde(rename_all = "camelCase")]
     Progress {
+        #[cfg_attr(feature = "ts", ts(type = "number"))]
         transferred: u64,
+        #[cfg_attr(feature = "ts", ts(type = "number | null"))]
         total: Option<u64>,
     },
     /// A transient error; the transfer restarts after a short pause.

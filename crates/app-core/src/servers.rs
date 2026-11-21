@@ -46,9 +46,15 @@ impl std::fmt::Debug for ServerSpec {
     }
 }
 
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerInfo {
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub id: u64,
     pub kind: ServerKind,
     /// The shared folder, for display.
@@ -62,6 +68,11 @@ pub struct ServerInfo {
     pub credentials: Option<LoginCredentials>,
 }
 
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginCredentials {
@@ -70,16 +81,28 @@ pub struct LoginCredentials {
 }
 
 /// One activity entry, numbered so the panel can show what is new.
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityEntry {
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub seq: u64,
     /// Seconds since the Unix epoch.
+    #[cfg_attr(feature = "ts", ts(type = "number"))]
     pub at: u64,
     #[serde(flatten)]
     pub activity: Activity,
 }
 
+#[cfg_attr(
+    feature = "ts",
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../apps/desktop/src/generated/")
+)]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerState {

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed:** switching the proxy between SOCKS5 and HTTP in Settings no
+  longer clears its user name.
+
 ## 0.5.10 (2026-11-19)
 
 - **X11 on Windows without setup.** When a session forwards X11 and no X

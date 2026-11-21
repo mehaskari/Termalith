@@ -8,6 +8,7 @@ import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { App } from "../App";
 import { ErrorBoundary } from "../ui/ErrorBoundary";
 import type { HostKeyAnswer, SessionInput, SessionRecord } from "../terminal/api";
+import { withSessionDefaults } from "../ui/sessionList";
 import "../styles.css";
 
 interface ChannelLike {
@@ -108,9 +109,9 @@ function send(id: number, text: string) {
   window.__TAURI_INTERNALS__.runCallback(o.ch.id, { index: o.index++, message: buf });
 }
 
-function seed(input: SessionInput, hasSavedSecret = false) {
+function seed(input: Parameters<typeof withSessionDefaults>[0], hasSavedSecret = false) {
   const id = `ses-${String(nextSession++).padStart(24, "0")}`;
-  sessions.set(id, { ...input, id, hasSavedSecret, updatedAt: 0 });
+  sessions.set(id, { ...withSessionDefaults(input), id, hasSavedSecret, favorite: false, updatedAt: 0, shared: null });
 }
 
 seed({ name: "web-01", host: "web1.example.com", port: 22, username: "deploy", auth: { kind: "password" }, folder: "Production", tags: ["prod", "web"] });

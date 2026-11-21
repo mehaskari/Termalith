@@ -245,6 +245,27 @@ export function withProtocol(f: SessionFormState, protocol: SessionProtocol): Se
   return { ...f, protocol, port, authKind: protocol === "ssh" ? f.authKind : "password" };
 }
 
+/** The fields a session gets when only its address and login are known (the backend's defaults). */
+export function withSessionDefaults(
+  input: Pick<SessionInput, "name" | "host" | "port" | "username" | "auth" | "folder"> & Partial<SessionInput>,
+): SessionInput {
+  return {
+    jumpVia: null,
+    protocol: "ssh",
+    domain: null,
+    tags: [],
+    forwardAgent: false,
+    x11Forward: false,
+    startupCommand: null,
+    filesOnly: false,
+    mosh: false,
+    appearance: null,
+    icon: null,
+    s3: null,
+    ...input,
+  };
+}
+
 export function emptyForm(): SessionFormState {
   return {
     protocol: "ssh",

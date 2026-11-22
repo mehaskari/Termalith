@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-terminal-take-history"
+description = "Enables the terminal_take_history command without any pre-configured scope."
+commands.allow = ["terminal_take_history"]
+
+[[permission]]
+identifier = "deny-terminal-take-history"
+description = "Denies the terminal_take_history command without any pre-configured scope."
+commands.deny = ["terminal_take_history"]

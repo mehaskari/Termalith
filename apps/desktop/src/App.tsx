@@ -85,7 +85,7 @@ import { SettingsDialog } from "./ui/SettingsDialog";
 import { UnlockDialog } from "./ui/MasterPassword";
 import { SerialDialog } from "./ui/SerialDialog";
 import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
-import { type Tab, useTabs } from "./app/tabs";
+import { type Tab, moveBlocker, useTabs } from "./app/tabs";
 import { useMasterPassword } from "./app/useMasterPassword";
 import { useTheme } from "./app/useTheme";
 import { useConnectionPrompts } from "./app/useConnectionPrompts";
@@ -472,6 +472,14 @@ export function App() {
     else if (t.kind === "ssh" && t.reconnect) t.reconnect();
   }
 
+  /** Opens the tab's terminal in its own window; the tab goes away once it moved. */
+  function moveToWindow(t: Tab) {
+    // Broadcast and macro recording belong to this window's tabs.
+    if (broadcast && (broadcast.source === t.key || broadcast.targets.includes(t.key))) setBroadcast(null);
+    if (recording?.key === t.key) setRecording(null);
+    patchTab(t.key, { command: { seq: performance.now(), action: "move" } });
+  }
+
   function closeOthers(keep: number) {
     const dirty = tabs.filter((t) => t.key !== keep && t.dirty);
     for (const t of tabs) if (t.key !== keep && !t.dirty) closeTab(t.key);
@@ -722,6 +730,17 @@ export function App() {
                     Save output…
                   </button>
                 )}
+                {["local", "ssh", "serial", "telnet"].includes(t.kind) && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={moveBlocker(t) !== null}
+                    title={moveBlocker(t) ?? "Open this terminal in its own window; it keeps running"}
+                    onClick={act(() => moveToWindow(t))}
+                  >
+                    Move to new window
+                  </button>
+                )}
                 <button type="button" role="menuitem" disabled={tabs.length < 2} onClick={act(() => closeOthers(t.key))}>
                   Close others
                 </button>
@@ -890,6 +909,7 @@ export function App() {
                       onNotice={setNotice}
                       onInput={(d) => mirrorInput(t.key, d)}
                       onActivity={() => patchTab(t.key, { activity: true })}
+                      onMoved={() => closeTab(t.key)}
                       onFolder={(host, path) =>
                         setTabs((all) =>
                           all.map((x) =>

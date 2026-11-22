@@ -9,6 +9,7 @@ import { App } from "../App";
 import { ErrorBoundary } from "../ui/ErrorBoundary";
 import type { HostKeyAnswer, SessionInput, SessionRecord } from "../terminal/api";
 import { withSessionDefaults } from "../ui/sessionList";
+import { MovedTerminal, movedTerminalId } from "../ui/MovedTerminal";
 import "../styles.css";
 
 interface ChannelLike {
@@ -609,6 +610,24 @@ mockIPC(
         setTimeout(() => send(id, "\x1b[2m(mock mosh)\x1b[0m\r\nops@edge:~$ "), 50);
         return id;
       }
+      // Moved terminals (P8-10): the history goes through localStorage so a
+      // second browser tab at mock.html?terminal=<id> can pick it up.
+      case "terminal_move_to_window":
+        localStorage.setItem(`mock-moved-${String(a.id)}`, String(a.history));
+        return null;
+      case "terminal_take_history": {
+        const key = `mock-moved-${String(a.id)}`;
+        const h = localStorage.getItem(key);
+        if (h === null) throw { code: "not_found", message: "This terminal is closed." };
+        localStorage.setItem(key, "");
+        return h;
+      }
+      case "terminal_attach": {
+        const id = Number(a.id);
+        outputs.set(id, { ch: a.onOutput as ChannelLike, index: 0 });
+        setTimeout(() => send(id, "\r\n\x1b[2m(mock: output now arrives in this window)\x1b[0m\r\n$ "), 50);
+        return id;
+      }
       case "terminal_open": {
         const id = nextTerm++;
         outputs.set(id, { ch: a.onOutput as ChannelLike, index: 0 });
@@ -886,6 +905,14 @@ const root = document.getElementById("root");
 if (!root) throw new Error("missing #root");
 createRoot(root).render(
   <StrictMode>
-    <ErrorBoundary>{new URLSearchParams(location.search).has("uicrash") ? <Boom /> : <App />}</ErrorBoundary>
+    <ErrorBoundary>
+      {new URLSearchParams(location.search).has("uicrash") ? (
+        <Boom />
+      ) : movedTerminalId(location.search) !== null ? (
+        <MovedTerminal id={movedTerminalId(location.search) as number} />
+      ) : (
+        <App />
+      )}
+    </ErrorBoundary>
   </StrictMode>,
 );

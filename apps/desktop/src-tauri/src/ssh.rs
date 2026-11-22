@@ -132,9 +132,9 @@ pub async fn ssh_open(
     let size = TerminalSize::new(cols, rows)?;
     let req = connect_request(&state, request)?;
     let connected = state.connector.connect(req).await?;
-    let (tap, sink) = logged_sink(on_output, on_exit);
+    let (handles, sink) = logged_sink(on_output, on_exit);
     let id = state.hub.open_ssh(connected.session, size, sink).await?;
-    state.logs.register(id, tap);
+    handles.register(&state, id);
     Ok(SshOpened {
         id,
         label: connected.label,

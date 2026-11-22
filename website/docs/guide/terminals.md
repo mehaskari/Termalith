@@ -22,6 +22,18 @@ All shortcuts: [Keyboard shortcuts](shortcuts.md).
 A small dot after a tab's title means new output arrived while you were in
 another tab, e.g. a long command finished. It goes away when you open the tab.
 
+### Move a tab to its own window
+
+Right-click a terminal tab and choose **Move to new window** to put it on
+another screen. The shell or connection keeps running: nothing reconnects,
+and the new window starts with the text the tab showed (without its colors).
+Find, copy and paste work there as in the main window. Closing that window
+closes the terminal; closing the main window closes all of them.
+
+It works for local, SSH, Telnet and serial terminals without split panes
+(close the extra panes first). The Files, Tunnels and Snippets panels stay
+with the main window.
+
 ## Split panes
 
 The first three toolbar buttons split the tab **side by side**, **top and

@@ -8,6 +8,17 @@ import {
 } from "../terminal/api";
 import type { DiffTarget } from "../ui/DiffPane";
 
+/**
+ * Whether a tab can move into its own window (P8-10): a running terminal
+ * without split panes. `null` when it can, else why not.
+ */
+export function moveBlocker(t: Pick<Tab, "kind" | "terminalId" | "ended" | "splits" | "reconnectAt">): string | null {
+  if (!["local", "ssh", "serial", "telnet"].includes(t.kind)) return "Only terminal tabs can move to a window.";
+  if (t.terminalId === undefined || t.ended || t.reconnectAt !== undefined) return "The terminal is not running.";
+  if (t.splits.length > 0) return "Close the split panes first.";
+  return null;
+}
+
 /** Panes in a tab split as a grid, the first terminal included. */
 const GRID_PANES = 4;
 
@@ -32,7 +43,7 @@ export interface Tab {
   ended?: boolean;
   filesOpen?: boolean;
   /** Latest shortcut command for the main terminal of this tab. */
-  command?: { seq: number; action: "find" | "copy" | "paste" | "save" };
+  command?: { seq: number; action: "find" | "copy" | "paste" | "save" | "move" };
   tunnelsOpen?: boolean;
   snippetsOpen?: boolean;
   /** Set when the connection was refused because the host key changed. */

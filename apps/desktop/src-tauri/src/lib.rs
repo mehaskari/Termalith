@@ -17,6 +17,7 @@ mod sessions;
 mod ssh;
 mod state;
 mod terminal;
+mod windows;
 
 use tauri::webview::PageLoadEvent;
 use tauri::{DragDropEvent, Emitter, Manager, RunEvent, WindowEvent};
@@ -63,19 +64,25 @@ pub fn run() {
                     WindowEvent::DragDrop(DragDropEvent::Leave) => {
                         let _ = handle.emit("files-hover", false);
                     }
+                    // Moved terminals' windows go with the main window.
+                    WindowEvent::Destroyed => handle.exit(0),
                     _ => {}
                 });
             }
             Ok(())
         })
         .on_page_load(|webview, payload| {
-            // A reload orphans every channel the old page held; nothing would
-            // ever acknowledge their output, so close those sessions now.
+            // A reload of the main window orphans every channel it held;
+            // nothing would ever acknowledge their output, so close those
+            // sessions now. Terminals moved to their own windows stay, and a
+            // moved terminal's window attaches again when it reloads.
             if payload.event() == PageLoadEvent::Started
+                && webview.label() == "main"
                 && let Some(state) = webview.try_state::<AppState>()
             {
                 let hub = state.hub.clone();
-                tauri::async_runtime::spawn_blocking(move || hub.close_all());
+                let keep = state.routes.moved_ids();
+                tauri::async_runtime::spawn_blocking(move || hub.close_all_except(&keep));
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -91,6 +98,9 @@ pub fn run() {
             terminal::terminal_log_stop,
             terminal::terminal_save_output,
             terminal::terminal_log_status,
+            windows::terminal_move_to_window,
+            windows::terminal_take_history,
+            windows::terminal_attach,
             terminal::tunnel_start,
             terminal::tunnel_list,
             terminal::tunnel_stop,

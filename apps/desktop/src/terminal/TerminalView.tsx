@@ -4,7 +4,15 @@ import { SearchAddon } from "@xterm/addon-search";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
-import { DEFAULT_SETTINGS, type ExitPayload, type Settings, saveTerminalOutput, isIpcError, openWebLink } from "./api";
+import {
+  DEFAULT_SETTINGS,
+  type ExitPayload,
+  type Settings,
+  isIpcError,
+  moveTerminalToWindow,
+  openWebLink,
+  saveTerminalOutput,
+} from "./api";
 import { OutputHighlighter } from "./highlight";
 import { parseOsc7 } from "./osc7";
 import { type ResolvedTheme, fontStack, terminalTheme } from "../ui/theme";
@@ -37,7 +45,7 @@ interface Props {
   settings?: Settings;
   theme?: ResolvedTheme;
   /** One-shot command from a keyboard shortcut; `seq` changes per request. */
-  command?: { seq: number; action: "find" | "copy" | "paste" | "save" };
+  command?: { seq: number; action: "find" | "copy" | "paste" | "save" | "move" };
   /** Label for saved output files (the tab title). */
   label?: string;
   /** A short message for the user (e.g. where output was saved). */
@@ -46,6 +54,17 @@ interface Props {
   onFolder?: (host: string, path: string) => void;
   /** Output arrived while this terminal was not shown (once until shown again). */
   onActivity?: () => void;
+  /** The terminal now lives in its own window ("move" command); unmounting must not close it. */
+  onMoved?: () => void;
+}
+
+/** The terminal's scrollback and screen as plain text, trailing blank lines dropped. */
+export function bufferLines(term: Pick<Terminal, "buffer">): string[] {
+  const buf = term.buffer.active;
+  const lines: string[] = [];
+  for (let i = 0; i < buf.length; i++) lines.push(buf.getLine(i)?.translateToString(true) ?? "");
+  while (lines.length && lines[lines.length - 1] === "") lines.pop();
+  return lines;
 }
 
 export function TerminalView({
@@ -62,6 +81,7 @@ export function TerminalView({
   onNotice,
   onFolder,
   onActivity,
+  onMoved,
 }: Props) {
   const searchRef = useRef<SearchAddon | null>(null);
   const findInput = useRef<HTMLInputElement>(null);
@@ -75,8 +95,10 @@ export function TerminalView({
   // `open` must not re-run the effect; keep the first one.
   const openRef = useRef(open);
   const initial = useRef({ settings, theme });
-  const callbacks = useRef({ onReady, onFailed, onExited, onInput, onNotice, onFolder, onActivity, label });
-  callbacks.current = { onReady, onFailed, onExited, onInput, onNotice, onFolder, onActivity, label };
+  const callbacks = useRef({ onReady, onFailed, onExited, onInput, onNotice, onFolder, onActivity, onMoved, label });
+  callbacks.current = { onReady, onFailed, onExited, onInput, onNotice, onFolder, onActivity, onMoved, label };
+  /** The backend terminal, once open; and whether it moved to another window. */
+  const terminalRef = useRef<{ id: TerminalId | null; moved: boolean }>({ id: null, moved: false });
   // Hidden terminals report new output once, until they are shown again.
   const shown = useRef({ active, reported: false });
   shown.current.active = active;
@@ -188,6 +210,7 @@ export function TerminalView({
           return;
         }
         id = tid;
+        terminalRef.current.id = tid;
         acks.setId(tid);
         callbacks.current.onReady?.(tid);
         // The window may have been resized while the shell was starting.
@@ -244,7 +267,7 @@ export function TerminalView({
       cancelAnimationFrame(resizeFrame);
       onData.dispose();
       onResize.dispose();
-      if (id !== null) void closeTerminal(id).catch(() => {});
+      if (id !== null && !terminalRef.current.moved) void closeTerminal(id).catch(() => {});
       highlighter.dispose();
       term.dispose();
       termRef.current = null;
@@ -261,12 +284,21 @@ export function TerminalView({
     if (command.action === "find") {
       setFindOpen(true);
       requestAnimationFrame(() => findInput.current?.select());
+    } else if (command.action === "move") {
+      const { id } = terminalRef.current;
+      const { label: name, onNotice: notify, onMoved: moved } = callbacks.current;
+      if (id === null || terminalRef.current.moved) return;
+      // Plain text: colors of earlier output are not kept (ADR-042).
+      moveTerminalToWindow(id, name, bufferLines(term).join("\r\n")).then(
+        () => {
+          terminalRef.current.moved = true;
+          moved?.();
+        },
+        (e) => notify?.(`Could not move the terminal: ${isIpcError(e) ? e.message : String(e)}`),
+      );
     } else if (command.action === "save") {
       // Scrollback plus screen, as plain text (no escape sequences).
-      const buf = term.buffer.active;
-      const lines: string[] = [];
-      for (let i = 0; i < buf.length; i++) lines.push(buf.getLine(i)?.translateToString(true) ?? "");
-      while (lines.length && lines[lines.length - 1] === "") lines.pop();
+      const lines = bufferLines(term);
       const { label: name, onNotice: notify } = callbacks.current;
       saveTerminalOutput(name, `${lines.join("\n")}\n`).then(
         (path) => notify?.(`Terminal output saved: ${path}`),

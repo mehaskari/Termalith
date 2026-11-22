@@ -72,10 +72,10 @@ Step by step with screenshots:
 
 **Terminals** — local shells (zsh, bash, fish, PowerShell, cmd, Git Bash,
 WSL) in tabs and up to 2×2 split panes; broadcast typing to several
-terminals, or to a whole folder of sessions opened side by side; snippets
-with `{{variables}}`; macros; session logs; find; keyword colors; color
-schemes and per-session fonts and colors; command palette (type
-`ssh me@host` to connect without saving).
+terminals, or to a whole folder of sessions opened side by side; move a
+tab to its own window; snippets with `{{variables}}`; macros; session
+logs; find; keyword colors; color schemes and per-session fonts and
+colors; command palette (type `ssh me@host` to connect without saving).
 [Guide](https://mehaskari.github.io/Termalith/guide/terminals/)
 
 **SSH** — password, private key, ssh-agent and one-time codes; strict host

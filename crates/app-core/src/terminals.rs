@@ -636,6 +636,12 @@ impl TerminalHub {
         }
     }
 
+    /// Forgets every unacknowledged byte of terminal `id`: its output moved to
+    /// another window, which cannot acknowledge what the old one received.
+    pub fn reset_flow(&self, id: u64) -> Result<(), AppError> {
+        self.ack(id, usize::MAX)
+    }
+
     pub async fn close(&self, id: u64) -> Result<(), AppError> {
         let entry = self.lock().remove(&id).ok_or(AppError::NotFound)?;
         match entry {
@@ -676,9 +682,25 @@ impl TerminalHub {
         }
     }
 
-    /// Closes everything (app exit, page reload). Blocking for local PTYs.
+    /// Closes everything (app exit). Blocking for local PTYs.
     pub fn close_all(&self) {
-        let drained: Vec<Entry> = self.lock().drain().map(|(_, e)| e).collect();
+        self.close_all_except(&[]);
+    }
+
+    /// Closes everything but the terminals in `keep` (the main window
+    /// reloaded; terminals moved to their own windows stay). Blocking for
+    /// local PTYs.
+    pub fn close_all_except(&self, keep: &[u64]) {
+        let drained: Vec<Entry> = {
+            let mut map = self.lock();
+            let ids: Vec<u64> = map
+                .keys()
+                .copied()
+                .filter(|id| !keep.contains(id))
+                .collect();
+            ids.into_iter().filter_map(|id| map.remove(&id)).collect()
+        };
+        let mut local_ids = Vec::new();
         for e in drained {
             match e {
                 Entry::Ssh(t) => {
@@ -693,10 +715,17 @@ impl TerminalHub {
                     t.cancel.cancel();
                     t.gate.close();
                 }
-                Entry::Local(_) | Entry::Files(_) | Entry::Ftp(_) | Entry::S3(_) => {}
+                Entry::Local(lid) => local_ids.push(lid),
+                Entry::Files(_) | Entry::Ftp(_) | Entry::S3(_) => {}
             }
         }
-        self.local.close_all();
+        if keep.is_empty() {
+            self.local.close_all();
+        } else {
+            for lid in local_ids {
+                let _ = self.local.close(lid);
+            }
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -849,5 +878,63 @@ mod tests {
         assert!(hub.is_empty());
         rx.recv_timeout(Duration::from_secs(5)).expect("exit event");
         assert!(matches!(hub.write(id, b"x").await, Err(AppError::NotFound)));
+    }
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_moved_terminal_keeps_running_and_survives_the_main_reload() {
+        use crate::routes::Route;
+        let hub = TerminalHub::with_default_flow();
+        let shell = ShellSpec::new("/bin/sh");
+        let size = TerminalSize::new(80, 24).unwrap();
+        let old = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let o = Arc::clone(&old);
+        let route = Route::new(move |ev| {
+            if let TerminalEvent::Output(b) = ev {
+                o.lock().unwrap().extend_from_slice(&b);
+            }
+            true
+        });
+        let moved = hub.open_local(&shell, size, route.sink()).unwrap();
+        let other = hub.open_local(&shell, size, |_| true).unwrap();
+
+        route.detach();
+        hub.write(moved, b"echo moved-$((40+2))\n").await.unwrap();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let new = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let n = Arc::clone(&new);
+        hub.reset_flow(moved).unwrap();
+        route.attach(move |ev| {
+            if let TerminalEvent::Output(b) = ev {
+                n.lock().unwrap().extend_from_slice(&b);
+            }
+            true
+        });
+        let start = std::time::Instant::now();
+        while !String::from_utf8_lossy(&new.lock().unwrap()).contains("moved-42") {
+            assert!(
+                start.elapsed() < Duration::from_secs(10),
+                "no output in the new window"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(!String::from_utf8_lossy(&old.lock().unwrap()).contains("moved-42"));
+
+        // The main window reloads: its terminals close, the moved one stays.
+        hub.close_all_except(&[moved]);
+        assert!(matches!(
+            hub.write(other, b"x").await,
+            Err(AppError::NotFound)
+        ));
+        hub.write(moved, b"echo still-$((1+1))\n").await.unwrap();
+        let start = std::time::Instant::now();
+        while !String::from_utf8_lossy(&new.lock().unwrap()).contains("still-2") {
+            assert!(
+                start.elapsed() < Duration::from_secs(10),
+                "moved terminal stopped"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        hub.close(moved).await.unwrap();
+        assert!(hub.is_empty());
     }
 }

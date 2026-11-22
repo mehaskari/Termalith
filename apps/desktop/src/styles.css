@@ -2321,3 +2321,23 @@ button.recording {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+/* ------------------------------------------------------------ moved terminal window (P8-10) */
+
+.moved-terminal {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--term-bg);
+}
+
+.moved-terminal .pane-terminal {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.moved-terminal .pane-terminal > * {
+  flex: 1;
+  min-width: 0;
+}

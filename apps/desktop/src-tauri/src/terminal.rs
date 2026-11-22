@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tauri::State;
 use tauri::ipc::{Channel, InvokeResponseBody};
 
-use app_core::{LogInfo, LogTap, ServerStats, tapped};
+use app_core::{LogInfo, LogTap, Route, ServerStats, tapped};
 use terminal_pty::{ExitInfo, TerminalEvent, TerminalEventSink, TerminalSize};
 
 use crate::error::IpcError;
@@ -39,15 +39,31 @@ impl From<Option<ExitInfo>> for ExitPayload {
     }
 }
 
-/// [`channel_sink`] with a log tap in front; register the tap under the
-/// terminal id once it is known.
+/// What a new terminal's output passes through: the log tap and the route
+/// that can move it to another window (ADR-042).
+pub struct SinkHandles {
+    tap: Arc<LogTap>,
+    route: Arc<Route>,
+}
+
+impl SinkHandles {
+    /// Registers both under the terminal id, once it is known.
+    pub fn register(self, state: &AppState, id: u64) {
+        state.logs.register(id, self.tap);
+        state.routes.register(id, self.route);
+    }
+}
+
+/// [`channel_sink`] behind a switchable route, with a log tap in front;
+/// register the handles under the terminal id once it is known.
 pub fn logged_sink(
     on_output: Channel<InvokeResponseBody>,
     on_exit: Channel<ExitPayload>,
-) -> (Arc<LogTap>, impl TerminalEventSink) {
+) -> (SinkHandles, impl TerminalEventSink) {
     let tap = Arc::new(LogTap::default());
-    let sink = tapped(Arc::clone(&tap), channel_sink(on_output, on_exit));
-    (tap, sink)
+    let route = Route::new(channel_sink(on_output, on_exit));
+    let sink = tapped(Arc::clone(&tap), route.sink());
+    (SinkHandles { tap, route }, sink)
 }
 
 /// Forwards terminal events to the two frontend channels.
@@ -97,7 +113,7 @@ pub async fn terminal_open(
 ) -> Result<u64, IpcError> {
     let size = TerminalSize::new(cols, rows)?;
     let hub = state.hub.clone();
-    let (tap, sink) = logged_sink(on_output, on_exit);
+    let (handles, sink) = logged_sink(on_output, on_exit);
     let id = tauri::async_runtime::spawn_blocking(move || -> Result<u64, IpcError> {
         let shell = match shell {
             Some(id) => terminal_pty::shell_by_id(&id)?,
@@ -107,7 +123,7 @@ pub async fn terminal_open(
     })
     .await
     .map_err(|_| IpcError::internal("terminal task failed"))??;
-    state.logs.register(id, tap);
+    handles.register(&state, id);
     Ok(id)
 }
 
@@ -128,7 +144,7 @@ pub async fn mosh_open(
         .sessions
         .get(&app_core::SessionId::parse(&session_id)?)?;
     let hub = state.hub.clone();
-    let (tap, sink) = logged_sink(on_output, on_exit);
+    let (handles, sink) = logged_sink(on_output, on_exit);
     let id = tauri::async_runtime::spawn_blocking(move || -> Result<u64, IpcError> {
         let mosh = app_core::find_mosh().ok_or_else(|| {
             IpcError::coded(
@@ -141,7 +157,7 @@ pub async fn mosh_open(
     })
     .await
     .map_err(|_| IpcError::internal("terminal task failed"))??;
-    state.logs.register(id, tap);
+    handles.register(&state, id);
     Ok(id)
 }
 
@@ -190,6 +206,7 @@ pub async fn terminal_ack(state: State<'_, AppState>, id: u64, bytes: u32) -> Re
 pub async fn terminal_close(state: State<'_, AppState>, id: u64) -> Result<(), IpcError> {
     state.tunnels.stop_for_terminal(id);
     state.logs.forget(id);
+    state.routes.remove(id);
     match state.hub.close(id).await {
         Ok(()) | Err(app_core::AppError::NotFound) => Ok(()),
         Err(e) => Err(e.into()),
@@ -208,7 +225,7 @@ pub async fn terminal_split(
     on_exit: Channel<ExitPayload>,
 ) -> Result<u64, IpcError> {
     let size = TerminalSize::new(cols, rows)?;
-    let (tap, sink) = logged_sink(on_output, on_exit);
+    let (handles, sink) = logged_sink(on_output, on_exit);
     let id = if state.hub.is_ssh(source)? {
         state.hub.open_ssh_sibling(source, size, sink).await?
     } else {
@@ -220,7 +237,7 @@ pub async fn terminal_split(
         .await
         .map_err(|_| IpcError::internal("terminal task failed"))??
     };
-    state.logs.register(id, tap);
+    handles.register(&state, id);
     Ok(id)
 }
 
@@ -251,7 +268,7 @@ pub async fn telnet_open(
         Some(jump) => Some(state.connector.connect_tunnel(jump).await?),
         None => None,
     };
-    let (tap, sink) = logged_sink(on_output, on_exit);
+    let (handles, sink) = logged_sink(on_output, on_exit);
     let id = state
         .hub
         .open_telnet(
@@ -263,7 +280,7 @@ pub async fn telnet_open(
             sink,
         )
         .await?;
-    state.logs.register(id, tap);
+    handles.register(&state, id);
     Ok(id)
 }
 
@@ -341,12 +358,12 @@ pub async fn serial_open(
     on_exit: Channel<ExitPayload>,
 ) -> Result<u64, IpcError> {
     let hub = state.hub.clone();
-    let (tap, sink) = logged_sink(on_output, on_exit);
+    let (handles, sink) = logged_sink(on_output, on_exit);
     let id = tauri::async_runtime::spawn_blocking(move || -> Result<u64, IpcError> {
         Ok(hub.open_serial(&config, sink)?)
     })
     .await
     .map_err(|_| IpcError::internal("serial task failed"))??;
-    state.logs.register(id, tap);
+    handles.register(&state, id);
     Ok(id)
 }

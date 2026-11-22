@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Move a tab to its own window.** Right-click a terminal tab → **Move to
+  new window**: the shell or connection keeps running in a separate window,
+  for example on a second screen.
 - **Fixed:** switching the proxy between SOCKS5 and HTTP in Settings no
   longer clears its user name.
 

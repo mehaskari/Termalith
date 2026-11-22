@@ -45,6 +45,8 @@ pub struct AppState {
     pub agent_available: bool,
     pub desktops: Arc<DesktopHub>,
     pub logs: Arc<TerminalLogs>,
+    /// Where each terminal's output goes; moved terminals (ADR-042).
+    pub routes: Arc<app_core::TerminalRoutes>,
     pub monitor: Arc<ServerMonitor>,
     pub master: Arc<MasterPassword>,
     /// Running from a portable folder (ADR-033).
@@ -193,6 +195,7 @@ impl AppState {
             agent_available,
             desktops,
             logs: Arc::new(TerminalLogs::new(logs_dir)),
+            routes: Arc::default(),
             monitor: Arc::new(ServerMonitor::default()),
             portable: portable.is_some(),
             master: Arc::new(MasterPassword {

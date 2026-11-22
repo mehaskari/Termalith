@@ -869,6 +869,24 @@ export const telnetTerminal =
   (cols, rows, onOutput, onExit) =>
     invoke<TerminalId>("telnet_open", { sessionId, cols, rows, ...channels(onOutput, onExit) });
 
+// ---------------------------------------------------------------- moved terminals (P8-10)
+
+/**
+ * Opens terminal `id` in a new window with the text it showed; the tab must
+ * let go of it (without closing it) once this resolves.
+ */
+export const moveTerminalToWindow = (id: TerminalId, title: string, history: string) =>
+  invoke<void>("terminal_move_to_window", { id, title, history });
+
+/** In a moved terminal's window: shows what the tab showed, then takes over the output. */
+export const movedTerminal =
+  (id: TerminalId): Opener =>
+  async (_cols, _rows, onOutput, onExit) => {
+    const history = await invoke<string>("terminal_take_history", { id });
+    if (history) onOutput(new TextEncoder().encode(history));
+    return invoke<TerminalId>("terminal_attach", { id, ...channels(onOutput, onExit) });
+  };
+
 /** Connects a saved session without a shell, for a file browser tab. */
 export function openFtpFiles(request: SshOpenRequest): Promise<SshOpened> {
   return invoke("ftp_files_open", { request });

@@ -93,6 +93,8 @@ import { useShortcuts } from "./app/useShortcuts";
 import { useTabLifecycle } from "./app/useTabLifecycle";
 import { useConnections } from "./app/useConnections";
 import { usePasswordPrompts } from "./app/usePasswordPrompts";
+import { useLegacyPrompts } from "./app/useLegacyPrompts";
+import { LegacyAlgorithmsDialog } from "./ui/LegacyAlgorithmsDialog";
 import { UpdateToast, dismissedVersion } from "./ui/UpdateToast";
 import { SessionIconGlyph } from "./ui/sessionIcons";
 import { Sidebar } from "./ui/Sidebar";
@@ -116,6 +118,7 @@ export function App() {
     useTabs();
   const [sessionDialog, setSessionDialog] = useState<SessionDialogState | null>(null);
   const { passwordRequest, askPassword, answerPassword } = usePasswordPrompts();
+  const { legacyRequest, askLegacy, answerLegacy } = useLegacyPrompts();
   const { hostKeyPrompt: currentPrompt, answerHostKey, authPrompt, answerAuth } = useConnectionPrompts();
   const [confirmDelete, setConfirmDelete] = useState<SessionRecord | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState<Tab | null>(null);
@@ -270,6 +273,7 @@ export function App() {
     patchTab,
     renameTab,
     askPassword,
+    askLegacy,
     refresh,
     notify: setNotice,
     canSave,
@@ -997,6 +1001,9 @@ export function App() {
           onSubmit={submitSession}
           onCancel={() => setSessionDialog(null)}
         />
+      )}
+      {legacyRequest && !passwordRequest && (
+        <LegacyAlgorithmsDialog key={legacyRequest.id} question={legacyRequest} onAnswer={answerLegacy} />
       )}
       {passwordRequest && (
         <PasswordDialog

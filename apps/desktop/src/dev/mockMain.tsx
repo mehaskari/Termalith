@@ -128,6 +128,20 @@ seed({ name: "file drop", host: "files.example.com", port: 21, username: "admin"
 seed({ name: "public mirror", host: "ftp.example.com", port: 21, username: "", auth: { kind: "password" }, folder: null, protocol: "ftp" });
 seed({ name: "backups bucket", host: "s3.eu-central-1.amazonaws.com", port: 443, username: "AKIAEXAMPLE", auth: { kind: "password" }, folder: null, protocol: "s3", s3: { bucket: "team-backups", region: "eu-central-1", pathStyle: false, https: true } });
 seed({ name: "lab vnc", host: "192.168.1.40", port: 5900, username: "", auth: { kind: "password" }, folder: null, protocol: "vnc" });
+// Knows only diffie-hellman-group1-sha1 (ADR-043): asks about old algorithms first.
+seed({ name: "old switch", host: "10.0.0.250", port: 22, username: "admin", auth: { kind: "password" }, folder: "Network" }, true);
+
+/** An old device refuses until old algorithms are allowed; "always" is kept on the session. */
+function legacyCheck(s: SessionRecord | undefined, legacy: unknown) {
+  if (!s || s.name !== "old switch") return;
+  if (legacy !== "once" && legacy !== "always" && !s.legacySsh)
+    throw {
+      code: "legacy_algorithms",
+      message: "the server offers only kex algorithms Termalith does not use: diffie-hellman-group1-sha1",
+      detail: { kind: "kex", offered: ["diffie-hellman-group1-sha1"] },
+    };
+  if (legacy === "always") s.legacySsh = true;
+}
 
 const mockFolders = new Set<string>(["Lab/Switches"]);
 const mockShared: Array<{ id: string; label: string; location: string; syncedAt: number | null; lastError: string | null; sessions: number }> = [];
@@ -266,9 +280,10 @@ mockIPC(
       case "ftp_files_open":
       case "s3_files_open":
       case "ssh_files_open": {
-        const req = a.request as { sessionId?: string; password?: string };
+        const req = a.request as { sessionId?: string; password?: string; legacy?: string };
         const s = req.sessionId ? sessions.get(req.sessionId) : undefined;
         if (!s) throw { code: "not_found", message: "not found" };
+        legacyCheck(s, req.legacy);
         if (s.auth.kind === "password" && !s.hasSavedSecret && s.username && req.password !== "secret")
           throw { code: req.password ? "auth_failed" : "password_required", message: "a password is required" };
         return { id: nextTerm++, label: s.name };
@@ -635,9 +650,10 @@ mockIPC(
         return id;
       }
       case "ssh_open": {
-        const req = a.request as { sessionId?: string; quick?: SessionInput; password?: string; savePassword?: boolean };
+        const req = a.request as { sessionId?: string; quick?: SessionInput; password?: string; savePassword?: boolean; legacy?: string };
         const target = req.sessionId ? sessions.get(req.sessionId) : (req.quick as SessionRecord | undefined);
         if (!target) throw { code: "not_found", message: "not found" };
+        legacyCheck(req.sessionId ? target : undefined, req.legacy);
         const hostKey = `${target.host}:${target.port}`;
         // `?nolan` pretends macOS blocks the local network.
         if (new URLSearchParams(location.search).has("nolan"))

@@ -15,6 +15,7 @@ import {
   openSshFiles,
   telnetTerminal,
 } from "../terminal/api";
+import type { LegacyAnswer, LegacyQuestion } from "../ui/LegacyAlgorithmsDialog";
 import type { PasswordAnswer } from "../ui/PasswordDialog";
 import { isFileStore, isFtp } from "../ui/sessionList";
 import type { Tab } from "./tabs";
@@ -24,6 +25,16 @@ export interface LoginOptions {
   canSave: boolean;
   keyAuth: boolean;
   savedSecret: boolean;
+  /** A saved session: "always allow old algorithms" can be kept on it. */
+  saved?: boolean;
+}
+
+/** The question to ask when a server knows only old SSH algorithms (ADR-043), else null. */
+export function legacyQuestion(e: IpcError, target: string, saved: boolean): LegacyQuestion | null {
+  if (e.code !== "legacy_algorithms") return null;
+  const d = (e.detail ?? {}) as { kind?: unknown; offered?: unknown };
+  const offered = Array.isArray(d.offered) ? d.offered.filter((x): x is string => typeof x === "string") : [];
+  return { target, kind: typeof d.kind === "string" ? d.kind : "", offered, canRemember: saved };
 }
 
 /**
@@ -60,35 +71,45 @@ export function useConnections(deps: {
   patchTab: (key: number, patch: Partial<Tab>) => void;
   renameTab: (key: number, title: string) => void;
   askPassword: (q: PasswordQuestion) => Promise<PasswordAnswer | null>;
+  askLegacy: (q: LegacyQuestion) => Promise<LegacyAnswer | null>;
   /** Reloads the session list (a password was saved). */
   refresh: () => void;
   notify: (message: string) => void;
   canSave: boolean;
   embeddedDesktops: boolean;
 }) {
-  const { addTab, patchTab, renameTab, askPassword, refresh, notify, canSave, embeddedDesktops } = deps;
+  const { addTab, patchTab, renameTab, askPassword, askLegacy, refresh, notify, canSave, embeddedDesktops } = deps;
 
   /**
    * Runs a login (`attempt`), asking for a password or key passphrase when
-   * the backend needs one and retrying; saving happens only after success.
+   * the backend needs one, or whether to allow old algorithms for an old
+   * device, and retrying; saving happens only after success.
    */
   const withLogin = useCallback(
     async <T extends { saveError?: string | null },>(
       label: string,
       opts: LoginOptions,
-      attempt: (password: string | undefined, save: boolean) => Promise<T>,
+      attempt: (password: string | undefined, save: boolean, legacy: LegacyAnswer | undefined) => Promise<T>,
     ): Promise<T> => {
       let secret: string | undefined;
       let save = false;
       let asked = false;
+      let legacy: LegacyAnswer | undefined;
       for (;;) {
         try {
-          const r = await attempt(secret, save);
-          if (save) refresh();
+          const r = await attempt(secret, save, legacy);
+          if (save || legacy === "always") refresh();
           if (r.saveError) notify(`Connected, but the password was not saved: ${r.saveError}`);
           return r;
         } catch (e) {
           if (!isIpcError(e)) throw e;
+          const old = legacy ? null : legacyQuestion(e, label, !!opts.saved);
+          if (old) {
+            const answer = await askLegacy(old);
+            if (!answer) throw cancelled();
+            legacy = answer;
+            continue;
+          }
           const kind = loginQuestion(e, secret !== undefined, opts);
           if (!kind) throw e;
           const answer = await askPassword({
@@ -104,15 +125,15 @@ export function useConnections(deps: {
         }
       }
     },
-    [askPassword, refresh, notify],
+    [askPassword, askLegacy, refresh, notify],
   );
 
   const connect = useCallback(
     (target: SshTarget, label: string, opts: LoginOptions & { startup?: string | null }) => {
       let tabKey = 0;
       const open: Opener = async (cols, rows, onOutput, onExit) => {
-        const r = await withLogin(label, opts, (password, savePassword) =>
-          openSsh({ ...target, password, savePassword }, cols, rows, onOutput, onExit),
+        const r = await withLogin(label, { ...opts, saved: "sessionId" in target }, (password, savePassword, legacy) =>
+          openSsh({ ...target, password, savePassword, legacy }, cols, rows, onOutput, onExit),
         );
         renameTab(tabKey, r.label);
         return r.id;
@@ -137,9 +158,9 @@ export function useConnections(deps: {
       patchTab(key, { sessionId: s.id, noShell: ftp || s3 });
       withLogin(
         s.name,
-        { canSave, keyAuth: s.auth.kind === "keyFile", savedSecret: s.hasSavedSecret },
-        (password, savePassword) =>
-          (s3 ? openS3Files : ftp ? openFtpFiles : openSshFiles)({ sessionId: s.id, password, savePassword }),
+        { canSave, keyAuth: s.auth.kind === "keyFile", savedSecret: s.hasSavedSecret, saved: true },
+        (password, savePassword, legacy) =>
+          (s3 ? openS3Files : ftp ? openFtpFiles : openSshFiles)({ sessionId: s.id, password, savePassword, legacy }),
       ).then(
         (r) => patchTab(key, { terminalId: r.id }),
         (e) => patchTab(key, { ended: true, desktopError: isIpcError(e) ? e.message : String(e) }),

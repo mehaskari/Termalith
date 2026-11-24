@@ -247,6 +247,8 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     DROP TABLE sessions;
     ALTER TABLE sessions_v23 RENAME TO sessions;
     CREATE INDEX sessions_name ON sessions (name COLLATE NOCASE);",
+    // v24: allow legacy SSH algorithms per session (old switches, ADR-043).
+    "ALTER TABLE sessions ADD COLUMN legacy_ssh INTEGER NOT NULL DEFAULT 0;",
 ];
 
 pub(crate) fn migrate(conn: &mut Connection) -> Result<(), AppError> {

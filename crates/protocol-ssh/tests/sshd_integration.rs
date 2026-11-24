@@ -243,7 +243,7 @@ async fn rsa_host_key_negotiates_sha2() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn sha1_rsa_host_key_algorithm_is_not_accepted() {
+async fn sha1_rsa_host_key_needs_legacy_algorithms() {
     let s = sshd_or_skip!(SshdConfig {
         host_key_type: Some("rsa"),
         extra: vec!["HostKeyAlgorithms ssh-rsa".into()],
@@ -256,9 +256,18 @@ async fn sha1_rsa_host_key_algorithm_is_not_accepted() {
         &opts(kh, Arc::new(RejectUnknown)),
     )
     .await;
-    // Must fail in algorithm negotiation, not later (host-key trust or auth).
+    // Must fail in algorithm negotiation, not later (host-key trust or
+    // auth), with the typed error the UI turns into a question (ADR-043).
     match r {
-        Err(SshError::Connect(msg)) => eprintln!("negotiation refused as expected: {msg}"),
+        Err(SshError::NoCommonAlgorithm {
+            kind,
+            theirs,
+            legacy_would_help,
+        }) => {
+            assert_eq!(kind, "key");
+            assert!(theirs.iter().any(|t| t == "ssh-rsa"), "{theirs:?}");
+            assert!(legacy_would_help);
+        }
         Err(other) => panic!("expected a negotiation failure, got {other:?}"),
         Ok(_) => panic!("client must not negotiate ssh-rsa (SHA-1) host keys"),
     }
@@ -266,6 +275,19 @@ async fn sha1_rsa_host_key_algorithm_is_not_accepted() {
         !s.log().contains("Accepted publickey"),
         "authentication must not have been reached"
     );
+
+    // Allowed by the user: the same real OpenSSH server is reached, the
+    // recorded host key is still checked.
+    let mut legacy = opts(known_hosts(&s), Arc::new(RejectUnknown));
+    legacy
+        .known_hosts
+        .add("127.0.0.1", s.port, &host_key(&s))
+        .unwrap();
+    legacy.legacy_algorithms = true;
+    let sess = SshSession::connect(&target(&s), &key_auth(&s), &legacy)
+        .await
+        .expect("connects with legacy algorithms");
+    sess.disconnect().await.unwrap();
 }
 
 // ---------------------------------------------------------------- auth

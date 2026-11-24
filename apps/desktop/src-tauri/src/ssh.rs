@@ -1,7 +1,7 @@
 //! SSH IPC: open a terminal on a saved session or a quick-connect target,
 //! and answer host-key prompts.
 
-use app_core::{AuthMethod, ConnectRequest, PasswordInput, SessionId};
+use app_core::{AuthMethod, ConnectRequest, LegacyChoice, PasswordInput, SessionId};
 use protocol_ssh::HostKeyDecision;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -32,6 +32,24 @@ pub struct SshOpenRequest {
     password: Option<String>,
     #[serde(default)]
     save_password: bool,
+    /// The user's answer after a refusal for old algorithms (ADR-043).
+    #[serde(default)]
+    legacy: Option<LegacyAnswer>,
+}
+
+#[derive(Deserialize, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+pub enum LegacyAnswer {
+    Once,
+    Always,
+}
+
+fn legacy_choice(answer: Option<LegacyAnswer>) -> LegacyChoice {
+    match answer {
+        None => LegacyChoice::AsSaved,
+        Some(LegacyAnswer::Once) => LegacyChoice::Once,
+        Some(LegacyAnswer::Always) => LegacyChoice::Always,
+    }
 }
 
 #[derive(Serialize)]
@@ -76,8 +94,9 @@ pub async fn ssh_files_open(
     state: State<'_, AppState>,
     request: SshOpenRequest,
 ) -> Result<SshOpened, IpcError> {
+    let legacy = legacy_choice(request.legacy);
     let req = connect_request(&state, request)?;
-    let connected = state.connector.connect(req).await?;
+    let connected = state.connector.connect_with(req, legacy).await?;
     Ok(SshOpened {
         id: state.hub.open_files(connected.session),
         label: connected.label,
@@ -130,8 +149,9 @@ pub async fn ssh_open(
     on_exit: Channel<ExitPayload>,
 ) -> Result<SshOpened, IpcError> {
     let size = TerminalSize::new(cols, rows)?;
+    let legacy = legacy_choice(request.legacy);
     let req = connect_request(&state, request)?;
-    let connected = state.connector.connect(req).await?;
+    let connected = state.connector.connect_with(req, legacy).await?;
     let (handles, sink) = logged_sink(on_output, on_exit);
     let id = state.hub.open_ssh(connected.session, size, sink).await?;
     handles.register(&state, id);

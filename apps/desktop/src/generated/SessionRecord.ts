@@ -65,4 +65,10 @@ icon: Icon | null,
 /**
  * S3 sessions: bucket, region and connection options.
  */
-s3: S3Options | null, };
+s3: S3Options | null, 
+/**
+ * Also offer old, weak SSH algorithms (SHA-1 key exchange, CBC,
+ * `ssh-rsa`/`ssh-dss` host keys) for devices that know nothing newer
+ * (SSH only, ADR-043).
+ */
+legacySsh: boolean, };

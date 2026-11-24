@@ -3,7 +3,7 @@
 //! Independent of Tauri and React. Host-key trust decisions are made by the
 //! caller through [`HostKeyDecider`]; nothing is accepted silently.
 
-mod algorithms;
+pub mod algorithms;
 mod error;
 mod forward;
 mod host_key;

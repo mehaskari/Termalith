@@ -100,6 +100,7 @@ mod tests {
             appearance: None,
             icon: None,
             s3: None,
+            legacy_ssh: false,
         }
     }
 

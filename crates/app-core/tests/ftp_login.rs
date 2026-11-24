@@ -65,6 +65,7 @@ fn session(addr: &str, protocol: SessionProtocol) -> SessionInput {
         appearance: None,
         icon: None,
         s3: None,
+        legacy_ssh: false,
     }
 }
 

@@ -347,6 +347,12 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             agent&apos;s keys (they cannot copy them). Not applied to the jump host.
           </p>
         )}
+        {mode !== "quick" && form.protocol === "ssh" && !form.mosh && (
+          <label className="checkbox span-2">
+            <input type="checkbox" checked={form.legacySsh} onChange={(e) => set({ legacySsh: e.target.checked })} />
+            Allow old SSH algorithms (for old switches and routers; weaker security)
+          </label>
+        )}
         {mode !== "quick" && (shell || form.protocol === "telnet") && (
           <fieldset className="span-2 session-look">
             <legend>Appearance (optional; empty follows Settings)</legend>

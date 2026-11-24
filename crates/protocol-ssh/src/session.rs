@@ -81,6 +81,11 @@ pub struct ConnectOptions {
     /// Reach the server through this proxy (direct connections only; a
     /// jump host's tunnel does not use it).
     pub proxy: Option<crate::Proxy>,
+    /// Also offer weak legacy algorithms (SHA-1 key exchange, CBC, HMAC-SHA1,
+    /// `ssh-rsa`/`ssh-dss` host keys) and SHA-1 RSA user signatures to
+    /// servers that know nothing newer. Only when the user allowed it
+    /// (ADR-043).
+    pub legacy_algorithms: bool,
 }
 
 impl ConnectOptions {
@@ -94,6 +99,7 @@ impl ConnectOptions {
             agent_forward: None,
             x11: None,
             proxy: None,
+            legacy_algorithms: false,
         }
     }
 }
@@ -370,7 +376,7 @@ impl SshSession {
         via: Option<Arc<SshSession>>,
     ) -> Result<Self, SshError> {
         let config = Arc::new(client::Config {
-            preferred: algorithms::preferred(),
+            preferred: algorithms::preferred(opts.legacy_algorithms),
             keepalive_interval: opts.keepalive,
             ..Default::default()
         });
@@ -421,7 +427,17 @@ impl SshSession {
             Ok(h) => h,
             Err(e) => {
                 let typed = refusal.lock().unwrap_or_else(|p| p.into_inner()).take();
-                return Err(typed.unwrap_or_else(|| SshError::Connect(e.to_string())));
+                return Err(typed.unwrap_or_else(|| match e {
+                    russh::Error::NoCommonAlgo { kind, theirs, .. } => {
+                        SshError::NoCommonAlgorithm {
+                            kind: format!("{kind:?}").to_lowercase(),
+                            legacy_would_help: !opts.legacy_algorithms
+                                && theirs.iter().any(|t| algorithms::is_legacy(t)),
+                            theirs,
+                        }
+                    }
+                    other => SshError::Connect(other.to_string()),
+                }));
             }
         };
 
@@ -435,12 +451,7 @@ impl SshSession {
                 let key = load_secret_key(path, passphrase.as_ref().map(|p| p.as_str()))
                     .map_err(|e| SshError::Key(e.to_string()))?;
                 let hash = if key.algorithm().is_rsa() {
-                    // Never fall back to SHA-1 signatures.
-                    handle
-                        .best_supported_rsa_hash()
-                        .await?
-                        .flatten()
-                        .or(Some(HashAlg::Sha256))
+                    rsa_hash(&mut handle, opts.legacy_algorithms).await?
                 } else {
                     None
                 };
@@ -452,7 +463,8 @@ impl SshSession {
                     .await?
             }
             Auth::Agent { socket } => {
-                agent::authenticate(&mut handle, &target.user, socket).await?
+                agent::authenticate(&mut handle, &target.user, socket, opts.legacy_algorithms)
+                    .await?
             }
         };
         if kbd_follows(auth, &result) {
@@ -708,11 +720,25 @@ fn shell_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
+/// The hash for an RSA user key signature. SHA-2 unless legacy algorithms
+/// are allowed and the server does not say it supports SHA-2 (old servers
+/// send no `server-sig-algs`, or list only `ssh-rsa`); then SHA-1.
+async fn rsa_hash(
+    handle: &mut Handle<ClientHandler>,
+    legacy: bool,
+) -> Result<Option<HashAlg>, SshError> {
+    let supported = handle.best_supported_rsa_hash().await?;
+    Ok(match supported {
+        Some(Some(hash)) => Some(hash),
+        _ if legacy => None,
+        _ => Some(HashAlg::Sha256),
+    })
+}
+
 mod agent {
     use std::path::Path;
 
     use russh::client::{AuthResult, Handle};
-    use russh::keys::HashAlg;
     use russh::keys::agent::AgentIdentity;
     use russh::keys::agent::client::AgentClient;
     use tokio::io::{AsyncRead, AsyncWrite};
@@ -738,19 +764,21 @@ mod agent {
         handle: &mut Handle<ClientHandler>,
         user: &str,
         socket: &Path,
+        legacy: bool,
     ) -> Result<AuthResult, SshError> {
         #[cfg(unix)]
         let agent = AgentClient::connect_uds(socket).await;
         #[cfg(windows)]
         let agent = AgentClient::connect_named_pipe(socket).await;
         let agent = agent.map_err(|e| SshError::Agent(format!("cannot connect: {e}")))?;
-        with_agent(handle, user, agent).await
+        with_agent(handle, user, agent, legacy).await
     }
 
     async fn with_agent<R>(
         handle: &mut Handle<ClientHandler>,
         user: &str,
         mut agent: AgentClient<R>,
+        legacy: bool,
     ) -> Result<AuthResult, SshError>
     where
         R: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -772,12 +800,7 @@ mod agent {
         let mut last = None;
         for key in keys {
             let hash = if key.algorithm().is_rsa() {
-                // Never SHA-1 signatures.
-                handle
-                    .best_supported_rsa_hash()
-                    .await?
-                    .flatten()
-                    .or(Some(HashAlg::Sha256))
+                super::rsa_hash(handle, legacy).await?
             } else {
                 None
             };

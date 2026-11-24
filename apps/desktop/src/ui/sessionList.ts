@@ -224,6 +224,8 @@ export interface SessionFormState {
   tags: string;
   forwardAgent: boolean;
   x11Forward: boolean;
+  /** Old, weak SSH algorithms for devices that know nothing newer. */
+  legacySsh: boolean;
   startupCommand: string;
   filesOnly: boolean;
   mosh: boolean;
@@ -262,6 +264,7 @@ export function withSessionDefaults(
     appearance: null,
     icon: null,
     s3: null,
+    legacySsh: false,
     ...input,
   };
 }
@@ -281,6 +284,7 @@ export function emptyForm(): SessionFormState {
     tags: "",
     forwardAgent: false,
     x11Forward: false,
+    legacySsh: false,
     startupCommand: "",
     filesOnly: false,
     mosh: false,
@@ -310,6 +314,7 @@ export function formFromSession(s: SessionInput): SessionFormState {
     tags: (s.tags ?? []).join(", "),
     forwardAgent: s.forwardAgent ?? false,
     x11Forward: s.x11Forward ?? false,
+    legacySsh: s.legacySsh ?? false,
     startupCommand: s.startupCommand ?? "",
     filesOnly: s.filesOnly ?? false,
     mosh: s.mosh ?? false,
@@ -451,6 +456,7 @@ export function parseForm(
       appearance,
       icon: f.icon,
       s3: s3 ? { bucket, region, pathStyle: f.s3PathStyle, https: f.s3Https } : null,
+      legacySsh: f.protocol === "ssh" && !mosh && f.legacySsh,
     },
   };
 }

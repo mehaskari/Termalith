@@ -31,6 +31,12 @@ it already is), then use **Restart Termalith**. Because unsigned versions
 count as a new app, this can come back after an update. If it still fails,
 restart the Mac once.
 
+**"No common Kex algorithm" or "offers only … algorithms".** The device
+knows only old SSH algorithms (common on older switches and routers).
+Termalith asks whether to allow them; if you declined, connect again or tick
+**Allow old SSH algorithms** in the session dialog. See
+[Old switches and routers](ssh.md#old-switches-and-routers).
+
 **"No SSH agent is available".** Start an agent and add a key
 (`ssh-add`). On macOS the system agent is available to apps automatically;
 on Linux, apps started from the desktop need `SSH_AUTH_SOCK` from your

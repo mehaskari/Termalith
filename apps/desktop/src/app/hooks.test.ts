@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DesktopInfo } from "../terminal/api";
 import type { Tab } from "./tabs";
 import { released, withDesktopStates } from "./useTabLifecycle";
-import { loginQuestion, retryReason } from "./useConnections";
+import { legacyQuestion, loginQuestion, retryReason } from "./useConnections";
 import { nthTab, zoomedFontSize } from "./useShortcuts";
 
 const desktop = (id: number, state: Partial<DesktopInfo> = {}): DesktopInfo =>
@@ -83,5 +83,29 @@ describe("login questions", () => {
     expect(retryReason(err("auth_failed"), true, false)).toBe("wrong");
     expect(retryReason(err("password_required"), false, true)).toBe("savedRejected");
     expect(retryReason(err("password_required"), false, false)).toBeNull();
+  });
+});
+
+describe("old SSH algorithms", () => {
+  it("asks only for the legacy refusal, with what the server offered", () => {
+    const e = {
+      code: "legacy_algorithms",
+      message: "old",
+      detail: { kind: "kex", offered: ["diffie-hellman-group1-sha1", 7] },
+    };
+    expect(legacyQuestion(e, "switch", true)).toEqual({
+      target: "switch",
+      kind: "kex",
+      offered: ["diffie-hellman-group1-sha1"],
+      canRemember: true,
+    });
+    expect(legacyQuestion({ code: "legacy_algorithms", message: "x" }, "q", false)).toEqual({
+      target: "q",
+      kind: "",
+      offered: [],
+      canRemember: false,
+    });
+    expect(legacyQuestion({ code: "no_common_algorithm", message: "x" }, "s", true)).toBeNull();
+    expect(legacyQuestion({ code: "auth_failed", message: "x" }, "s", true)).toBeNull();
   });
 });

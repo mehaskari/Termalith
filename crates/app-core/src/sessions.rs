@@ -174,6 +174,11 @@ pub struct SessionInput {
     /// S3 sessions: bucket, region and connection options.
     #[serde(default)]
     pub s3: Option<S3Options>,
+    /// Also offer old, weak SSH algorithms (SHA-1 key exchange, CBC,
+    /// `ssh-rsa`/`ssh-dss` host keys) for devices that know nothing newer
+    /// (SSH only, ADR-043).
+    #[serde(default)]
+    pub legacy_ssh: bool,
 }
 
 /// Where an S3 session's files are: the host and port are the endpoint,
@@ -483,6 +488,12 @@ impl SessionInput {
             }
             _ => {}
         }
+        if self.legacy_ssh && self.protocol != SessionProtocol::Ssh {
+            return Err(AppError::invalid(
+                "legacy SSH algorithms",
+                "only for SSH sessions",
+            ));
+        }
         if self.files_only {
             if self.protocol != SessionProtocol::Ssh {
                 return Err(AppError::invalid("files only", "only for SSH sessions"));
@@ -578,7 +589,7 @@ impl SessionStore {
     pub fn list(&self) -> Result<Vec<SessionRecord>, AppError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source, s3
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source, s3, legacy_ssh
              FROM sessions ORDER BY folder IS NOT NULL, folder COLLATE NOCASE, name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], row_to_record)?;
@@ -589,7 +600,7 @@ impl SessionStore {
     pub fn get(&self, id: &SessionId) -> Result<SessionRecord, AppError> {
         let conn = self.conn();
         conn.query_row(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source, s3
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source, s3, legacy_ssh
              FROM sessions WHERE id = ?1",
             [id.as_str()],
             row_to_record,
@@ -605,8 +616,8 @@ impl SessionStore {
         let (kind, key) = auth_columns(&input.auth);
         let t = now();
         self.conn().execute(
-            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, s3)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
+            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, s3, legacy_ssh)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
             params![
                 id.as_str(),
                 input.name.trim(),
@@ -628,7 +639,8 @@ impl SessionStore {
                 input.mosh,
                 appearance_json(&input.appearance),
                 Icon::to_json(&input.icon),
-                S3Options::to_json(&input.s3)
+                S3Options::to_json(&input.s3),
+                input.legacy_ssh
             ],
         )?;
         self.get(&id)
@@ -694,7 +706,7 @@ impl SessionStore {
             "UPDATE sessions SET name = ?2, host = ?3, port = ?4, username = ?5, auth_kind = ?6,
              key_path = ?7, folder = ?8, credential_ref = ?9, updated_at = ?10, jump_session_id = ?11,
              protocol = ?12, domain = ?13, tags = ?14, forward_agent = ?15,
-             x11_forward = ?16, startup_command = ?17, files_only = ?18, mosh = ?19, appearance = ?20, icon = ?21, s3 = ?22
+             x11_forward = ?16, startup_command = ?17, files_only = ?18, mosh = ?19, appearance = ?20, icon = ?21, s3 = ?22, legacy_ssh = ?23
              WHERE id = ?1",
             params![
                 id.as_str(),
@@ -718,7 +730,8 @@ impl SessionStore {
                 input.mosh,
                 appearance_json(&input.appearance),
                 Icon::to_json(&input.icon),
-                S3Options::to_json(&input.s3)
+                S3Options::to_json(&input.s3),
+                input.legacy_ssh
             ],
         )?;
         Ok((self.get(id)?, stale))
@@ -732,6 +745,19 @@ impl SessionStore {
         let n = self.conn().execute(
             "UPDATE sessions SET credential_ref = ?2, updated_at = ?3 WHERE id = ?1",
             params![id.as_str(), cred.map(|c| c.as_str()), now()],
+        )?;
+        if n == 0 {
+            return Err(AppError::NotFound);
+        }
+        Ok(())
+    }
+
+    /// Allows legacy SSH algorithms for session `id` (the user chose
+    /// "always" after a refused connection).
+    pub fn set_legacy_ssh(&self, id: &SessionId, legacy: bool) -> Result<(), AppError> {
+        let n = self.conn().execute(
+            "UPDATE sessions SET legacy_ssh = ?2, updated_at = ?3 WHERE id = ?1",
+            params![id.as_str(), i64::from(legacy), now()],
         )?;
         if n == 0 {
             return Err(AppError::NotFound);
@@ -834,6 +860,7 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
             // An unreadable icon shows the protocol instead.
             icon: Icon::from_json(r.get(21)?),
             s3: S3Options::from_json(r.get(23)?),
+            legacy_ssh: r.get::<_, i64>(24)? != 0,
         },
         updated_at: r.get(9)?,
         shared: r.get(22)?,
@@ -864,6 +891,7 @@ mod tests {
             appearance: None,
             icon: None,
             s3: None,
+            legacy_ssh: false,
         }
     }
 
@@ -1058,6 +1086,7 @@ mod tests {
             appearance: None,
             icon: None,
             s3: None,
+            legacy_ssh: false,
         };
         let rec = store.create(&rdp).unwrap();
         assert_eq!(store.get(&rec.id).unwrap().input, rdp);
@@ -1146,6 +1175,53 @@ mod tests {
             )
             .unwrap();
         assert_eq!(store.get(&rec.id).unwrap().input.icon, None);
+    }
+
+    #[test]
+    fn legacy_ssh_is_saved_for_ssh_sessions_only_and_survives_v23() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("v23.db");
+        {
+            // A database from before v24 keeps its sessions, legacy off.
+            let mut conn = Connection::open(&path).unwrap();
+            conn.execute_batch(MIGRATIONS[0]).unwrap();
+            conn.pragma_update(None, "user_version", 1).unwrap();
+            conn.execute(
+                "INSERT INTO sessions (id, name, host, port, username, auth_kind, created_at, updated_at)
+                 VALUES ('ses-0123456789abcdef01234567', 'switch', 'h', 22, 'u', 'password', 1, 1)",
+                [],
+            )
+            .unwrap();
+            let tx = conn.transaction().unwrap();
+            for sql in &MIGRATIONS[1..23] {
+                tx.execute_batch(sql).unwrap();
+            }
+            tx.pragma_update(None, "user_version", 23).unwrap();
+            tx.commit().unwrap();
+        }
+        let store = SessionStore::open(&path).unwrap();
+        let id = SessionId::parse("ses-0123456789abcdef01234567").unwrap();
+        assert!(!store.get(&id).unwrap().input.legacy_ssh);
+        store.set_legacy_ssh(&id, true).unwrap();
+        assert!(store.get(&id).unwrap().input.legacy_ssh);
+
+        let mut s = input();
+        s.legacy_ssh = true;
+        let rec = store.create(&s).unwrap();
+        assert!(rec.input.legacy_ssh);
+        s.legacy_ssh = false;
+        assert!(!store.update(&rec.id, &s).unwrap().0.input.legacy_ssh);
+        s.protocol = SessionProtocol::Telnet;
+        s.port = 23;
+        s.legacy_ssh = true;
+        assert!(s.validate().is_err(), "SSH only");
+        assert!(matches!(
+            store.set_legacy_ssh(
+                &SessionId::parse("ses-ffffffffffffffffffffffff").unwrap(),
+                true
+            ),
+            Err(AppError::NotFound)
+        ));
     }
 
     #[test]

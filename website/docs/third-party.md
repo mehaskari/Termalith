@@ -9,7 +9,7 @@ packages via pnpm) and covers what ships in the app on all platforms.
 
 | License | Crates |
 |---|---|
-| MIT License | 580 |
+| MIT License | 581 |
 | Apache License 2.0 | 20 |
 | Unicode License v3 | 19 |
 | BSD 3-Clause "New" or "Revised" License | 8 |
@@ -4215,7 +4215,7 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `cookie 0.18.2`
+Used by: `cookie 0.18.3`
 
 ```text
 Copyright (c) 2017 Sergio Benitez
@@ -5044,7 +5044,7 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `ecdsa 0.17.0`, `ed25519 3.0.0`, `rfc6979 0.6.0`, `signature 3.0.0`
+Used by: `dsa 0.7.0`, `ecdsa 0.17.0`, `ed25519 3.0.0`, `rfc6979 0.6.0`, `signature 3.0.0`
 
 ```text
 Copyright (c) 2018-2026 RustCrypto Developers

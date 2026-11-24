@@ -86,6 +86,21 @@ impl From<SshError> for IpcError {
                     "host": host, "port": port, "presented": presented, "known": known,
                 })),
             },
+            // Old devices: when allowing legacy algorithms would help, the UI
+            // asks the user (ADR-043); otherwise it is a plain failure.
+            SshError::NoCommonAlgorithm {
+                kind,
+                theirs,
+                legacy_would_help,
+            } => Self {
+                code: if legacy_would_help {
+                    "legacy_algorithms"
+                } else {
+                    "no_common_algorithm"
+                },
+                message,
+                detail: Some(serde_json::json!({ "kind": kind, "offered": theirs })),
+            },
             SshError::HostCertificateUnsupported => {
                 Self::new("host_certificate_unsupported", message)
             }

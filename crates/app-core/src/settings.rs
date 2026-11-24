@@ -325,6 +325,9 @@ struct ExportedSession {
     icon: Option<crate::sessions::Icon>,
     #[serde(default)]
     s3: Option<crate::sessions::S3Options>,
+    /// Legacy SSH algorithms allowed (ADR-043).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    legacy_ssh: bool,
 }
 
 /// Serializes every session as versioned JSON. Never includes secrets.
@@ -360,6 +363,7 @@ pub fn export_sessions(store: &SessionStore) -> Result<String, AppError> {
                 appearance: s.input.appearance.clone(),
                 icon: s.input.icon.clone(),
                 s3: s.input.s3.clone(),
+                legacy_ssh: s.input.legacy_ssh,
             })
             .collect(),
     };
@@ -478,6 +482,7 @@ fn to_input(s: &ExportedSession) -> SessionInput {
         // A damaged icon in the file must not refuse the session.
         icon: s.icon.clone().filter(|i| i.validate().is_ok()),
         s3: s.s3.clone(),
+        legacy_ssh: s.legacy_ssh,
     }
 }
 
@@ -563,6 +568,7 @@ mod tests {
             appearance: None,
             icon: None,
             s3: None,
+            legacy_ssh: false,
         }
     }
 
@@ -582,6 +588,7 @@ mod tests {
         src.update(&bastion.id, &tagged).unwrap();
         let mut app = input("app");
         app.jump_via = Some(bastion.id.clone());
+        app.legacy_ssh = true;
         src.create(&app).unwrap();
 
         let json = export_sessions(&src).unwrap();
@@ -604,6 +611,9 @@ mod tests {
         assert_eq!(b.input.startup_command.as_deref(), Some("cd /srv"));
         assert!(!b.has_saved_secret, "secrets are never imported");
         assert_eq!(a.input.jump_via.as_ref(), Some(&b.id));
+        assert!(a.input.legacy_ssh, "the legacy algorithms choice travels");
+        assert!(!b.input.legacy_ssh);
+        assert_eq!(json.matches("legacySsh").count(), 1, "written only when on");
 
         // Importing again skips everything.
         let again = import_sessions(&dst, &json).unwrap();

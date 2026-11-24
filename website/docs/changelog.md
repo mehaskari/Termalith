@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Old switches and routers.** When a device offers only old SSH
+  algorithms (for example `diffie-hellman-group1-sha1`, CBC ciphers,
+  `ssh-rsa`), Termalith now asks instead of failing: connect once, or always
+  for that session (*Allow old SSH algorithms* in the session dialog). The
+  ECDH curves `ecdh-sha2-nistp256/384/521` work without asking.
 - **Move a tab to its own window.** Right-click a terminal tab → **Move to
   new window**: the shell or connection keeps running in a separate window,
   for example on a second screen.

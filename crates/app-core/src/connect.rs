@@ -33,6 +33,18 @@ pub enum PasswordInput {
     },
 }
 
+/// Whether this connection may use legacy SSH algorithms (ADR-043).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LegacyChoice {
+    /// As the session says (`legacy_ssh`); a quick connection: no.
+    #[default]
+    AsSaved,
+    /// Allowed for this connection only.
+    Once,
+    /// Allowed, and saved on the session after a successful login.
+    Always,
+}
+
 pub enum ConnectRequest {
     Saved {
         id: SessionId,
@@ -70,8 +82,17 @@ pub struct Connected {
 
 impl Connector {
     pub async fn connect(&self, req: ConnectRequest) -> Result<Connected, AppError> {
+        self.connect_with(req, LegacyChoice::AsSaved).await
+    }
+
+    /// [`Connector::connect`] with the user's answer about legacy algorithms.
+    pub async fn connect_with(
+        &self,
+        req: ConnectRequest,
+        legacy: LegacyChoice,
+    ) -> Result<Connected, AppError> {
         match req {
-            ConnectRequest::Saved { id, secret } => self.connect_saved(&id, secret).await,
+            ConnectRequest::Saved { id, secret } => self.connect_saved(&id, secret, legacy).await,
             ConnectRequest::Quick {
                 host,
                 port,
@@ -98,6 +119,7 @@ impl Connector {
                     appearance: None,
                     icon: None,
                     s3: None,
+                    legacy_ssh: legacy != LegacyChoice::AsSaved,
                 };
                 input.validate()?;
                 let typed = match secret {
@@ -270,8 +292,13 @@ impl Connector {
         &self,
         id: &SessionId,
         secret: PasswordInput,
+        legacy: LegacyChoice,
     ) -> Result<Connected, AppError> {
-        let rec = self.sessions.get(id)?;
+        let mut rec = self.sessions.get(id)?;
+        let saved_legacy = rec.input.legacy_ssh;
+        if legacy != LegacyChoice::AsSaved {
+            rec.input.legacy_ssh = true;
+        }
         if rec.input.protocol != SessionProtocol::Ssh {
             return Err(AppError::invalid("session", "not an SSH session"));
         }
@@ -299,7 +326,15 @@ impl Connector {
             Err(e) => return Err(e),
         };
 
-        let save_error = self.remember(id, rec.credential.clone(), typed, save).await;
+        let mut save_error = self.remember(id, rec.credential.clone(), typed, save).await;
+        // Like a password: kept only once a login worked.
+        if legacy == LegacyChoice::Always
+            && !saved_legacy
+            && let Err(e) = self.sessions.set_legacy_ssh(id, true)
+        {
+            save_error
+                .get_or_insert_with(|| format!("the legacy algorithms choice was not saved: {e}"));
+        }
         Ok(Connected {
             session: Arc::new(session),
             label: rec.input.name.clone(),
@@ -340,6 +375,8 @@ impl Connector {
         let mut opts = ConnectOptions::new(Arc::clone(&self.known_hosts), self.broker.clone());
         opts.timeout = self.timeout;
         opts.kbd = self.kbd.clone();
+        // Each hop by its own session's choice (a jump host has its own).
+        opts.legacy_algorithms = input.legacy_ssh;
         // Only the host the user connects to, never a jump host.
         if depth == 0 && input.forward_agent {
             opts.agent_forward = Some(self.agent.clone().ok_or_else(|| {

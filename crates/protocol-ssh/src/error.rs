@@ -26,6 +26,16 @@ pub enum SshError {
         known: Vec<String>,
     },
 
+    /// The server and Termalith share no algorithm of one kind. When
+    /// `legacy_would_help`, the server offers only old algorithms that the
+    /// user can allow for this connection (ADR-043).
+    #[error("the server offers only {kind} algorithms Termalith does not use: {}", theirs.join(", "))]
+    NoCommonAlgorithm {
+        kind: String,
+        theirs: Vec<String>,
+        legacy_would_help: bool,
+    },
+
     #[error("server presented a host certificate, which is not supported yet")]
     HostCertificateUnsupported,
 

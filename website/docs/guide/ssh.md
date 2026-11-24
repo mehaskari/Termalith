@@ -31,6 +31,21 @@ If a server's key **changes**, Termalith refuses to connect and shows both
 fingerprints. Only after the server's administrator confirms the change, use
 **Remove recorded key…** and connect again.
 
+## Old switches and routers
+
+Older network devices often know only algorithms that modern SSH no longer
+uses, such as `diffie-hellman-group1-sha1`, `3des-cbc`, `hmac-sha1` or
+`ssh-rsa` host keys. Termalith leaves these out by default. When a device
+offers nothing newer, Termalith says so and asks: **Connect once**,
+**Always allow for this session** (saved sessions) or **Don't connect**.
+The connection is still encrypted and the host key is still checked; the
+algorithms are only weaker. You can also tick **Allow old SSH algorithms**
+in the session dialog beforehand. A jump host uses its own session's
+setting.
+
+The modern ECDH curves (`ecdh-sha2-nistp256/384/521`) that many devices
+offer work without asking.
+
 ## Jump hosts and proxies
 
 - **Jump host:** in the session dialog choose **Connect via (jump host)**
@@ -61,6 +76,8 @@ fingerprints. Only after the server's administrator confirms the change, use
   only a random substitute cookie.
 - **Files only (SFTP, no terminal):** connecting opens the file browser
   directly.
+- **Allow old SSH algorithms:** for old switches and routers, see
+  [Old switches and routers](#old-switches-and-routers).
 - **Appearance:** colors, font size and font for this session only; see
   [Terminals](terminals.md#per-session-look).
 

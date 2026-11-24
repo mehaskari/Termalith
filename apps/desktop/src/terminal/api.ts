@@ -235,6 +235,8 @@ export interface SshOpenRequest {
   /** Sent once for this connection attempt; never stored in the UI. */
   password?: string;
   savePassword?: boolean;
+  /** After a refusal for old algorithms: allow them once, or always for this session (ADR-043). */
+  legacy?: "once" | "always";
 }
 
 export async function openSsh(

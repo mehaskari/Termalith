@@ -64,7 +64,7 @@ describe("parseForm", () => {
     const r = parseForm(base, { requireName: true });
     expect(r).toEqual({
       ok: true,
-      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null, icon: null, s3: null },
+      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null, icon: null, s3: null, legacySsh: false },
     });
   });
 
@@ -101,7 +101,7 @@ describe("parseForm", () => {
     const rec = s("web", "prod");
     const r = parseForm(formFromSession(rec), { requireName: true });
     expect(r.ok && r.value).toEqual({
-      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null, icon: null, s3: null,
+      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null, icon: null, s3: null, legacySsh: false,
     });
   });
 });
@@ -340,5 +340,18 @@ describe("S3 sessions", () => {
   it("keeps S3 options out of other session types", () => {
     const ssh = { ...emptyForm(), name: "web", host: "web1", username: "me", s3Bucket: "team-logs" };
     expect(parseForm(ssh, { requireName: true })).toMatchObject({ ok: true, value: { s3: null } });
+  });
+});
+
+describe("old SSH algorithms option", () => {
+  it("is kept for SSH sessions and dropped for others and Mosh", () => {
+    const base = { ...emptyForm(), name: "sw", host: "10.0.0.250", username: "admin", legacySsh: true };
+    const ssh = parseForm(base, { requireName: true });
+    expect(ssh.ok && ssh.value.legacySsh).toBe(true);
+    const telnet = parseForm(withProtocol({ ...base, port: "22" }, "telnet"), { requireName: true });
+    expect(telnet.ok && telnet.value.legacySsh).toBe(false);
+    const mosh = parseForm({ ...base, mosh: true }, { requireName: true });
+    expect(mosh.ok && mosh.value.legacySsh).toBe(false);
+    expect(formFromSession(withSessionDefaults({ name: "a", host: "h", port: 22, username: "u", auth: { kind: "password" }, folder: null, legacySsh: true })).legacySsh).toBe(true);
   });
 });

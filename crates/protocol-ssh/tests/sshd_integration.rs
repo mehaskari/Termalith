@@ -279,7 +279,10 @@ async fn sha1_rsa_host_key_needs_legacy_algorithms() {
     // Allowed by the user: the same real OpenSSH server is reached, the
     // recorded host key is still checked.
     let mut legacy = opts(known_hosts(&s), Arc::new(RejectUnknown));
-    legacy.known_hosts.add("127.0.0.1", s.port, &host_key(&s)).unwrap();
+    legacy
+        .known_hosts
+        .add("127.0.0.1", s.port, &host_key(&s))
+        .unwrap();
     legacy.legacy_algorithms = true;
     let sess = SshSession::connect(&target(&s), &key_auth(&s), &legacy)
         .await

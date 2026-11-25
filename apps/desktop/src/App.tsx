@@ -51,6 +51,7 @@ import {
   type ShellChoice,
   listShells,
   localTerminal,
+  masterLock,
 } from "./terminal/api";
 import { DesktopPane } from "./ui/DesktopPane";
 import { EditorPane } from "./ui/EditorPane";
@@ -92,6 +93,7 @@ import { FileDiff, FilePen, House, Wrench } from "lucide-react";
 import { HomeView } from "./ui/HomeView";
 import { LinkLight } from "./ui/icons";
 import { useMasterPassword } from "./app/useMasterPassword";
+import { useIdleLock } from "./app/useIdleLock";
 import { useTheme } from "./app/useTheme";
 import { useConnectionPrompts } from "./app/useConnectionPrompts";
 import { useShortcuts } from "./app/useShortcuts";
@@ -216,6 +218,15 @@ export function App() {
   const broadcastQueues = useRef(new Map<number, SerialQueue>());
   const [transferMode, setTransferMode] = useState<"export" | "import" | null>(null);
   const theme = useTheme(settings.theme);
+  // Master password: lock saved passwords after idle time (Settings).
+  useIdleLock(settings.autoLockMinutes, masterProtected, () => {
+    void masterLock().then(() => {
+      setUnlockOpen(true);
+      setNotice(
+        `Saved passwords were locked after ${settings.autoLockMinutes} min without use. Open connections stay open.`,
+      );
+    }, () => {});
+  });
   const activeRef = useRef<Tab | undefined>(undefined);
 
   const [folders, setFolders] = useState<string[]>([]);

@@ -4,6 +4,8 @@ import type { Tab } from "./tabs";
 import { released, withDesktopStates } from "./useTabLifecycle";
 import { legacyQuestion, loginQuestion, retryReason } from "./useConnections";
 import { nthTab, zoomedFontSize } from "./useShortcuts";
+import { idleExpired } from "./useIdleLock";
+import { AUTO_LOCK_CHOICES } from "../ui/SettingsDialog";
 
 const desktop = (id: number, state: Partial<DesktopInfo> = {}): DesktopInfo =>
   ({
@@ -107,5 +109,17 @@ describe("old SSH algorithms", () => {
     });
     expect(legacyQuestion({ code: "no_common_algorithm", message: "x" }, "s", true)).toBeNull();
     expect(legacyQuestion({ code: "auth_failed", message: "x" }, "s", true)).toBeNull();
+  });
+});
+
+describe("idle lock", () => {
+  it("expires only after the chosen minutes, and never at 0", () => {
+    expect(idleExpired(0, 14 * 60_000, 15)).toBe(false);
+    expect(idleExpired(0, 15 * 60_000, 15)).toBe(true);
+    expect(idleExpired(0, 10 * 24 * 3_600_000, 0)).toBe(false);
+  });
+  it("offers the choices the backend accepts", () => {
+    expect(AUTO_LOCK_CHOICES[0]).toEqual([0, "Never"]);
+    expect(AUTO_LOCK_CHOICES.every(([m]) => m >= 0 && m <= 1440)).toBe(true);
   });
 });

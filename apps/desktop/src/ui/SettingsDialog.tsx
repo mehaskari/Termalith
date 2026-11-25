@@ -25,6 +25,16 @@ interface Props {
   portable?: boolean;
 }
 
+/** Idle times offered for locking saved passwords, in minutes (0 = never). */
+export const AUTO_LOCK_CHOICES: Array<[number, string]> = [
+  [0, "Never"],
+  [5, "5 minutes"],
+  [15, "15 minutes"],
+  [30, "30 minutes"],
+  [60, "1 hour"],
+  [240, "4 hours"],
+];
+
 export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvailable = false, onSecretsReset, portable = false }: Props) {
   const [s, setS] = useState<Settings>(initial);
   const [error, setError] = useState<string | null>(null);
@@ -258,6 +268,24 @@ export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvail
           <input type="checkbox" checked={s.serverMonitor} onChange={(e) => set({ serverMonitor: e.target.checked })} />
           Show a server monitor under SSH terminals (Linux servers; runs a read-only command on the server every 3 seconds)
         </label>
+        <h3 className="settings-group span-2">Security</h3>
+        <label>
+          Lock saved passwords after
+          <select
+            value={s.autoLockMinutes}
+            onChange={(e) => set({ autoLockMinutes: Number(e.target.value) })}
+          >
+            {AUTO_LOCK_CHOICES.map(([minutes, label]) => (
+              <option key={minutes} value={minutes}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="hint span-2">
+          Only with a master password (below): after this long without keyboard or mouse use in Termalith, saved
+          passwords lock until you enter it again. Open connections stay open.
+        </p>
         <h3 className="settings-group span-2">Updates</h3>
         <label className="checkbox span-2">
           <input type="checkbox" checked={s.updateCheck} onChange={(e) => set({ updateCheck: e.target.checked })} />

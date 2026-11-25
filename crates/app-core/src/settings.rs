@@ -133,7 +133,14 @@ pub struct Settings {
     pub server_monitor: bool,
     /// Color keywords such as error and warning in terminal output.
     pub highlight_output: bool,
+    /// With a master password: lock saved passwords after this many minutes
+    /// without keyboard or mouse use in Termalith (0 = never). Open
+    /// connections stay open.
+    pub auto_lock_minutes: u16,
 }
+
+/// Longest idle time before saved passwords lock: a day.
+pub const MAX_AUTO_LOCK_MINUTES: u16 = 24 * 60;
 
 impl Default for Settings {
     fn default() -> Self {
@@ -156,6 +163,7 @@ impl Default for Settings {
             embedded_rdp: false,
             server_monitor: false,
             highlight_output: false,
+            auto_lock_minutes: 0,
         }
     }
 }
@@ -164,6 +172,12 @@ impl Settings {
     pub fn validate(&self) -> Result<(), AppError> {
         if !(8..=32).contains(&self.font_size) {
             return Err(AppError::invalid("font size", "must be 8-32"));
+        }
+        if self.auto_lock_minutes > MAX_AUTO_LOCK_MINUTES {
+            return Err(AppError::invalid(
+                "lock saved passwords",
+                "at most 24 hours (1440 minutes)",
+            ));
         }
         if self.font_family.chars().count() > 200 || self.font_family.chars().any(char::is_control)
         {
@@ -514,6 +528,12 @@ mod tests {
         custom.font_size = 99;
         assert!(s.save_settings(&custom).is_err());
         custom.font_size = 15;
+        custom.auto_lock_minutes = 15;
+        s.save_settings(&custom).unwrap();
+        assert_eq!(s.settings().unwrap().auto_lock_minutes, 15);
+        custom.auto_lock_minutes = MAX_AUTO_LOCK_MINUTES + 1;
+        assert!(s.save_settings(&custom).is_err(), "at most a day");
+        custom.auto_lock_minutes = 0;
         custom.scrollback = 10;
         assert!(s.save_settings(&custom).is_err());
         custom.scrollback = 5000;

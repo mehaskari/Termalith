@@ -27,6 +27,9 @@ each time and never written to disk.
 the system keychain, but encrypted with a key that only your master
 password opens (Argon2id and XChaCha20-Poly1305, standard algorithms).
 
+- **Settings → Lock saved passwords after** locks them again after a
+  chosen time without keyboard or mouse use in Termalith; the unlock
+  question appears, and open connections stay open.
 - Termalith asks for the master password at startup. Skip the question and
   servers ask for their passwords as if none were saved.
 - **Lock now** forgets the key until you unlock again.

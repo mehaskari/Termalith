@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Import FileZilla sites.** Paste a FileZilla `sitemanager.xml` into
+  *Import sessions*: FTP, FTPS and SFTP sites arrive in a *FileZilla*
+  folder with their folders; passwords in the file are not imported.
 - **Import PuTTY sessions.** Paste a PuTTY registry export
   (`reg export HKCU\Software\SimonTatham\PuTTY\Sessions putty.reg`)
   into *Import sessions*: SSH and Telnet sessions arrive in a *PuTTY*

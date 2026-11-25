@@ -79,7 +79,7 @@ export function TransferSessionsDialog({ mode, onDone, onCancel }: Props) {
       <p className="hint">
         {mode === "export"
           ? "Sessions without passwords or keychain entries. Key files are referenced by path."
-          : "Paste a Termalith session export, a MobaXterm .mxtsessions file (SSH, RDP, VNC and Telnet sessions), or PuTTY sessions exported with reg export HKCU\\Software\\SimonTatham\\PuTTY\\Sessions putty.reg (SSH and Telnet). Sessions with existing names are skipped."}
+          : "Paste a Termalith session export, a MobaXterm .mxtsessions file (SSH, RDP, VNC and Telnet sessions), PuTTY sessions exported with reg export HKCU\\Software\\SimonTatham\\PuTTY\\Sessions putty.reg (SSH and Telnet), or a FileZilla sitemanager.xml (FTP, FTPS, SFTP). Sessions with existing names are skipped."}
       </p>
       {savedTo && (
         <p className="hint">

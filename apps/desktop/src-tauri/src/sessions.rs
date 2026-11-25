@@ -351,9 +351,15 @@ pub fn sessions_import(state: State<'_, AppState>, json: String) -> Result<Impor
         ));
     }
     // The same box accepts a Termalith export, a MobaXterm .mxtsessions
-    // file or a PuTTY registry export.
+    // file, a PuTTY registry export or a FileZilla Site Manager file.
     if app_core::is_putty_reg(&json) {
         return Ok(app_core::import_putty(&state.connector.sessions, &json)?);
+    }
+    if app_core::is_filezilla(&json) {
+        return Ok(app_core::import_filezilla(
+            &state.connector.sessions,
+            &json,
+        )?);
     }
     if app_core::is_mobaxterm(&json) {
         return Ok(app_core::import_mobaxterm(

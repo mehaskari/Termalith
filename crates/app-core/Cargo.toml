@@ -30,6 +30,9 @@ rustls = { version = "0.23", default-features = false, features = ["std", "tls12
 ureq = { version = "3.5", default-features = false, features = ["rustls-no-provider", "rustls-webpki-roots"] }
 ts-rs = { version = "12", default-features = false, features = ["serde-compat"], optional = true }
 
+# FileZilla Site Manager import (already in the tree through object_store).
+quick-xml = "0.42"
+
 [dev-dependencies]
 zeroize = "1.9"
 credential-store = { path = "../credential-store" }

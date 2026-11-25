@@ -1,5 +1,5 @@
 ---
-description: Save and organize connections in Termalith — session types, folders, favorites, tags, search, Quick connect, and import from MobaXterm, PuTTY, OpenSSH config and JSON.
+description: Save and organize connections in Termalith — session types, folders, favorites, tags, search, Quick connect, and import from MobaXterm, PuTTY, FileZilla, OpenSSH config and JSON.
 ---
 
 # Sessions
@@ -123,10 +123,10 @@ computer open **Settings → Shared sessions**, type a folder name (e.g.
   choose hosts. Imported: `HostName`, `User`, `Port`, `IdentityFile`,
   single-hop `ProxyJump`, `ForwardAgent yes` and `ForwardX11 yes`. Anything
   else is listed per host and not imported.
-- **Import sessions (JSON, MobaXterm, PuTTY)…** accepts a Termalith
-  export, the contents of a MobaXterm `.mxtsessions` file (in MobaXterm:
-  right-click *User sessions* and export all sessions to a file), or PuTTY
-  sessions. SSH, RDP, VNC and Telnet sessions from MobaXterm come with their
+- **Import sessions (JSON, MobaXterm, PuTTY, FileZilla)…** accepts a
+  Termalith export, the contents of a MobaXterm `.mxtsessions` file (in
+  MobaXterm: right-click *User sessions* and export all sessions to a file),
+  PuTTY sessions or FileZilla sites. SSH, RDP, VNC and Telnet sessions from MobaXterm come with their
   folders; other kinds are listed as not imported.
 - **PuTTY:** on Windows run
   `reg export HKCU\Software\SimonTatham\PuTTY\Sessions putty.reg`, open
@@ -135,6 +135,13 @@ computer open **Settings → Shared sessions**, type a folder name (e.g.
   forwarding and the key file. PuTTY keys (`.ppk`) must first be converted
   to OpenSSH format with PuTTYgen (*Conversions → Export OpenSSH key*); a
   key path from another computer is listed so you can choose the key again.
+- **FileZilla:** paste the contents of `sitemanager.xml` (Windows:
+  `%APPDATA%\FileZilla`, macOS and Linux: `~/.config/filezilla`) or of an
+  export from *File → Export…*. FTP, FTPS and SFTP sites go to a
+  *FileZilla* folder with FileZilla's folders below it. Sites set to "FTP
+  over TLS if available" become FTPS (change them to FTP if the server has
+  no TLS); implicit FTPS (port 990) is not supported. Passwords in the file
+  are not imported.
 - **Export sessions…** writes all sessions as JSON, to back them up or move
   them to another computer. Exports never contain passwords or keychain
   references.

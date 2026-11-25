@@ -8,6 +8,7 @@ mod crash;
 mod desktops;
 mod error;
 mod files;
+mod filezilla;
 mod folders;
 mod history;
 mod host_keys;
@@ -44,6 +45,7 @@ pub use files::{
     DroppedFile, DroppedFiles, LocalTree, LocalTreeFile, MAX_EDIT_BYTES, MAX_FOLDER_ENTRIES,
     decode_text, safe_file_name, unique_destination, walk_local_folder,
 };
+pub use filezilla::{FILEZILLA_FOLDER, import_filezilla, is_filezilla, parse_filezilla};
 pub use folders::{MAX_FOLDER_DEPTH, MAX_FOLDER_LEN, normalize_folder};
 pub use history::{
     MAX_HISTORY, TransferDirection, TransferMeta, TransferOutcome, TransferRecord, history_recorder,

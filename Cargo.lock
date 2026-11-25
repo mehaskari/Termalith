@@ -171,6 +171,7 @@ dependencies = [
  "protocol-s3",
  "protocol-ssh",
  "protocol-telnet",
+ "quick-xml 0.42.0",
  "remote-desktop",
  "rusqlite",
  "rustls",

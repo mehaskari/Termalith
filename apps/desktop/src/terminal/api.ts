@@ -491,6 +491,8 @@ export const deleteSnippet = (id: string) => invoke<void>("snippet_delete", { id
 export interface MacroStep {
   delayMs: number;
   data: string;
+  /** Wait until the terminal shows this text before sending `data`. */
+  waitFor?: string | null;
 }
 
 export interface MacroInput {

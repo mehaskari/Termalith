@@ -7,18 +7,20 @@ import { Dialog } from "./Dialog";
 interface Row {
   id: number;
   wait: string;
+  waitFor: string;
   keys: string;
 }
 
 /** Rows to steps, or the number of the first row with a bad wait time. */
-export function rowsToSteps(rows: Array<{ wait: string; keys: string }>): MacroStep[] | { badRow: number } {
+export function rowsToSteps(rows: Array<{ wait: string; waitFor?: string; keys: string }>): MacroStep[] | { badRow: number } {
   const steps: MacroStep[] = [];
   for (const [i, r] of rows.entries()) {
     const seconds = r.wait.trim() === "" ? 0 : Number(r.wait.replace(",", "."));
     if (!Number.isFinite(seconds) || seconds < 0 || seconds > 600) return { badRow: i + 1 };
     const data = decodeKeys(r.keys);
-    if (data === "" && seconds === 0) continue;
-    steps.push({ delayMs: Math.round(seconds * 1000), data });
+    const waitFor = r.waitFor?.trim() ? r.waitFor : undefined;
+    if (data === "" && seconds === 0 && !waitFor) continue;
+    steps.push({ delayMs: Math.round(seconds * 1000), data, ...(waitFor ? { waitFor } : {}) });
   }
   return steps;
 }
@@ -30,7 +32,12 @@ export function rowsToSteps(rows: Array<{ wait: string; keys: string }>): MacroS
 export function MacroEditDialog({ macro, onSaved, onCancel }: { macro: Macro; onSaved: () => void; onCancel: () => void }) {
   const [name, setName] = useState(macro.name);
   const [rows, setRows] = useState<Row[]>(() =>
-    macro.steps.map((s, i) => ({ id: i, wait: s.delayMs ? String(s.delayMs / 1000) : "", keys: encodeKeys(s.data) })),
+    macro.steps.map((s, i) => ({
+      id: i,
+      wait: s.delayMs ? String(s.delayMs / 1000) : "",
+      waitFor: s.waitFor ?? "",
+      keys: encodeKeys(s.data),
+    })),
   );
   const [nextId, setNextId] = useState(macro.steps.length);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +85,8 @@ export function MacroEditDialog({ macro, onSaved, onCancel }: { macro: Macro; on
           <input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
         </label>
         <p className="hint span-2">
-          Each step waits, then types its keys. Write Enter as <code>\r</code>, Tab as <code>\t</code>, Escape as{" "}
+          Each step waits (seconds, or until the terminal shows a text such as <code>#</code>), then types its
+          keys. Write Enter as <code>\r</code>, Tab as <code>\t</code>, Escape as{" "}
           <code>\e</code> and a backslash as <code>\\</code>.
         </p>
         <ol className="macro-steps span-2">
@@ -91,6 +99,16 @@ export function MacroEditDialog({ macro, onSaved, onCancel }: { macro: Macro; on
                 placeholder="0 s"
                 aria-label={`Step ${i + 1} wait in seconds`}
                 onChange={(e) => patch(r.id, { wait: e.target.value })}
+              />
+              <input
+                className="macro-wait-for"
+                value={r.waitFor}
+                placeholder="wait for…"
+                spellCheck={false}
+                autoCapitalize="off"
+                title="Wait until the terminal shows this text, e.g. # or Password:"
+                aria-label={`Step ${i + 1} wait for text`}
+                onChange={(e) => patch(r.id, { waitFor: e.target.value })}
               />
               <input
                 className="macro-keys-input"
@@ -116,7 +134,7 @@ export function MacroEditDialog({ macro, onSaved, onCancel }: { macro: Macro; on
           <button
             type="button"
             onClick={() => {
-              setRows((rs) => [...rs, { id: nextId, wait: "", keys: "" }]);
+              setRows((rs) => [...rs, { id: nextId, wait: "", waitFor: "", keys: "" }]);
               setNextId((n) => n + 1);
             }}
           >

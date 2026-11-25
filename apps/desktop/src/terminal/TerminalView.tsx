@@ -14,6 +14,7 @@ import {
   saveTerminalOutput,
 } from "./api";
 import { OutputHighlighter } from "./highlight";
+import { publishOutput } from "./outputTap";
 import { parseOsc7 } from "./osc7";
 import { type ResolvedTheme, fontStack, terminalTheme } from "../ui/theme";
 import {
@@ -190,6 +191,7 @@ export function TerminalView({
                 shown.current.reported = true;
                 callbacks.current.onActivity?.();
               }
+              if (terminalRef.current.id !== null) publishOutput(terminalRef.current.id, data);
               term.write(data, () => {
                 acks.add(data.length);
                 highlighter.schedule();

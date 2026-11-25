@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { rowsToSteps } from "../ui/MacroEditDialog";
 import { decodeKeys, encodeKeys, playMacro } from "./macro";
+import { plainText, publishOutput, subscribeOutput } from "./outputTap";
 
 describe("macro keys as text", () => {
   it("round-trips control characters exactly", () => {
@@ -49,5 +50,73 @@ describe("macro playback", () => {
     controller.abort();
     await run;
     expect(sent).toEqual(["a"]);
+  });
+});
+
+describe("waiting for text", () => {
+  const fakeOutput = () => {
+    let listener: ((t: string) => void) | null = null;
+    return {
+      output: (l: (t: string) => void) => {
+        listener = l;
+        return () => {
+          listener = null;
+        };
+      },
+      emit: (t: string) => listener?.(t),
+      active: () => listener !== null,
+    };
+  };
+
+  it("types after the prompt appears, ignoring colors", async () => {
+    const out = fakeOutput();
+    const sent: string[] = [];
+    const run = playMacro(
+      [
+        { delayMs: 0, data: "enable\r" },
+        { delayMs: 0, data: "show run\r", waitFor: "switch#" },
+      ],
+      async (d) => {
+        sent.push(d);
+      },
+      new AbortController().signal,
+      { output: out.output, timeoutMs: 2000 },
+    );
+    await new Promise((r) => setTimeout(r, 20));
+    expect(sent).toEqual(["enable\r"]);
+    out.emit("Password: \r\n\x1b[1mswitch\x1b[0m#");
+    await run;
+    expect(sent).toEqual(["enable\r", "show run\r"]);
+    expect(out.active()).toBe(false);
+  });
+
+  it("stops with an error when the text does not come", async () => {
+    const out = fakeOutput();
+    await expect(
+      playMacro([{ delayMs: 0, data: "x", waitFor: "never" }], async () => {}, new AbortController().signal, {
+        output: out.output,
+        timeoutMs: 30,
+      }),
+    ).rejects.toThrow(/"never" did not appear/);
+  });
+
+  it("reads the wait text from the editor", () => {
+    expect(rowsToSteps([{ wait: "", waitFor: " # ", keys: "q" }])).toEqual([{ delayMs: 0, data: "q", waitFor: " # " }]);
+    expect(rowsToSteps([{ wait: "", waitFor: "  ", keys: "q" }])).toEqual([{ delayMs: 0, data: "q" }]);
+  });
+});
+
+describe("output tap", () => {
+  it("decodes only for listeners and strips escape sequences", () => {
+    const got: string[] = [];
+    publishOutput(9, new TextEncoder().encode("before"));
+    const off = subscribeOutput(9, (t) => got.push(t));
+    const bytes = new TextEncoder().encode("é");
+    publishOutput(9, bytes.slice(0, 1));
+    publishOutput(9, bytes.slice(1));
+    off();
+    publishOutput(9, new TextEncoder().encode("after"));
+    expect(got.join("")).toBe("é");
+    expect(plainText("\x1b[32mok\x1b[0m \x1b]0;title\x07done")).toBe("ok done");
   });
 });

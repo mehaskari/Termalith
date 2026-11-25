@@ -25,6 +25,41 @@ interface Props {
   portable?: boolean;
 }
 
+/** The extra keyword lists, with their labels. */
+const KEYWORD_LISTS = [
+  ["highlightBad", "Extra words in red"],
+  ["highlightWarn", "Extra words in yellow"],
+  ["highlightGood", "Extra words in green"],
+] as const;
+
+/** "a, b,,c " → ["a", "b", "c"]. */
+export function splitWords(text: string): string[] {
+  return text
+    .split(",")
+    .map((w) => w.trim())
+    .filter(Boolean);
+}
+
+/** A comma-separated word list: the text stays as typed, the list is clean. */
+function WordListInput({ label, words, onChange }: { label: string; words: string[]; onChange: (w: string[]) => void }) {
+  const [text, setText] = useState(() => words.join(", "));
+  return (
+    <label className="span-2">
+      {label}
+      <input
+        value={text}
+        placeholder="Comma-separated, e.g. err-disabled, down"
+        spellCheck={false}
+        autoCapitalize="off"
+        onChange={(e) => {
+          setText(e.target.value);
+          onChange(splitWords(e.target.value));
+        }}
+      />
+    </label>
+  );
+}
+
 /** Idle times offered for locking saved passwords, in minutes (0 = never). */
 export const AUTO_LOCK_CHOICES: Array<[number, string]> = [
   [0, "Never"],
@@ -134,6 +169,10 @@ export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvail
           <input type="checkbox" checked={s.highlightOutput} onChange={(e) => set({ highlightOutput: e.target.checked })} />
           Color keywords in terminal output (error, warning, ok)
         </label>
+        {s.highlightOutput &&
+          KEYWORD_LISTS.map(([key, label]) => (
+            <WordListInput key={key} label={label} words={s[key]} onChange={(words) => set({ [key]: words })} />
+          ))}
         <h3 className="settings-group span-2">Terminal</h3>
         <label className="checkbox span-2">
           <input type="checkbox" checked={s.copyOnSelect} onChange={(e) => set({ copyOnSelect: e.target.checked })} />

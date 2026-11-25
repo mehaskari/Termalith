@@ -158,6 +158,7 @@ export function TerminalView({
     }
     fit.fit();
     const highlighter = new OutputHighlighter(term);
+    highlighter.setWords({ bad: s.highlightBad, warn: s.highlightWarn, good: s.highlightGood });
     highlighter.setEnabled(s.highlightOutput);
     highlighterRef.current = highlighter;
     termRef.current = term;
@@ -343,6 +344,7 @@ export function TerminalView({
     term.options.cursorStyle = settings.cursorStyle;
     term.options.cursorBlink = settings.cursorBlink;
     term.options.scrollback = settings.scrollback;
+    highlighterRef.current?.setWords({ bad: settings.highlightBad, warn: settings.highlightWarn, good: settings.highlightGood });
     highlighterRef.current?.setEnabled(settings.highlightOutput);
     fitRef.current?.fit();
   }, [settings, theme]);

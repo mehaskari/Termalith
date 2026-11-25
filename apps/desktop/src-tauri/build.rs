@@ -129,6 +129,7 @@ fn main() {
             "snippet_delete",
             "macros_list",
             "macro_create",
+            "macro_update",
             "macro_delete",
         ]),
     ))

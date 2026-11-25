@@ -80,6 +80,10 @@ plays it in the current terminal. Recording captures everything, passwords
 included, and macros are stored unencrypted, so discard a recording if you
 typed a password.
 
+**✎** next to a macro edits it: rename it, change how long each step waits
+(seconds) and what it types, delete steps or add new ones. Keys are written
+as text: Enter is `\r`, Tab `\t`, Escape `\e`, a backslash `\\`.
+
 ## Logs and saved output
 
 - **Log** saves everything the tab shows as plain text in

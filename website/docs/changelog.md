@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Edit macros.** ✎ next to a macro in the Snippets panel renames it and
+  edits each step's wait and keys; steps can be deleted or added.
 - **Your own keyword colors.** With *Color keywords in terminal output*
   on, Settings takes extra words for red, yellow and green, e.g.
   `err-disabled, down` and `up`. Words now match whole, also next to a

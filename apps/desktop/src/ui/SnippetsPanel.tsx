@@ -1,5 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { playMacro } from "../terminal/macro";
+import { MacroEditDialog } from "./MacroEditDialog";
 import {
   type Macro,
   type Snippet,
@@ -28,6 +29,7 @@ type Mode = { kind: "list" } | { kind: "use"; snippet: Snippet } | { kind: "edit
 export function SnippetsPanel({ terminalId, onClose, macrosVersion }: Props) {
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [macros, setMacros] = useState<Macro[]>([]);
+  const [editing, setEditing] = useState<Macro | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
   const stop = useRef<AbortController | null>(null);
   const [mode, setMode] = useState<Mode>({ kind: "list" });
@@ -115,6 +117,9 @@ export function SnippetsPanel({ terminalId, onClose, macrosVersion }: Props) {
                     ▶
                   </button>
                 )}
+                <button type="button" className="icon" aria-label={`Edit ${m.name}`} title="Edit" onClick={() => setEditing(m)}>
+                  ✎
+                </button>
                 <button type="button" className="icon danger" aria-label={`Delete ${m.name}`} title="Delete"
                   onClick={() => void deleteMacro(m.id).then(refreshMacros, (e) => setError(String(e?.message ?? e)))}>
                   ×
@@ -125,6 +130,16 @@ export function SnippetsPanel({ terminalId, onClose, macrosVersion }: Props) {
         </ul>
       )}
 
+      {editing && (
+        <MacroEditDialog
+          macro={editing}
+          onCancel={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            refreshMacros();
+          }}
+        />
+      )}
       {mode.kind === "use" && (
         <UseSnippet snippet={mode.snippet} terminalId={terminalId} onSent={() => setMode({ kind: "list" })} />
       )}

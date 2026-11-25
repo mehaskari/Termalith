@@ -194,6 +194,7 @@ pub fn run() {
             sessions::snippet_delete,
             sessions::macros_list,
             sessions::macro_create,
+            sessions::macro_update,
             sessions::macro_delete,
             files::sftp_home,
             files::sftp_sudo_start,

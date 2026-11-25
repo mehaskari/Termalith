@@ -504,6 +504,7 @@ export interface Macro extends MacroInput {
 
 export const listMacros = () => invoke<Macro[]>("macros_list");
 export const createMacro = (input: MacroInput) => invoke<Macro>("macro_create", { input });
+export const updateMacro = (id: string, input: MacroInput) => invoke<Macro>("macro_update", { id, input });
 export const deleteMacro = (id: string) => invoke<void>("macro_delete", { id });
 
 // ---------------------------------------------------------------- network tools

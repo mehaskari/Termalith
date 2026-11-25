@@ -11,8 +11,9 @@ use crate::sessions::SessionStore;
 
 pub const MAX_MACRO_BYTES: usize = 64 * 1024;
 const MAX_STEPS: usize = 10_000;
-/// Longer pauses are shortened when recording.
-const MAX_DELAY_MS: u32 = 2_000;
+/// Longest pause in a step: the recorder shortens pauses to 2 s, an edited
+/// step may wait up to 10 minutes (e.g. for a device to reboot).
+const MAX_DELAY_MS: u32 = 600_000;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -53,7 +54,7 @@ impl MacroInput {
             return Err(AppError::invalid("macro", "longer than 64 KiB"));
         }
         if self.steps.iter().any(|s| s.delay_ms > MAX_DELAY_MS) {
-            return Err(AppError::invalid("macro", "pause longer than 2 seconds"));
+            return Err(AppError::invalid("macro", "pause longer than 10 minutes"));
         }
         Ok(())
     }
@@ -111,6 +112,26 @@ impl SessionStore {
         })
     }
 
+    /// Replaces a macro's name and steps (edited in the UI).
+    pub fn update_macro(&self, id: &str, input: &MacroInput) -> Result<Macro, AppError> {
+        input.validate()?;
+        let steps = serde_json::to_string(&input.steps).map_err(|e| AppError::Db(e.to_string()))?;
+        let n = self.conn().execute(
+            "UPDATE macros SET name = ?2, steps = ?3 WHERE id = ?1",
+            params![id, input.name.trim(), steps],
+        )?;
+        if n == 0 {
+            return Err(AppError::NotFound);
+        }
+        Ok(Macro {
+            id: id.to_owned(),
+            input: MacroInput {
+                name: input.name.trim().to_owned(),
+                steps: input.steps.clone(),
+            },
+        })
+    }
+
     pub fn delete_macro(&self, id: &str) -> Result<(), AppError> {
         if self
             .conn()
@@ -152,6 +173,27 @@ mod tests {
         s.delete_macro(&m.id).unwrap();
         assert!(s.macros().unwrap().is_empty());
         assert!(matches!(s.delete_macro(&m.id), Err(AppError::NotFound)));
+    }
+
+    #[test]
+    fn edits_name_and_steps() {
+        let s = SessionStore::open_in_memory().unwrap();
+        let m = s.create_macro(&input("pwd\r")).unwrap();
+        let mut edited = m.input.clone();
+        edited.name = "renamed".into();
+        edited.steps.pop();
+        let u = s.update_macro(&m.id, &edited).unwrap();
+        assert_eq!(u.input.name, "renamed");
+        assert_eq!(s.macros().unwrap()[0].input.steps.len(), 1);
+        edited.name = String::new();
+        assert!(
+            s.update_macro(&m.id, &edited).is_err(),
+            "validated like a new macro"
+        );
+        assert!(matches!(
+            s.update_macro("mac-missing", &m.input),
+            Err(AppError::NotFound)
+        ));
     }
 
     #[test]

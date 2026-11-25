@@ -131,6 +131,7 @@
     "allow-snippet-delete",
     "allow-macros-list",
     "allow-macro-create",
+    "allow-macro-update",
     "allow-macro-delete"
   ]
 }

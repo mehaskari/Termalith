@@ -2787,3 +2787,28 @@ button.recording {
 .settings-group:first-child {
   margin-top: 0;
 }
+
+/* Macro editor */
+.macro-steps {
+  list-style: decimal;
+  margin: 0;
+  padding-left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow: auto;
+}
+.macro-steps li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.macro-wait {
+  width: 72px;
+  flex: none;
+}
+.macro-keys-input {
+  flex: 1;
+  font-family: var(--mono);
+}

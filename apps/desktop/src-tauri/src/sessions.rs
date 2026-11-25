@@ -396,6 +396,15 @@ pub fn macro_create(
 }
 
 #[tauri::command]
+pub fn macro_update(
+    state: State<'_, AppState>,
+    id: String,
+    input: app_core::MacroInput,
+) -> Result<app_core::Macro, IpcError> {
+    Ok(state.connector.sessions.update_macro(&id, &input)?)
+}
+
+#[tauri::command]
 pub fn macro_delete(state: State<'_, AppState>, id: String) -> Result<(), IpcError> {
     Ok(state.connector.sessions.delete_macro(&id)?)
 }

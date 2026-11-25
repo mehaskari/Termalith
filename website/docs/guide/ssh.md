@@ -131,4 +131,5 @@ and not saved. Jump hosts and forwarding are not available with Mosh.
 Turn on *Show a server monitor under SSH terminals* in
 [Settings](settings.md) to see CPU, load, memory, the root disk and network
 rate under the active SSH tab. It runs a read-only command on the server
-every 3 seconds and works on Linux servers only; on others the bar says so.
+every 3 seconds and works on Linux, macOS and FreeBSD servers; on others
+the bar says so. On macOS and FreeBSD the CPU value comes from `ps`.

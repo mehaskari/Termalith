@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Server monitor for macOS and FreeBSD servers.** The monitor bar under
+  SSH terminals now also works when the server is a Mac or runs FreeBSD,
+  not only Linux.
 - **Edit macros.** ✎ next to a macro in the Snippets panel renames it and
   edits each step's wait and keys; steps can be deleted or added. A step
   can wait for a text such as the prompt `#` before typing (macros stop

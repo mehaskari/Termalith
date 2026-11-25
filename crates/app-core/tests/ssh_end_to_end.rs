@@ -600,12 +600,17 @@ async fn server_monitor_reads_a_real_server() {
     let session = trusted_connection(&r).await;
     let monitor = ServerMonitor::default();
     let first = monitor.sample(1, &session).await.unwrap();
-    if !cfg!(target_os = "linux") {
+    if !cfg!(any(target_os = "linux", target_os = "macos")) {
         assert_eq!(first, None);
         return;
     }
-    let first = first.expect("Linux server");
-    assert_eq!(first.cpu_percent, None, "needs two samples");
+    let first = first.expect("Linux or macOS server");
+    if cfg!(target_os = "linux") {
+        assert_eq!(first.cpu_percent, None, "needs two samples");
+    } else {
+        let cpu = first.cpu_percent.expect("macOS reports CPU from ps");
+        assert!((0.0..=100.0).contains(&cpu));
+    }
     assert!(first.mem_total > 0 && first.mem_used <= first.mem_total);
     assert!(first.disk_total > 0 && first.disk_used <= first.disk_total);
     tokio::time::sleep(Duration::from_millis(1200)).await;

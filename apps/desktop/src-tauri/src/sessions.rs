@@ -350,7 +350,11 @@ pub fn sessions_import(state: State<'_, AppState>, json: String) -> Result<Impor
             "the import is larger than 5 MiB; split it into smaller files",
         ));
     }
-    // The same box accepts a Termalith export or a MobaXterm .mxtsessions file.
+    // The same box accepts a Termalith export, a MobaXterm .mxtsessions
+    // file or a PuTTY registry export.
+    if app_core::is_putty_reg(&json) {
+        return Ok(app_core::import_putty(&state.connector.sessions, &json)?);
+    }
     if app_core::is_mobaxterm(&json) {
         return Ok(app_core::import_mobaxterm(
             &state.connector.sessions,

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Import PuTTY sessions.** Paste a PuTTY registry export
+  (`reg export HKCU\Software\SimonTatham\PuTTY\Sessions putty.reg`)
+  into *Import sessions*: SSH and Telnet sessions arrive in a *PuTTY*
+  folder.
 - **Server monitor for macOS and FreeBSD servers.** The monitor bar under
   SSH terminals now also works when the server is a Mac or runs FreeBSD,
   not only Linux.

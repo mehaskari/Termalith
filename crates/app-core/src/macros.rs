@@ -185,8 +185,14 @@ mod tests {
         assert_eq!(u.input.name, "renamed");
         assert_eq!(s.macros().unwrap()[0].input.steps.len(), 1);
         edited.name = String::new();
-        assert!(s.update_macro(&m.id, &edited).is_err(), "validated like a new macro");
-        assert!(matches!(s.update_macro("mac-missing", &m.input), Err(AppError::NotFound)));
+        assert!(
+            s.update_macro(&m.id, &edited).is_err(),
+            "validated like a new macro"
+        );
+        assert!(matches!(
+            s.update_macro("mac-missing", &m.input),
+            Err(AppError::NotFound)
+        ));
     }
 
     #[test]

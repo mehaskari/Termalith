@@ -172,7 +172,7 @@ export function HomeView(p: {
             <FolderPlus size={22} aria-hidden="true" />
             <p>
               No saved sessions yet. Save your servers and devices with <strong>New session</strong>, or bring them over
-              from MobaXterm or <code>~/.ssh/config</code> with <strong>Import sessions</strong>.
+              from MobaXterm, PuTTY or <code>~/.ssh/config</code> with <strong>Import sessions</strong>.
             </p>
           </div>
         ) : (

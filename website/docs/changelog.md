@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Import PuTTY sessions.** Paste a PuTTY registry export
+  (`reg export HKCU\Software\SimonTatham\PuTTY\Sessions putty.reg`)
+  into *Import sessions*: SSH and Telnet sessions arrive in a *PuTTY*
+  folder.
 - **Edit macros.** ✎ next to a macro in the Snippets panel renames it and
   edits each step's wait and keys; steps can be deleted or added. A step
   can wait for a text such as the prompt `#` before typing (macros stop

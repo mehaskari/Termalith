@@ -1,5 +1,5 @@
 ---
-description: Save and organize connections in Termalith — session types, folders, favorites, tags, search, Quick connect, and import from MobaXterm, OpenSSH config and JSON.
+description: Save and organize connections in Termalith — session types, folders, favorites, tags, search, Quick connect, and import from MobaXterm, PuTTY, OpenSSH config and JSON.
 ---
 
 # Sessions
@@ -123,10 +123,18 @@ computer open **Settings → Shared sessions**, type a folder name (e.g.
   choose hosts. Imported: `HostName`, `User`, `Port`, `IdentityFile`,
   single-hop `ProxyJump`, `ForwardAgent yes` and `ForwardX11 yes`. Anything
   else is listed per host and not imported.
-- **Import sessions (JSON, MobaXterm)…** accepts a Termalith export or the
-  contents of a MobaXterm `.mxtsessions` file (in MobaXterm: right-click
-  *User sessions* and export all sessions to a file). SSH, RDP, VNC and Telnet
-  sessions come with their folders; other kinds are listed as not imported.
+- **Import sessions (JSON, MobaXterm, PuTTY)…** accepts a Termalith
+  export, the contents of a MobaXterm `.mxtsessions` file (in MobaXterm:
+  right-click *User sessions* and export all sessions to a file), or PuTTY
+  sessions. SSH, RDP, VNC and Telnet sessions from MobaXterm come with their
+  folders; other kinds are listed as not imported.
+- **PuTTY:** on Windows run
+  `reg export HKCU\Software\SimonTatham\PuTTY\Sessions putty.reg`, open
+  `putty.reg` in a text editor and paste its contents. SSH and Telnet
+  sessions go to a *PuTTY* folder with host, port, user name, agent and X11
+  forwarding and the key file. PuTTY keys (`.ppk`) must first be converted
+  to OpenSSH format with PuTTYgen (*Conversions → Export OpenSSH key*); a
+  key path from another computer is listed so you can choose the key again.
 - **Export sessions…** writes all sessions as JSON, to back them up or move
   them to another computer. Exports never contain passwords or keychain
   references.

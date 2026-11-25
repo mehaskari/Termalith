@@ -1,7 +1,7 @@
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
-import type { SessionIcon, SessionRecord, ShellChoice } from "../terminal/api";
+import type { SessionIcon, SessionRecord } from "../terminal/api";
 import { Dialog } from "./Dialog";
-import { Icon, ProtocolBadge } from "./icons";
+import { Icon, type LinkState, LinkLight, ProtocolBadge } from "./icons";
 import { focusFirstItem, menuKeyDown } from "./menuKeys";
 import { MoveDialog } from "./MoveDialog";
 import { IconPicker, SessionIconGlyph } from "./sessionIcons";
@@ -60,25 +60,16 @@ interface Props {
   onForgetSecret: (s: SessionRecord) => void;
   /** New session, optionally inside a folder. */
   onNew: (folder?: string) => void;
-  onQuickConnect: () => void;
   /** Folder changes reject with an error message to keep the editor open. */
   onCreateFolder: (path: string) => Promise<void>;
   onRenameFolder: (from: string, to: string) => Promise<void>;
   onDeleteFolder: (path: string) => void;
   onMoveSession: (s: SessionRecord, folder: string | null) => void;
-  /** Installed shells; `undefined` id = the preferred one. */
-  shells: ShellChoice[];
-  onLocalTerminal: (shellId?: string) => void;
   onImport: () => void;
   onToggleFavorite: (s: SessionRecord) => void;
   onDuplicate: (s: SessionRecord) => void;
-  onExport: () => void;
-  onImportSessions: () => void;
-  onSettings: () => void;
-  onSerial: () => void;
-  onTools: () => void;
-  onKeys: () => void;
-  onAbout: () => void;
+  /** Link lights of sessions with open tabs. */
+  links?: Map<string, LinkState>;
 }
 
 type MenuItem = { label: string; run: () => void; danger?: boolean; disabled?: string } | "sep";
@@ -173,20 +164,14 @@ function FolderNameInput({
 
 export function Sidebar(p: Props) {
   const [query, setQuery] = useState("");
-  const [shellMenu, setShellMenu] = useState(false);
-  const [moreMenu, setMoreMenu] = useState(false);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [moving, setMoving] = useState<DragItem | null>(null);
   const [iconFor, setIconFor] = useState<string | null>(null);
-  const shellRef = useRef<HTMLDivElement>(null);
-  const moreRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   /** Set after a drag so the click that ends it does not also connect. */
   const suppressClick = useRef(false);
-  useDismiss(shellMenu, shellRef, () => setShellMenu(false));
-  useDismiss(moreMenu, moreRef, () => setMoreMenu(false));
   useDismiss(menu !== null, menuRef, () => setMenu(null));
   const folderPaths = useMemo(() => allFolderPaths(p.sessions, p.folders), [p.sessions, p.folders]);
 
@@ -388,6 +373,7 @@ export function Sidebar(p: Props) {
               {extras.length > 0 && <span className="session-extra">{extras.join(", ")}</span>}
             </span>
           </span>
+          {p.links?.get(s.id) && <LinkLight state={p.links.get(s.id) as LinkState} />}
         </button>
         {(s.tags?.length ?? 0) > 0 && (
           <span className="session-tags">
@@ -570,52 +556,6 @@ export function Sidebar(p: Props) {
 
   return (
     <aside className="sidebar" aria-label="Sessions">
-      <div className="sidebar-actions">
-        <button type="button" className="primary" onClick={p.onQuickConnect}>
-          <Icon name="plug" size={14} />
-          Quick connect
-        </button>
-        <div className="split-button" ref={shellRef}>
-          <button type="button" onClick={() => p.onLocalTerminal()} title="Open a local terminal">
-            <Icon name="terminal" size={14} />
-            Local
-          </button>
-          {p.shells.length > 1 && (
-            <button
-              type="button"
-              className="split-toggle"
-              aria-haspopup="menu"
-              aria-expanded={shellMenu}
-              aria-label="Choose a shell"
-              title="Choose a shell"
-              onClick={() => setShellMenu((v) => !v)}
-            >
-              <Icon name="chevron" size={10} className="caret open" />
-            </button>
-          )}
-          {shellMenu && (
-            <div className="menu" role="menu">
-              {p.shells.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  role="menuitem"
-                  title={s.id}
-                  onClick={() => {
-                    setShellMenu(false);
-                    p.onLocalTerminal(s.id);
-                  }}
-                >
-                  {s.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <button type="button" onClick={p.onSerial} title="Open a serial console">
-          Serial
-        </button>
-      </div>
       <div className="sidebar-head">
         <h2>Sessions</h2>
         <span className="sidebar-head-actions">
@@ -669,60 +609,6 @@ export function Sidebar(p: Props) {
           {tree.sessions.map((s) => sessionRow(s))}
         </ul>
       </nav>
-      <div className="sidebar-footer">
-        <button type="button" className="ghost" onClick={p.onTools} title="Ping, traceroute, port scan, DNS…">
-          <Icon name="tools" size={14} />
-          Tools
-        </button>
-        <button type="button" className="ghost" onClick={p.onKeys} title="SSH keys">
-          <Icon name="key" size={14} />
-          Keys
-        </button>
-        <div className="split-button" ref={moreRef}>
-          <button
-            type="button"
-            className="ghost"
-            aria-haspopup="menu"
-            aria-expanded={moreMenu}
-            title="Import and export sessions"
-            onClick={() => setMoreMenu((v) => !v)}
-          >
-            <Icon name="swap" size={14} />
-            Import
-          </button>
-          {moreMenu && (
-            <div className="menu menu-up" role="menu">
-              {(
-                [
-                  ["Import ~/.ssh/config…", p.onImport],
-                  ["Import sessions (JSON, MobaXterm)…", p.onImportSessions],
-                  ["Export sessions…", p.onExport],
-                ] as const
-              ).map(([label, run]) => (
-                <button
-                  key={label}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMoreMenu(false);
-                    run();
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <span className="sidebar-footer-end">
-          <button type="button" className="icon" onClick={p.onSettings} aria-label="Settings" title="Settings">
-            <Icon name="gear" />
-          </button>
-          <button type="button" className="icon" onClick={p.onAbout} aria-label="About Termalith" title="About Termalith">
-            <Icon name="info" />
-          </button>
-        </span>
-      </div>
       {menu && (
         <div
           ref={menuRef}

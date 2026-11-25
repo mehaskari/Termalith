@@ -6,7 +6,7 @@ description: Serial consoles, Telnet and the built-in network tools of Termalith
 
 ## Serial consoles
 
-**Serial** at the top of the sidebar opens a console on a COM port (Windows)
+**Serial** in the rail on the left opens a console on a COM port (Windows)
 or `/dev/tty…` device (macOS, Linux). Choose the port, speed, data bits,
 parity, stop bits and flow control; 9600 8N1 is the usual setting for
 network equipment. On Linux your user usually has to be in the `dialout`
@@ -22,7 +22,7 @@ through the proxy in [Settings](settings.md).
 
 ## Network tools
 
-**Tools** in the sidebar footer:
+**Tools** in the rail on the left:
 
 ![Network tools](../assets/screenshots/network-tools.png)
 

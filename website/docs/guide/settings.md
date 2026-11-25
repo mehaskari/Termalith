@@ -4,7 +4,8 @@ description: Every Termalith setting explained — theme, terminal colors and fo
 
 # Settings
 
-Open **Settings** with ☀ in the sidebar footer. Changes apply when you click
+Open **Settings** at the bottom of the rail on the left. Settings are
+grouped into Look, Terminal, Connections and Updates. Changes apply when you click
 **Save** (the master password section acts at once).
 
 ![The Settings dialog](../assets/screenshots/settings.png){ width="440" }

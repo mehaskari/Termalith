@@ -37,7 +37,7 @@ source (MIT) and works the same on macOS, Windows and Linux.
 
 - Something does not work or is unclear: open an
   [issue on GitHub](https://github.com/mehaskari/Termalith/issues).
-  **About (ⓘ in the sidebar footer) → Report a problem** opens the same page.
+  **About (bottom of the rail) → Report a problem** opens the same page.
 - Security problems: report them privately, see [Security](../security.md).
 - What changed in each version: [Changelog](../changelog.md).
 

@@ -7,6 +7,7 @@ import {
   splitTerminal,
 } from "../terminal/api";
 import type { DiffTarget } from "../ui/DiffPane";
+import type { LinkState } from "../ui/icons";
 
 /**
  * Whether a tab can move into its own window (P8-10): a running terminal
@@ -17,6 +18,38 @@ export function moveBlocker(t: Pick<Tab, "kind" | "terminalId" | "ended" | "spli
   if (t.terminalId === undefined || t.ended || t.reconnectAt !== undefined) return "The terminal is not running.";
   if (t.splits.length > 0) return "Close the split panes first.";
   return null;
+}
+
+/**
+ * A tab's link light (P-redesign): up when connected, wait while
+ * connecting or reconnecting, down when the connection ended. `null` for
+ * tabs that are not connections (tools, editor, compare, home).
+ */
+export function linkState(
+  t: Pick<Tab, "kind" | "terminalId" | "ended" | "reconnectAt" | "desktop" | "desktopError">,
+): LinkState | null {
+  if (t.kind === "tools" || t.kind === "editor" || t.kind === "diff" || t.kind === "home") return null;
+  if (t.kind === "desktop") {
+    if (t.desktopError || t.desktop?.kind === "exited") return "down";
+    return t.desktop ? "up" : "wait";
+  }
+  if (t.kind === "rdp") return t.ended ? "down" : "up";
+  if (t.reconnectAt !== undefined) return "wait";
+  if (t.ended || t.desktopError) return "down";
+  return t.terminalId === undefined ? "wait" : "up";
+}
+
+/** The best link state of each saved session that has open tabs. */
+export function sessionLinks(tabs: Tab[]): Map<string, LinkState> {
+  const rank: Record<LinkState, number> = { up: 3, wait: 2, down: 1 };
+  const out = new Map<string, LinkState>();
+  for (const t of tabs) {
+    const state = t.sessionId ? linkState(t) : null;
+    if (!state || !t.sessionId) continue;
+    const prev = out.get(t.sessionId);
+    if (!prev || rank[state] > rank[prev]) out.set(t.sessionId, state);
+  }
+  return out;
 }
 
 /** Panes in a tab split as a grid, the first terminal included. */
@@ -30,7 +63,7 @@ export interface SplitPane {
 export interface Tab {
   key: number;
   title: string;
-  kind: "local" | "ssh" | "serial" | "tools" | "desktop" | "editor" | "telnet" | "files" | "diff" | "rdp";
+  kind: "local" | "ssh" | "serial" | "tools" | "desktop" | "editor" | "telnet" | "files" | "diff" | "rdp" | "home";
   /** A files tab on a protocol without terminals (FTP). */
   noShell?: boolean;
   /** The Files panel follows the folder of this tab's shell. */

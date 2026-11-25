@@ -12,16 +12,16 @@ keychain (see [Passwords and your data](passwords-and-data.md)).
 
 | Type | Opens | Notes |
 |---|---|---|
-| **SSH terminal** | A terminal tab | Can be *Files only* (opens the file browser instead) or use [Mosh](ssh.md#mosh). |
-| **RDP remote desktop** | A desktop tab or your RDP client | See [Remote desktop](remote-desktop.md). |
-| **VNC remote desktop** | A desktop tab or your VNC client | Unencrypted unless tunnelled through SSH. |
-| **Telnet (unencrypted)** | A terminal tab | For devices without SSH; can go through a jump host. |
-| **FTPS files (encrypted)** | A file browser tab | Explicit TLS; certificate checked once and pinned. |
-| **FTP files (unencrypted)** | A file browser tab | Prefer SFTP or FTPS. |
-| **S3 object storage** | A file browser tab | AWS S3 and compatible services (MinIO, Cloudflare R2, Backblaze B2, Wasabi, Ceph); see [Files](files.md#s3-object-storage). |
+| **SSH** (terminal and files) | A terminal tab | Can be *Files only* (opens the file browser instead) or use [Mosh](ssh.md#mosh). |
+| **RDP** (Windows desktop) | A desktop tab or your RDP client | See [Remote desktop](remote-desktop.md). |
+| **VNC** (remote screen) | A desktop tab or your VNC client | Unencrypted unless tunnelled through SSH. |
+| **Telnet** (old devices, unencrypted) | A terminal tab | For devices without SSH; can go through a jump host. |
+| **FTPS** (files, encrypted) | A file browser tab | Explicit TLS; certificate checked once and pinned. |
+| **FTP** (files, unencrypted) | A file browser tab | Prefer SFTP or FTPS. |
+| **S3** (object storage) | A file browser tab | AWS S3 and compatible services (MinIO, Cloudflare R2, Backblaze B2, Wasabi, Ceph); see [Files](files.md#s3-object-storage). |
 
-Serial consoles and local terminals are opened from the buttons at the top
-of the sidebar and are not saved as sessions.
+Serial consoles and local terminals are opened from the rail on the left
+(**Serial**, **Local**) or the Home screen and are not saved as sessions.
 
 ## Create, edit, connect
 
@@ -29,7 +29,7 @@ of the sidebar and are not saved as sessions.
   (favorite), ⇅ (browse files, for SSH), ✎ (edit) and ⋯ (more: duplicate,
   move, delete).
 - Click a session, or select it and press <kbd>Enter</kbd>, to connect.
-- **Quick connect** connects without saving. The host field accepts
+- **Connect** in the rail (quick connect) connects without saving. The host field accepts
   `user@host:port` or an ssh command such as `ssh -p 2222 -l root web1`
   or `ssh -i ~/.ssh/id_ed25519 me@web1`.
 - **Type a connection in the command palette:** press
@@ -116,7 +116,7 @@ computer open **Settings → Shared sessions**, type a folder name (e.g.
 
 ## Import and export
 
-**Import** in the sidebar footer:
+**Import** in the rail on the left:
 
 - **Import ~/.ssh/config…** reads your OpenSSH configuration and lets you
   choose hosts. Imported: `HostName`, `User`, `Port`, `IdentityFile`,

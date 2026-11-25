@@ -8,6 +8,7 @@ import {
   isIpcError,
 } from "../terminal/api";
 import { Dialog } from "./Dialog";
+import { ProtocolBadge } from "./icons";
 import { IconPicker } from "./sessionIcons";
 import { TERMINAL_SCHEMES } from "./theme";
 import { parseTypedConnection } from "./commandLine";
@@ -35,6 +36,29 @@ interface Props {
 }
 
 const TITLES = { create: "New session", edit: "Edit session", quick: "Quick connect" };
+
+/** Whether the "Connection options" section holds anything but defaults. */
+export function optionsInUse(f: SessionFormState): boolean {
+  return (
+    !!f.jumpVia || f.filesOnly || f.mosh || !!f.startupCommand.trim() || f.forwardAgent || f.x11Forward || f.legacySsh
+  );
+}
+
+/** Whether the "Look" section holds anything but defaults. */
+export function lookInUse(f: SessionFormState): boolean {
+  return !!f.icon || !!f.lookScheme || !!f.lookFontSize.trim() || !!f.lookFont.trim();
+}
+
+/** The connection types, with a few words on when to use each. */
+export const SESSION_TYPES: Array<{ protocol: SessionProtocol; name: string; note: string }> = [
+  { protocol: "ssh", name: "SSH", note: "Terminal and files" },
+  { protocol: "rdp", name: "RDP", note: "Windows desktop" },
+  { protocol: "vnc", name: "VNC", note: "Remote screen" },
+  { protocol: "telnet", name: "Telnet", note: "Old devices, unencrypted" },
+  { protocol: "ftps", name: "FTPS", note: "Files, encrypted" },
+  { protocol: "ftp", name: "FTP", note: "Files, unencrypted" },
+  { protocol: "s3", name: "S3", note: "Object storage" },
+];
 const SUBMIT = { create: "Save", edit: "Save", quick: "Connect" };
 
 export function SessionDialog({ mode, initial, editingId, sessions, folders = [], defaultFolder, onSubmit, onCancel }: Props) {
@@ -54,6 +78,11 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
     if (desktop && !clients) desktopClients().then(setClients, () => {});
   }, [desktop, clients]);
   const client = !desktop || !clients ? undefined : clients[form.protocol as "rdp" | "vnc"];
+  // Folded sections start open when they hold something; the user opens
+  // and closes them, and an error inside opens its section.
+  const optionsAvailable = !isFileStore(form) || ssh;
+  const [optionsOpen, setOptionsOpen] = useState(() => optionsInUse(form));
+  const [lookOpen, setLookOpen] = useState(() => lookInUse(form));
 
   /** A command typed into Host (`ssh -p 2222 me@host`) fills the form. */
   function readTypedHost(f: SessionFormState): SessionFormState | null {
@@ -74,6 +103,8 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
     const parsed = parseForm(read, { requireName: mode !== "quick" });
     if (!parsed.ok) {
       setError({ field: parsed.field, message: parsed.message });
+      if (parsed.field === "startupCommand") setOptionsOpen(true);
+      if (parsed.field === "lookFontSize") setLookOpen(true);
       return;
     }
     setBusy(true);
@@ -102,21 +133,29 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
     >
       <form id="session-form" className="form-grid" onSubmit={submit} noValidate>
         {mode !== "quick" && (
-          <label className="span-2">
-            Type
-            <select
-              value={form.protocol}
-              onChange={(e) => setForm((f) => withProtocol(f, e.target.value as SessionProtocol))}
-            >
-              <option value="ssh">SSH terminal</option>
-              <option value="rdp">RDP remote desktop</option>
-              <option value="vnc">VNC remote desktop</option>
-              <option value="telnet">Telnet (unencrypted)</option>
-              <option value="ftps">FTPS files (encrypted)</option>
-              <option value="ftp">FTP files (unencrypted)</option>
-              <option value="s3">S3 object storage (AWS, MinIO, R2, B2…)</option>
-            </select>
-          </label>
+          <div className="span-2 type-field">
+            <span className="field-label" id="session-type-label">
+              Type
+            </span>
+            <div className="type-tiles" role="radiogroup" aria-labelledby="session-type-label">
+              {SESSION_TYPES.map((t) => (
+                <button
+                  key={t.protocol}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.protocol === t.protocol}
+                  className={`type-tile ${form.protocol === t.protocol ? "selected" : ""}`}
+                  onClick={() => setForm((f) => withProtocol(f, t.protocol))}
+                >
+                  <ProtocolBadge protocol={t.protocol} size={16} />
+                  <span className="type-tile-text">
+                    <span className="type-tile-name">{t.name}</span>
+                    <span className="type-tile-note">{t.note}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
         {desktop && clients && (
           <p className="hint span-2">
@@ -273,7 +312,44 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             />
           </label>
         )}
-        {mode !== "quick" && !isFileStore(form) && !(form.mosh && shell) && (
+        {mode !== "quick" && (
+          <label className="span-2">
+            Tags
+            <input
+              value={form.tags}
+              placeholder="Optional, comma-separated, e.g. prod, web"
+              spellCheck={false}
+              autoCapitalize="off"
+              aria-invalid={invalid("tags")}
+              onChange={(e) => set({ tags: e.target.value })}
+            />
+          </label>
+        )}
+        {mode !== "quick" && (
+          <label className="span-2">
+            Folder
+            <input
+              value={form.folder}
+              list="folder-choices"
+              placeholder="None (top level). Subfolders with /, e.g. Production/DB"
+              onChange={(e) => set({ folder: e.target.value })}
+            />
+            <datalist id="folder-choices">
+              {folderChoices.map((f) => (
+                <option key={f} value={f} />
+              ))}
+            </datalist>
+          </label>
+        )}
+        {mode !== "quick" && optionsAvailable && (
+          <details
+            className="span-2 form-section"
+            open={optionsOpen}
+            onToggle={(e) => setOptionsOpen(e.currentTarget.open)}
+          >
+            <summary>Connection options</summary>
+            <div className="form-grid">
+        {!isFileStore(form) && !(form.mosh && shell) && (
           <label className="span-2">
             {desktop ? "Tunnel through (SSH session)" : "Connect via (jump host)"}
             <select value={form.jumpVia} onChange={(e) => set({ jumpVia: e.target.value })}>
@@ -288,25 +364,25 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             </select>
           </label>
         )}
-        {mode !== "quick" && ssh && (
+        {ssh && (
           <label className="checkbox span-2">
             <input type="checkbox" checked={form.filesOnly} onChange={(e) => set({ filesOnly: e.target.checked })} />
             Files only (SFTP, no terminal)
           </label>
         )}
-        {mode !== "quick" && shell && (
+        {shell && (
           <label className="checkbox span-2">
             <input type="checkbox" checked={form.mosh} onChange={(e) => set({ mosh: e.target.checked })} />
             Connect with Mosh (stays connected over changing networks; needs Mosh on this computer and the server)
           </label>
         )}
-        {mode !== "quick" && shell && form.mosh && (
+        {shell && form.mosh && (
           <p className="hint span-2">
             Mosh signs in with your system&apos;s ssh and its known hosts, in the terminal: passwords are typed there and
             not saved. No jump host or forwarding.
           </p>
         )}
-        {mode !== "quick" && shell && (
+        {shell && (
           <label className="span-2">
             Run after login
             <input
@@ -319,7 +395,7 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             />
           </label>
         )}
-        {mode !== "quick" && shell && (
+        {shell && (
           <label className="checkbox span-2">
             <input
               type="checkbox"
@@ -329,31 +405,38 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             Forward my SSH agent to this host
           </label>
         )}
-        {mode !== "quick" && shell && (
+        {shell && (
           <label className="checkbox span-2">
             <input type="checkbox" checked={form.x11Forward} onChange={(e) => set({ x11Forward: e.target.checked })} />
             Forward X11 (show the server&apos;s graphical programs here)
           </label>
         )}
-        {mode !== "quick" && shell && form.x11Forward && (
+        {shell && form.x11Forward && (
           <p className="hint span-2">
             Needs a local X server: XQuartz on macOS, VcXsrv or Xming on Windows. Programs on the server can
             then open windows on your screen.
           </p>
         )}
-        {mode !== "quick" && shell && form.forwardAgent && (
+        {shell && form.forwardAgent && (
           <p className="hint span-2">
             Only for hosts you trust: while connected, anyone with root access on the server can use your
             agent&apos;s keys (they cannot copy them). Not applied to the jump host.
           </p>
         )}
-        {mode !== "quick" && form.protocol === "ssh" && !form.mosh && (
+        {form.protocol === "ssh" && !form.mosh && (
           <label className="checkbox span-2">
             <input type="checkbox" checked={form.legacySsh} onChange={(e) => set({ legacySsh: e.target.checked })} />
             Allow old SSH algorithms (for old switches and routers; weaker security)
           </label>
         )}
-        {mode !== "quick" && (shell || form.protocol === "telnet") && (
+            </div>
+          </details>
+        )}
+        {(
+          <details className="span-2 form-section" open={lookOpen} onToggle={(e) => setLookOpen(e.currentTarget.open)}>
+            <summary>Look: icon, colors and font</summary>
+            <div className="form-grid">
+        {(shell || form.protocol === "telnet") && (
           <fieldset className="span-2 session-look">
             <legend>Appearance (optional; empty follows Settings)</legend>
             <div className="form-grid">
@@ -390,40 +473,14 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             </div>
           </fieldset>
         )}
-        {mode !== "quick" && (
+        {(
           <fieldset className="span-2 session-icon-field">
             <legend>Icon</legend>
             <IconPicker value={form.icon} onChange={(icon) => set({ icon })} automaticLabel="By type" />
           </fieldset>
         )}
-        {mode !== "quick" && (
-          <label className="span-2">
-            Tags
-            <input
-              value={form.tags}
-              placeholder="Optional, comma-separated, e.g. prod, web"
-              spellCheck={false}
-              autoCapitalize="off"
-              aria-invalid={invalid("tags")}
-              onChange={(e) => set({ tags: e.target.value })}
-            />
-          </label>
-        )}
-        {mode !== "quick" && (
-          <label className="span-2">
-            Folder
-            <input
-              value={form.folder}
-              list="folder-choices"
-              placeholder="None (top level). Subfolders with /, e.g. Production/DB"
-              onChange={(e) => set({ folder: e.target.value })}
-            />
-            <datalist id="folder-choices">
-              {folderChoices.map((f) => (
-                <option key={f} value={f} />
-              ))}
-            </datalist>
-          </label>
+            </div>
+          </details>
         )}
         {error && (
           <p className="form-error span-2" role="alert">

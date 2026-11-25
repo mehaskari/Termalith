@@ -97,7 +97,7 @@ test before a release is published.
 ## Updates
 
 Termalith never updates itself or downloads anything on its own. Use
-**About (ⓘ in the sidebar footer) → Check for updates**, or turn on *Check
+**About (bottom of the rail) → Check for updates**, or turn on *Check
 GitHub for a newer version at startup* in [Settings](settings.md). Install a
 newer version over the old one; your sessions and settings are kept.
 

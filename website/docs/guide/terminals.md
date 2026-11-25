@@ -6,8 +6,8 @@ description: Working in Termalith terminals — local shells, tabs, split panes,
 
 ## Local terminals and shells
 
-**Local** at the top of the sidebar opens a terminal on your computer; the
-▾ next to it picks a shell (zsh, bash, fish…; on Windows PowerShell, cmd,
+**Local** in the rail on the left (or **+** in the tab bar) opens a
+terminal on your computer; right-click **Local** to pick a shell (zsh, bash, fish…; on Windows PowerShell, cmd,
 Git Bash and WSL distributions). Set the default in [Settings](settings.md)
 → *Shell for new local terminals*.
 

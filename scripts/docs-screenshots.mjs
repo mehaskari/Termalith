@@ -33,6 +33,7 @@ const login = (session) => [
 ];
 
 const PLAN = [
+  { load: true, wait: 1500, shot: "home" },
   { load: true, click: "web-01, SSH", wait: 2500, shot: "host-key", clip: "dialog" },
   { js: TRUST, wait: 1500, shot: "password", clip: "dialog" },
   ...login("web-01, SSH").slice(2), { js: TERMINAL, wait: 300 },
@@ -43,8 +44,9 @@ const PLAN = [
   { load: true, click: "Settings", wait: 1200, shot: "settings", clip: "dialog" },
   { load: true, click: "Keys", wait: 1200, shot: "ssh-keys", clip: "dialog" },
   { load: true, click: "Tools", wait: 1200, shot: "network-tools" },
-  { load: true, click: "Four panes", wait: 1500, shot: "four-panes" },
-  { load: true, click: "Snippets", wait: 1200, shot: "snippets" },
+  // The app opens on Home; these need a terminal first.
+  { load: true, click: "Local terminal", wait: 1500 }, { click: "Four panes", wait: 1500, shot: "four-panes" },
+  { load: true, click: "Local terminal", wait: 1500 }, { click: "Snippets", wait: 1200, shot: "snippets" },
   ...login("backups, SFTP"), { wait: 1500, shot: "file-browser" },
 ];
 

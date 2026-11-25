@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Your own keyword colors.** With *Color keywords in terminal output*
+  on, Settings takes extra words for red, yellow and green, e.g.
+  `err-disabled, down` and `up`. Words now match whole, also next to a
+  hyphen.
 - **Lock saved passwords when idle.** With a master password, *Settings →
   Lock saved passwords after* locks them after 5 minutes to 4 hours
   without keyboard or mouse use; open connections stay open.

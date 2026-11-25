@@ -8,12 +8,37 @@ export interface KeywordHit {
   kind: KeywordKind;
 }
 
-const KEYWORDS = /\b(?:(error|errors|fail|failed|failure|fatal|critical|panic|denied|refused)|(warn|warning|warnings)|(ok|success|successful|succeeded|passed))\b/gi;
+const BUILT_IN: Record<KeywordKind, string[]> = {
+  bad: ["error", "errors", "fail", "failed", "failure", "fatal", "critical", "panic", "denied", "refused"],
+  warn: ["warn", "warning", "warnings"],
+  good: ["ok", "success", "successful", "succeeded", "passed"],
+};
+
+/** The user's extra words per color (Settings → Keyword colors). */
+export type ExtraKeywords = Partial<Record<KeywordKind, string[]>>;
+
+const escape = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * One case-insensitive pattern for the built-in and extra words. A word
+ * matches whole: not inside a longer word or a hyphenated name, so "up"
+ * does not color "update" and "down" does not color "shutdown-x".
+ */
+export function keywordPattern(extra: ExtraKeywords = {}): RegExp {
+  const group = (kind: KeywordKind) =>
+    [...new Set([...(extra[kind] ?? []).map((w) => w.trim()).filter(Boolean), ...BUILT_IN[kind]])]
+      .sort((a, b) => b.length - a.length)
+      .map(escape)
+      .join("|");
+  return new RegExp(`(?<![\\w-])(?:(${group("bad")})|(${group("warn")})|(${group("good")}))(?![\\w-])`, "gi");
+}
+
+const DEFAULT_PATTERN = keywordPattern();
 
 /** Keywords in one line of output. */
-export function findKeywords(text: string): KeywordHit[] {
+export function findKeywords(text: string, pattern: RegExp = DEFAULT_PATTERN): KeywordHit[] {
   const hits: KeywordHit[] = [];
-  for (const m of text.matchAll(KEYWORDS)) {
+  for (const m of text.matchAll(pattern)) {
     hits.push({ start: m.index, length: m[0].length, kind: m[1] ? "bad" : m[2] ? "warn" : "good" });
   }
   return hits;
@@ -36,6 +61,8 @@ export class OutputHighlighter implements IDisposable {
   private scanned = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private readonly decorations: IDecoration[] = [];
+  private pattern = DEFAULT_PATTERN;
+  private words = "";
 
   constructor(private readonly term: Terminal) {}
 
@@ -48,6 +75,14 @@ export class OutputHighlighter implements IDisposable {
       clearTimeout(this.timer);
       this.clear();
     }
+  }
+
+  /** The user's extra words; takes effect for new output. */
+  setWords(extra: ExtraKeywords) {
+    const key = JSON.stringify(extra);
+    if (key === this.words) return;
+    this.words = key;
+    this.pattern = keywordPattern(extra);
   }
 
   /** Call after output was written. */
@@ -82,7 +117,7 @@ export class OutputHighlighter implements IDisposable {
     for (let y = from; y < cursor; y++) {
       const line = buffer.getLine(y);
       if (!line) continue;
-      const hits = findKeywords(line.translateToString(true));
+      const hits = findKeywords(line.translateToString(true), this.pattern);
       if (hits.length === 0) continue;
       const columns = columnMap(line, this.term.cols);
       for (const hit of hits) this.decorate(y - cursor, columns, hit);

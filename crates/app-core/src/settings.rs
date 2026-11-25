@@ -133,11 +133,19 @@ pub struct Settings {
     pub server_monitor: bool,
     /// Color keywords such as error and warning in terminal output.
     pub highlight_output: bool,
+    /// Extra words colored like errors, warnings and successes (e.g.
+    /// `err-disabled`, `down`, `up`), on top of the built-in ones.
+    pub highlight_bad: Vec<String>,
+    pub highlight_warn: Vec<String>,
+    pub highlight_good: Vec<String>,
     /// With a master password: lock saved passwords after this many minutes
     /// without keyboard or mouse use in Termalith (0 = never). Open
     /// connections stay open.
     pub auto_lock_minutes: u16,
 }
+
+/// Extra keywords per color.
+pub const MAX_HIGHLIGHT_WORDS: usize = 50;
 
 /// Longest idle time before saved passwords lock: a day.
 pub const MAX_AUTO_LOCK_MINUTES: u16 = 24 * 60;
@@ -163,6 +171,9 @@ impl Default for Settings {
             embedded_rdp: false,
             server_monitor: false,
             highlight_output: false,
+            highlight_bad: Vec::new(),
+            highlight_warn: Vec::new(),
+            highlight_good: Vec::new(),
             auto_lock_minutes: 0,
         }
     }
@@ -172,6 +183,23 @@ impl Settings {
     pub fn validate(&self) -> Result<(), AppError> {
         if !(8..=32).contains(&self.font_size) {
             return Err(AppError::invalid("font size", "must be 8-32"));
+        }
+        for list in [
+            &self.highlight_bad,
+            &self.highlight_warn,
+            &self.highlight_good,
+        ] {
+            if list.len() > MAX_HIGHLIGHT_WORDS
+                || list.iter().any(|w| {
+                    let w = w.trim();
+                    w.is_empty() || w.chars().count() > 40 || w.chars().any(char::is_control)
+                })
+            {
+                return Err(AppError::invalid(
+                    "keyword colors",
+                    "up to 50 words per color, each 1-40 characters",
+                ));
+            }
         }
         if self.auto_lock_minutes > MAX_AUTO_LOCK_MINUTES {
             return Err(AppError::invalid(
@@ -534,6 +562,19 @@ mod tests {
         custom.auto_lock_minutes = MAX_AUTO_LOCK_MINUTES + 1;
         assert!(s.save_settings(&custom).is_err(), "at most a day");
         custom.auto_lock_minutes = 0;
+        custom.highlight_bad = vec!["err-disabled".into(), "down".into()];
+        s.save_settings(&custom).unwrap();
+        assert_eq!(
+            s.settings().unwrap().highlight_bad,
+            ["err-disabled", "down"]
+        );
+        custom.highlight_warn = vec![" ".into()];
+        assert!(s.save_settings(&custom).is_err(), "no empty words");
+        custom.highlight_warn = vec!["x".repeat(41)];
+        assert!(s.save_settings(&custom).is_err(), "words are short");
+        custom.highlight_warn = (0..51).map(|i| format!("w{i}")).collect();
+        assert!(s.save_settings(&custom).is_err(), "at most 50 per color");
+        custom.highlight_warn = Vec::new();
         custom.scrollback = 10;
         assert!(s.save_settings(&custom).is_err());
         custom.scrollback = 5000;

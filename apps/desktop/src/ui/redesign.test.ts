@@ -3,6 +3,7 @@ import { MAX_RECENT, readRecent, rememberRecent, withRecent } from "../app/recen
 import { type Tab, linkState, sessionLinks } from "../app/tabs";
 import { matchSessions } from "./HomeView";
 import { SESSION_TYPES, lookInUse, optionsInUse } from "./SessionDialog";
+import { splitWords } from "./SettingsDialog";
 import { emptyForm, withSessionDefaults } from "./sessionList";
 import type { SessionRecord } from "../terminal/api";
 
@@ -91,5 +92,12 @@ describe("session dialog", () => {
     expect(optionsInUse({ ...emptyForm(), startupCommand: "  " })).toBe(false);
     expect(lookInUse(emptyForm())).toBe(false);
     expect(lookInUse({ ...emptyForm(), icon: { name: "router", color: null } })).toBe(true);
+  });
+});
+
+describe("keyword lists in settings", () => {
+  it("splits on commas and drops empty words", () => {
+    expect(splitWords(" down, err-disabled,, up ,")).toEqual(["down", "err-disabled", "up"]);
+    expect(splitWords("")).toEqual([]);
   });
 });

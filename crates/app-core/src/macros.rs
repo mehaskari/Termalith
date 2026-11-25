@@ -21,6 +21,10 @@ pub struct MacroStep {
     /// Pause before sending `data`.
     pub delay_ms: u32,
     pub data: String,
+    /// Before sending `data`, wait until the terminal shows this text (a
+    /// prompt such as `#`); edited steps only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wait_for: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,6 +56,16 @@ impl MacroInput {
         }
         if self.steps.iter().map(|s| s.data.len()).sum::<usize>() > MAX_MACRO_BYTES {
             return Err(AppError::invalid("macro", "longer than 64 KiB"));
+        }
+        if self.steps.iter().any(|s| {
+            s.wait_for.as_deref().is_some_and(|w| {
+                w.is_empty() || w.chars().count() > 200 || w.chars().any(char::is_control)
+            })
+        }) {
+            return Err(AppError::invalid(
+                "macro",
+                "text to wait for: 1-200 characters, no control characters",
+            ));
         }
         if self.steps.iter().any(|s| s.delay_ms > MAX_DELAY_MS) {
             return Err(AppError::invalid("macro", "pause longer than 10 minutes"));
@@ -155,10 +169,12 @@ mod tests {
                 MacroStep {
                     delay_ms: 0,
                     data: "ls\r".into(),
+                    wait_for: None,
                 },
                 MacroStep {
                     delay_ms: 1500,
                     data: data.into(),
+                    wait_for: None,
                 },
             ],
         }
@@ -194,6 +210,24 @@ mod tests {
             s.update_macro("mac-missing", &m.input),
             Err(AppError::NotFound)
         ));
+    }
+
+    #[test]
+    fn steps_can_wait_for_text() {
+        let s = SessionStore::open_in_memory().unwrap();
+        let mut m = input("q");
+        m.steps[1].wait_for = Some("#".into());
+        let saved = s.create_macro(&m).unwrap();
+        assert_eq!(
+            s.macros().unwrap()[0].input.steps[1].wait_for.as_deref(),
+            Some("#")
+        );
+        let json = serde_json::to_string(&saved.input.steps[0]).unwrap();
+        assert!(!json.contains("waitFor"), "left out when unset: {json}");
+        m.steps[1].wait_for = Some(String::new());
+        assert!(m.validate().is_err());
+        m.steps[1].wait_for = Some("a\nb".into());
+        assert!(m.validate().is_err());
     }
 
     #[test]

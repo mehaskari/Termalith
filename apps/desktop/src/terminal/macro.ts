@@ -1,4 +1,5 @@
 import type { MacroStep } from "./api";
+import { plainText } from "./outputTap";
 
 const MAX_DELAY_MS = 2000;
 /** Keys closer together than this are one step, so playback stays smooth. */
@@ -58,16 +59,61 @@ function pause(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-/** Sends the steps with their pauses; `signal` stops between steps and during pauses. */
+/** How long a step waits for its text before the macro stops. */
+export const WAIT_FOR_TIMEOUT_MS = 60_000;
+
+export interface PlayOptions {
+  /** Subscribes to the terminal's output (needed for steps that wait for text). */
+  output?: (listener: (text: string) => void) => () => void;
+  timeoutMs?: number;
+}
+
+/**
+ * Sends the steps with their pauses; `signal` stops between steps and during
+ * pauses. A step with `waitFor` first waits until that text appears in the
+ * output that came after the previous step, and the macro stops with an
+ * error if it does not within the time limit.
+ */
 export async function playMacro(
   steps: MacroStep[],
   write: (data: string) => Promise<void>,
   signal: AbortSignal,
+  opts: PlayOptions = {},
 ): Promise<void> {
-  for (const step of steps) {
-    if (step.delayMs > 0) await pause(step.delayMs, signal);
-    if (signal.aborted) return;
-    await write(step.data);
+  const timeout = opts.timeoutMs ?? WAIT_FOR_TIMEOUT_MS;
+  let seen = "";
+  let wake: (() => void) | null = null;
+  const unsubscribe = opts.output?.((text) => {
+    seen = (seen + plainText(text)).slice(-16_384);
+    wake?.();
+  });
+  try {
+    for (const step of steps) {
+      if (step.delayMs > 0) await pause(step.delayMs, signal);
+      if (signal.aborted) return;
+      const want = step.waitFor;
+      if (want && unsubscribe) {
+        const found = await new Promise<boolean>((resolve) => {
+          const done = (v: boolean) => {
+            wake = null;
+            clearTimeout(timer);
+            resolve(v);
+          };
+          const timer = setTimeout(() => done(false), timeout);
+          signal.addEventListener("abort", () => done(true), { once: true });
+          wake = () => {
+            if (seen.includes(want)) done(true);
+          };
+          wake();
+        });
+        if (signal.aborted) return;
+        if (!found) throw new Error(`Macro stopped: "${want}" did not appear within ${Math.round(timeout / 1000)} s.`);
+      }
+      seen = "";
+      await write(step.data);
+    }
+  } finally {
+    unsubscribe?.();
   }
 }
 

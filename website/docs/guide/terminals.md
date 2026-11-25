@@ -81,7 +81,11 @@ included, and macros are stored unencrypted, so discard a recording if you
 typed a password.
 
 **✎** next to a macro edits it: rename it, change how long each step waits
-(seconds) and what it types, delete steps or add new ones. Keys are written
+(seconds, up to 10 minutes) and what it types, delete steps or add new
+ones. **Wait for** makes a step wait until the terminal shows a text, such
+as the prompt `#` or `Password:`, before typing; if it does not appear
+within 60 seconds the macro stops and says so. **■** stops a macro, also
+while it waits. Keys are written
 as text: Enter is `\r`, Tab `\t`, Escape `\e`, a backslash `\\`.
 
 ## Logs and saved output

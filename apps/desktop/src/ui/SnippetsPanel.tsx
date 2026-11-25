@@ -1,5 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { playMacro } from "../terminal/macro";
+import { subscribeOutput } from "../terminal/outputTap";
 import { MacroEditDialog } from "./MacroEditDialog";
 import {
   type Macro,
@@ -52,7 +53,9 @@ export function SnippetsPanel({ terminalId, onClose, macrosVersion }: Props) {
     setPlaying(m.id);
     setError(null);
     try {
-      await playMacro(m.steps, (data) => writeTerminal(terminalId, data), controller.signal);
+      await playMacro(m.steps, (data) => writeTerminal(terminalId, data), controller.signal, {
+        output: (listener) => subscribeOutput(terminalId, listener),
+      });
     } catch (e) {
       setError(isIpcError(e) ? e.message : String(e));
     } finally {

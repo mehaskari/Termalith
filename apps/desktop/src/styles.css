@@ -2812,3 +2812,8 @@ button.recording {
   flex: 1;
   font-family: var(--mono);
 }
+.macro-wait-for {
+  width: 110px;
+  flex: none;
+  font-family: var(--mono);
+}

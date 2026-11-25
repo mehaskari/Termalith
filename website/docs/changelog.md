@@ -3,7 +3,9 @@
 ## Unreleased
 
 - **Edit macros.** ✎ next to a macro in the Snippets panel renames it and
-  edits each step's wait and keys; steps can be deleted or added.
+  edits each step's wait and keys; steps can be deleted or added. A step
+  can wait for a text such as the prompt `#` before typing (macros stop
+  after 60 s without it), and waits of up to 10 minutes are allowed.
 - **Your own keyword colors.** With *Color keywords in terminal output*
   on, Settings takes extra words for red, yellow and green, e.g.
   `err-disabled, down` and `up`. Words now match whole, also next to a

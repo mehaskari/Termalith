@@ -569,6 +569,12 @@ mockIPC(
         mockMacros.push(m);
         return m;
       }
+      case "macro_update": {
+        const i = mockMacros.findIndex((m) => m.id === a.id);
+        if (i < 0) throw { code: "not_found", message: "not found" };
+        mockMacros[i] = { id: a.id as string, ...(a.input as object) } as (typeof mockMacros)[number];
+        return mockMacros[i];
+      }
       case "macro_delete":
         mockMacros.splice(mockMacros.findIndex((m) => m.id === a.id), 1);
         return null;

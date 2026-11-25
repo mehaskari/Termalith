@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Edit macros.** ✎ next to a macro in the Snippets panel renames it and
+  edits each step's wait and keys; steps can be deleted or added.
 - **New look.** A calmer slate theme (dark and light) with a color per
   connection type, a rail on the left for Home, Connect, Local, Serial,
   Tools, Keys, Import, Settings and About, and a light on every tab and

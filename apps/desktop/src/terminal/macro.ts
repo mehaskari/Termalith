@@ -55,3 +55,30 @@ export async function playMacro(
     await write(step.data);
   }
 }
+
+/**
+ * Keys as editable text: Enter is \r, Tab \t, Escape \e, a backslash \\,
+ * other control characters \xNN. `decodeKeys` reverses it exactly.
+ */
+export function encodeKeys(data: string): string {
+  return data.replace(/[\\\x00-\x1f\x7f]/g, (c) => {
+    if (c === "\\") return "\\\\";
+    if (c === "\r") return "\\r";
+    if (c === "\n") return "\\n";
+    if (c === "\t") return "\\t";
+    if (c === "\x1b") return "\\e";
+    return `\\x${c.charCodeAt(0).toString(16).padStart(2, "0")}`;
+  });
+}
+
+/** The keys an `encodeKeys` text stands for; an unknown escape stays as typed. */
+export function decodeKeys(text: string): string {
+  return text.replace(/\\(x[0-9a-fA-F]{2}|[\\rnte])/g, (_, e: string) => {
+    if (e === "\\") return "\\";
+    if (e === "r") return "\r";
+    if (e === "n") return "\n";
+    if (e === "t") return "\t";
+    if (e === "e") return "\x1b";
+    return String.fromCharCode(Number.parseInt(e.slice(1), 16));
+  });
+}

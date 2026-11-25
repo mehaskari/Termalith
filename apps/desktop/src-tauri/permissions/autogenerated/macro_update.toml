@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-macro-update"
+description = "Enables the macro_update command without any pre-configured scope."
+commands.allow = ["macro_update"]
+
+[[permission]]
+identifier = "deny-macro-update"
+description = "Denies the macro_update command without any pre-configured scope."
+commands.deny = ["macro_update"]

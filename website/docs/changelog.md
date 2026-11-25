@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Lock saved passwords when idle.** With a master password, *Settings →
+  Lock saved passwords after* locks them after 5 minutes to 4 hours
+  without keyboard or mouse use; open connections stay open.
 - **New look.** A calmer slate theme (dark and light) with a color per
   connection type, a rail on the left for Home, Connect, Local, Serial,
   Tools, Keys, Import, Settings and About, and a light on every tab and

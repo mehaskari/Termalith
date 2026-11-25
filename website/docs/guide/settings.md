@@ -33,4 +33,5 @@ grouped into Look, Terminal, Connections and Updates. Changes apply when you cli
 | **Shell for new local terminals** | Default shell for **Local** (shown when more than one is installed). |
 | **Log every new terminal to Documents/Termalith Logs** | Writes every new terminal's output there as plain text. Logs may contain sensitive output. |
 | **Shared sessions** | Session files shared by a team (a folder path or an `https://` address); acts at once ([details](sessions.md#shared-session-files-team)). |
+| **Lock saved passwords after** | With a master password: after this long without keyboard or mouse use in Termalith, saved passwords lock until you enter it again (Never, 5, 15, 30 minutes, 1 or 4 hours). Open connections stay open. |
 | **Master password** | Encrypts saved passwords with a password asked at startup; **Set**, **Change**, **Turn off** or **Lock now** ([details](passwords-and-data.md#master-password)). |

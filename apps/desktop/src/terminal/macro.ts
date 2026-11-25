@@ -43,14 +43,29 @@ export function describeKeys(steps: MacroStep[]): string {
   });
 }
 
-/** Sends the steps with their pauses; `signal` stops between steps. */
+/** Waits `ms`, or less when `signal` stops the macro. */
+function pause(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true },
+    );
+  });
+}
+
+/** Sends the steps with their pauses; `signal` stops between steps and during pauses. */
 export async function playMacro(
   steps: MacroStep[],
   write: (data: string) => Promise<void>,
   signal: AbortSignal,
 ): Promise<void> {
   for (const step of steps) {
-    if (step.delayMs > 0) await new Promise((resolve) => setTimeout(resolve, step.delayMs));
+    if (step.delayMs > 0) await pause(step.delayMs, signal);
     if (signal.aborted) return;
     await write(step.data);
   }

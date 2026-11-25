@@ -11,8 +11,9 @@ use crate::sessions::SessionStore;
 
 pub const MAX_MACRO_BYTES: usize = 64 * 1024;
 const MAX_STEPS: usize = 10_000;
-/// Longer pauses are shortened when recording.
-const MAX_DELAY_MS: u32 = 2_000;
+/// Longest pause in a step: the recorder shortens pauses to 2 s, an edited
+/// step may wait up to 10 minutes (e.g. for a device to reboot).
+const MAX_DELAY_MS: u32 = 600_000;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -53,7 +54,7 @@ impl MacroInput {
             return Err(AppError::invalid("macro", "longer than 64 KiB"));
         }
         if self.steps.iter().any(|s| s.delay_ms > MAX_DELAY_MS) {
-            return Err(AppError::invalid("macro", "pause longer than 2 seconds"));
+            return Err(AppError::invalid("macro", "pause longer than 10 minutes"));
         }
         Ok(())
     }

@@ -29,8 +29,10 @@ grouped into Look, Terminal, Connections and Updates. Changes apply when you cli
 | **Tell me when a new version is available** | On by default. At startup Termalith asks GitHub for the latest release; when it is newer, a small notice in the corner offers **Download** (opens the release page) or **Later** (that version is not shown again). Nothing is downloaded or installed automatically. Turn it off to make no request at all. |
 | **Show RDP and VNC sessions inside Termalith** | Opens desktops in a tab instead of the installed client ([Remote desktop](remote-desktop.md)). |
 | **Color keywords in terminal output** | Shows *error*, *warning*, *ok* and similar words in color. |
+| **Extra words in red** / **Extra words in yellow** / **Extra words in green** | Your own words for those colors, comma-separated (e.g. `err-disabled, down` in red, `up` in green); shown when keyword colors are on. Whole words only, up to 50 per color. |
 | **Show a server monitor under SSH terminals** | CPU, load, memory, disk and network of Linux servers, refreshed every 3 seconds. |
 | **Shell for new local terminals** | Default shell for **Local** (shown when more than one is installed). |
 | **Log every new terminal to Documents/Termalith Logs** | Writes every new terminal's output there as plain text. Logs may contain sensitive output. |
 | **Shared sessions** | Session files shared by a team (a folder path or an `https://` address); acts at once ([details](sessions.md#shared-session-files-team)). |
+| **Lock saved passwords after** | With a master password: after this long without keyboard or mouse use in Termalith, saved passwords lock until you enter it again (Never, 5, 15, 30 minutes, 1 or 4 hours). Open connections stay open. |
 | **Master password** | Encrypts saved passwords with a password asked at startup; **Set**, **Change**, **Turn off** or **Lock now** ([details](passwords-and-data.md#master-password)). |

@@ -114,8 +114,11 @@ as text: Enter is `\r`, Tab `\t`, Escape `\e`, a backslash `\\`.
   Light, Nord, Gruvbox Dark, Tomorrow Night, or following the app theme), font, font size, cursor and
   scrollback.
 - *Color keywords in terminal output* shows words such as *error*,
-  *warning* and *ok* in color. Only the display changes: copied text and
-  logs stay as they were, and full-screen programs are left alone.
+  *warning* and *ok* in color. Add your own words under *Extra words in
+  red / yellow / green*, for example `err-disabled, down` and `up` for
+  switch port states. Words match whole, so `up` does not color `update`.
+  Only the display changes: copied text and logs stay as they were, and
+  full-screen programs are left alone.
 
 ## Per-session look
 

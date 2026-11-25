@@ -25,6 +25,51 @@ interface Props {
   portable?: boolean;
 }
 
+/** The extra keyword lists, with their labels. */
+const KEYWORD_LISTS = [
+  ["highlightBad", "Extra words in red"],
+  ["highlightWarn", "Extra words in yellow"],
+  ["highlightGood", "Extra words in green"],
+] as const;
+
+/** "a, b,,c " → ["a", "b", "c"]. */
+export function splitWords(text: string): string[] {
+  return text
+    .split(",")
+    .map((w) => w.trim())
+    .filter(Boolean);
+}
+
+/** A comma-separated word list: the text stays as typed, the list is clean. */
+function WordListInput({ label, words, onChange }: { label: string; words: string[]; onChange: (w: string[]) => void }) {
+  const [text, setText] = useState(() => words.join(", "));
+  return (
+    <label className="span-2">
+      {label}
+      <input
+        value={text}
+        placeholder="Comma-separated, e.g. err-disabled, down"
+        spellCheck={false}
+        autoCapitalize="off"
+        onChange={(e) => {
+          setText(e.target.value);
+          onChange(splitWords(e.target.value));
+        }}
+      />
+    </label>
+  );
+}
+
+/** Idle times offered for locking saved passwords, in minutes (0 = never). */
+export const AUTO_LOCK_CHOICES: Array<[number, string]> = [
+  [0, "Never"],
+  [5, "5 minutes"],
+  [15, "15 minutes"],
+  [30, "30 minutes"],
+  [60, "1 hour"],
+  [240, "4 hours"],
+];
+
 export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvailable = false, onSecretsReset, portable = false }: Props) {
   const [s, setS] = useState<Settings>(initial);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +169,10 @@ export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvail
           <input type="checkbox" checked={s.highlightOutput} onChange={(e) => set({ highlightOutput: e.target.checked })} />
           Color keywords in terminal output (error, warning, ok)
         </label>
+        {s.highlightOutput &&
+          KEYWORD_LISTS.map(([key, label]) => (
+            <WordListInput key={key} label={label} words={s[key]} onChange={(words) => set({ [key]: words })} />
+          ))}
         <h3 className="settings-group span-2">Terminal</h3>
         <label className="checkbox span-2">
           <input type="checkbox" checked={s.copyOnSelect} onChange={(e) => set({ copyOnSelect: e.target.checked })} />
@@ -258,6 +307,24 @@ export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvail
           <input type="checkbox" checked={s.serverMonitor} onChange={(e) => set({ serverMonitor: e.target.checked })} />
           Show a server monitor under SSH terminals (Linux servers; runs a read-only command on the server every 3 seconds)
         </label>
+        <h3 className="settings-group span-2">Security</h3>
+        <label>
+          Lock saved passwords after
+          <select
+            value={s.autoLockMinutes}
+            onChange={(e) => set({ autoLockMinutes: Number(e.target.value) })}
+          >
+            {AUTO_LOCK_CHOICES.map(([minutes, label]) => (
+              <option key={minutes} value={minutes}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="hint span-2">
+          Only with a master password (below): after this long without keyboard or mouse use in Termalith, saved
+          passwords lock until you enter it again. Open connections stay open.
+        </p>
         <h3 className="settings-group span-2">Updates</h3>
         <label className="checkbox span-2">
           <input type="checkbox" checked={s.updateCheck} onChange={(e) => set({ updateCheck: e.target.checked })} />

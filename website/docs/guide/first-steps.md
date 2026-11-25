@@ -29,6 +29,8 @@ On **Home**, type a session name, a tag or `user@host` and press
 <kbd>Enter</kbd> to connect; below are buttons for the common first steps
 and your recent and favorite sessions.
 
+![The Home screen: connect by typing, first steps, recent and favorite sessions](../assets/screenshots/home.png)
+
 ## 2. Save a server
 
 Click **+** next to *Sessions*.

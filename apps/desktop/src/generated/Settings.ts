@@ -57,4 +57,15 @@ serverMonitor: boolean,
 /**
  * Color keywords such as error and warning in terminal output.
  */
-highlightOutput: boolean, };
+highlightOutput: boolean, 
+/**
+ * Extra words colored like errors, warnings and successes (e.g.
+ * `err-disabled`, `down`, `up`), on top of the built-in ones.
+ */
+highlightBad: Array<string>, highlightWarn: Array<string>, highlightGood: Array<string>, 
+/**
+ * With a master password: lock saved passwords after this many minutes
+ * without keyboard or mouse use in Termalith (0 = never). Open
+ * connections stay open.
+ */
+autoLockMinutes: number, };

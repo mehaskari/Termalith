@@ -387,6 +387,10 @@ export const DEFAULT_SETTINGS: Settings = {
   embeddedRdp: false,
   serverMonitor: false,
   highlightOutput: false,
+  autoLockMinutes: 0,
+  highlightBad: [],
+  highlightWarn: [],
+  highlightGood: [],
 };
 
 export const getSettings = () => invoke<Settings>("settings_get");

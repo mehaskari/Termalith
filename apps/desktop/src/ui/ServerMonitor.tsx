@@ -39,7 +39,7 @@ export function ServerMonitor({ terminalId, active }: { terminalId: number; acti
 
   if (state === "waiting") return null;
   if (state === "unsupported" || !stats)
-    return <div className="server-monitor">Server monitor is available on Linux servers only.</div>;
+    return <div className="server-monitor">The server monitor works on Linux, macOS and FreeBSD servers.</div>;
   return (
     <div className="server-monitor" role="status" aria-label="Server monitor" aria-live="off">
       <span>CPU {stats.cpuPercent === null ? "…" : `${Math.round(stats.cpuPercent)}%`}</span>

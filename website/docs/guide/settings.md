@@ -30,7 +30,7 @@ grouped into Look, Terminal, Connections and Updates. Changes apply when you cli
 | **Show RDP and VNC sessions inside Termalith** | Opens desktops in a tab instead of the installed client ([Remote desktop](remote-desktop.md)). |
 | **Color keywords in terminal output** | Shows *error*, *warning*, *ok* and similar words in color. |
 | **Extra words in red** / **Extra words in yellow** / **Extra words in green** | Your own words for those colors, comma-separated (e.g. `err-disabled, down` in red, `up` in green); shown when keyword colors are on. Whole words only, up to 50 per color. |
-| **Show a server monitor under SSH terminals** | CPU, load, memory, disk and network of Linux servers, refreshed every 3 seconds. |
+| **Show a server monitor under SSH terminals** | CPU, load, memory, disk and network of Linux, macOS and FreeBSD servers, refreshed every 3 seconds. |
 | **Shell for new local terminals** | Default shell for **Local** (shown when more than one is installed). |
 | **Log every new terminal to Documents/Termalith Logs** | Writes every new terminal's output there as plain text. Logs may contain sensitive output. |
 | **Shared sessions** | Session files shared by a team (a folder path or an `https://` address); acts at once ([details](sessions.md#shared-session-files-team)). |

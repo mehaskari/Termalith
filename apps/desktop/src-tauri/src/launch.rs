@@ -20,6 +20,9 @@ pub enum LaunchRequest {
     Folder { path: String },
     /// `ssh://user@host`, `telnet://host`… or `--connect "ssh -p 2222 me@h"`.
     Connect { text: String },
+    /// `--local`: a local terminal with the preferred shell (the app opens
+    /// on the home screen otherwise).
+    Local,
 }
 
 /// Longest argument kept (names and URLs are short).
@@ -42,6 +45,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Vec<LaunchRequest> {
                     out.push(LaunchRequest::Folder { path });
                 }
             }
+            "--local" => out.push(LaunchRequest::Local),
             "--connect" => {
                 if let Some(text) = value(&mut it) {
                     out.push(LaunchRequest::Connect { text });
@@ -114,6 +118,7 @@ mod tests {
     #[test]
     fn ignores_unknown_and_incomplete_switches() {
         assert!(parse(args(&["-psn_0_12345", "--unknown", "x", "--session"])).is_empty());
+        assert_eq!(parse(args(&["--local"])), vec![LaunchRequest::Local]);
         assert!(parse(args(&["plain-word"])).is_empty());
         let long = format!("ssh://{}", "a".repeat(600));
         assert!(parse(args(&[long.as_str()])).is_empty());

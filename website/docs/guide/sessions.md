@@ -42,7 +42,7 @@ Serial consoles and local terminals are opened from the rail on the left
 ## Open from a shortcut or a script
 
 Start Termalith with a switch to open sessions right away (instead of the
-first local terminal):
+Home screen):
 
 | Switch | Opens |
 |---|---|
@@ -50,6 +50,7 @@ first local terminal):
 | `--folder "Production/DB"` | every session in that folder and its subfolders |
 | `ssh://me@10.0.0.5:2222` (also `telnet://`, `rdp://`, `vnc://`, `sftp://`, `ftp://`) | that connection, like the command palette |
 | `--connect "ssh -p 2222 me@host"` | a typed connection |
+| `--local` | a local terminal with your preferred shell |
 
 Examples: on Windows, copy the Termalith shortcut, open **Properties** and
 add `--session "web-01"` after the path in **Target**; on macOS

@@ -419,7 +419,8 @@ export const syncShared = () =>
 export type LaunchRequest =
   | { kind: "session"; name: string }
   | { kind: "folder"; path: string }
-  | { kind: "connect"; text: string };
+  | { kind: "connect"; text: string }
+  | { kind: "local" };
 export const launchRequests = () => invoke<LaunchRequest[]>("launch_requests");
 /** Folders that have an icon, as [path, icon]. */
 export const listFolderIcons = () => invoke<Array<[string, SessionIcon]>>("folder_icons_list");

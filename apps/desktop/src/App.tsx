@@ -325,6 +325,9 @@ export function App() {
           connectSaved(s);
           opened++;
         } else setNotice(`No saved session is called "${r.name}".`);
+      } else if (r.kind === "local") {
+        openLocal();
+        opened++;
       } else if (r.kind === "folder") {
         const list = saved.filter((s) => inFolder(s, r.path));
         if (list.length === 0) setNotice(`No sessions in folder "${r.path}".`);

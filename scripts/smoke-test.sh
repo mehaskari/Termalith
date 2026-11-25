@@ -12,7 +12,8 @@ START_TIMEOUT=${START_TIMEOUT:-60}
 LOG=$(mktemp)
 
 STARTED=$(date +%s%N 2>/dev/null || date +%s000000000)
-"$BIN" >"$LOG" 2>&1 &
+# --local: the app opens on its home screen otherwise, without a shell.
+"$BIN" --local >"$LOG" 2>&1 &
 APP=$!
 echo "app pid $APP"
 

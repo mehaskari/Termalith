@@ -59,8 +59,9 @@ details: [Download and install](https://mehaskari.github.io/Termalith/guide/inst
 
 ## Quick start
 
-1. Click **+** next to *Sessions*, choose **SSH terminal**, enter host and
-   user name, **Save**.
+1. Click **+** next to *Sessions*, choose **SSH**, enter host and user
+   name, **Save**. (Or type `user@host` on the Home screen and press
+   Enter to connect without saving.)
 2. Click the session, confirm the server's host key once, log in (tick
    *Save in the system keychain* to skip it next time).
 3. Use **Files** for SFTP and **Tunnels** for port forwarding on the tab.
@@ -69,6 +70,11 @@ Step by step with screenshots:
 [Your first connection](https://mehaskari.github.io/Termalith/guide/first-steps/).
 
 ## Features
+
+**Home and look** — opens on a Home screen: type a session name, a tag
+or `user@host` to connect; recent and favorite sessions; a light on every
+tab and session shows connected, connecting or dropped; dark and light
+themes with a color per connection type.
 
 **Terminals** — local shells (zsh, bash, fish, PowerShell, cmd, Git Bash,
 WSL) in tabs and up to 2×2 split panes; broadcast typing to several

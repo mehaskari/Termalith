@@ -11,7 +11,8 @@ $ErrorActionPreference = 'Stop'
 
 $shellName = Split-Path -Leaf $env:COMSPEC
 $clock = [System.Diagnostics.Stopwatch]::StartNew()
-$app = Start-Process -FilePath $Bin -PassThru
+# --local: the app opens on its home screen otherwise, without a shell.
+$app = Start-Process -FilePath $Bin -ArgumentList "--local" -PassThru
 Write-Host "app pid $($app.Id); expecting child $shellName"
 
 function Get-Shells {

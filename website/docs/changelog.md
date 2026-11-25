@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **New look.** A calmer slate theme (dark and light) with a color per
+  connection type, a rail on the left for Home, Connect, Local, Serial,
+  Tools, Keys, Import, Settings and About, and a light on every tab and
+  open session that shows connected, connecting or dropped.
+- **Home screen.** Termalith now opens on Home: type a session name, a tag
+  or `user@host` and press Enter to connect, use the buttons for the first
+  steps, or pick a recent or favorite session. Home also shows when the last
+  tab closes; **Home** in the rail brings it back.
+- **Simpler session dialog.** Connection types are tiles; jump host,
+  forwarding and other options, and the icon and colors, fold away until
+  you need them. Settings are grouped into Look, Terminal, Connections and
+  Updates.
 - **Old switches and routers.** When a device offers only old SSH
   algorithms (for example `diffie-hellman-group1-sha1`, CBC ciphers,
   `ssh-rsa`), Termalith now asks instead of failing: connect once, or always

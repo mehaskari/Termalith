@@ -85,7 +85,12 @@ import { SettingsDialog } from "./ui/SettingsDialog";
 import { UnlockDialog } from "./ui/MasterPassword";
 import { SerialDialog } from "./ui/SerialDialog";
 import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
-import { type Tab, moveBlocker, useTabs } from "./app/tabs";
+import { type Tab, linkState, moveBlocker, sessionLinks, useTabs } from "./app/tabs";
+import { readRecent, rememberRecent } from "./app/recent";
+import { AppRail } from "./ui/AppRail";
+import { FileDiff, FilePen, House, Wrench } from "lucide-react";
+import { HomeView } from "./ui/HomeView";
+import { LinkLight } from "./ui/icons";
 import { useMasterPassword } from "./app/useMasterPassword";
 import { useTheme } from "./app/useTheme";
 import { useConnectionPrompts } from "./app/useConnectionPrompts";
@@ -108,12 +113,19 @@ type SessionDialogState =
   | { mode: "edit"; session: SessionRecord }
   | { mode: "quick" };
 
+/** The picture of a tab that is not a connection (no link light). */
+function TabGlyph({ kind }: { kind: Tab["kind"] }) {
+  const Glyph = kind === "home" ? House : kind === "tools" ? Wrench : kind === "editor" ? FilePen : kind === "diff" ? FileDiff : null;
+  return Glyph ? <Glyph size={14} className="tab-glyph" aria-hidden="true" /> : <span className={`tab-kind ${kind}`} aria-hidden="true" />;
+}
+
 export function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const { unlockOpen, setUnlockOpen, masterProtected, refreshMaster } = useMasterPassword();
   // Portable mode saves passwords only under a master password (ADR-033).
   const canSave = (info?.secretsAvailable ?? false) && (!info?.portable || masterProtected);
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
+  const [recent, setRecent] = useState<string[]>(() => readRecent());
   const { tabs, setTabs, tabsRef, active, setActive, addTab, renameTab, patchTab, splitTab, closeSplit, closeTab } =
     useTabs();
   const [sessionDialog, setSessionDialog] = useState<SessionDialogState | null>(null);
@@ -313,6 +325,9 @@ export function App() {
           connectSaved(s);
           opened++;
         } else setNotice(`No saved session is called "${r.name}".`);
+      } else if (r.kind === "local") {
+        openLocal();
+        opened++;
       } else if (r.kind === "folder") {
         const list = saved.filter((s) => inFolder(s, r.path));
         if (list.length === 0) setNotice(`No sessions in folder "${r.path}".`);
@@ -327,7 +342,7 @@ export function App() {
       }
     }
     // Nothing could be opened: start as usual, with a local terminal.
-    if (opened === 0) openLocal();
+    // Nothing could be opened: the home screen shows.
   };
   const didOpenInitialTab = useRef(false);
   useEffect(() => {
@@ -373,10 +388,8 @@ export function App() {
       // Command-line switches (--session, --folder, ssh://…) replace the
       // first local terminal.
       const requests = await launchRequests().catch(() => []);
-      if (requests.length === 0) {
-        openLocal();
-        return;
-      }
+      // Without command-line requests the home screen shows (no tabs).
+      if (requests.length === 0) return;
       const saved = await listSessions().catch(() => [] as SessionRecord[]);
       launchRef.current(requests, saved);
     });
@@ -585,14 +598,72 @@ export function App() {
     }
   }
 
+  const openTools = () => {
+    const existing = tabs.find((t) => t.kind === "tools");
+    if (existing) setActive(existing.key);
+    else addTab("Network tools", "tools", openLocalTerminal);
+  };
+  /** The home screen: shown without tabs, else as its own tab. */
+  const openHome = () => {
+    if (tabs.length === 0) return;
+    const existing = tabs.find((t) => t.kind === "home");
+    if (existing) setActive(existing.key);
+    else addTab("Home", "home", openLocalTerminal);
+  };
+  /** Opens a saved session and remembers it for the home screen. */
+  const openSaved = (s: SessionRecord) => {
+    rememberRecent(s.id);
+    setRecent(readRecent());
+    return connectSaved(s);
+  };
+  /** Typed on the home screen; returns why it could not be read. */
+  const connectTypedText = (text: string): string | null => {
+    const t = parseTypedConnection(text);
+    if (!t) return `"${text}" is not a saved session or a connection. Try user@host, ssh://host:2222 or telnet 10.0.0.1.`;
+    connectTyped(t);
+    return null;
+  };
+  const links = sessionLinks(tabs);
+  const home = (
+    <HomeView
+      sessions={sessions}
+      recent={recent}
+      links={links}
+      onConnect={openSaved}
+      onConnectTyped={connectTypedText}
+      onNewSession={() => setSessionDialog({ mode: "create" })}
+      onLocalTerminal={() => openLocal()}
+      onSerial={() => setSerialOpen(true)}
+      onTools={openTools}
+      onImport={() => setTransferMode("import")}
+    />
+  );
+
   return (
     <div className="app">
+      <AppRail
+        homeActive={tabs.length === 0 || activeTab?.kind === "home"}
+        toolsActive={activeTab?.kind === "tools"}
+        shells={shells}
+        onHome={openHome}
+        onQuickConnect={() => setSessionDialog({ mode: "quick" })}
+        onLocalTerminal={(id) => openLocal(id)}
+        onSerial={() => setSerialOpen(true)}
+        onTools={openTools}
+        onKeys={() => setKeysOpen(true)}
+        onImport={() => setImporting(true)}
+        onImportSessions={() => setTransferMode("import")}
+        onExport={() => setTransferMode("export")}
+        onSettings={() => setSettingsOpen(true)}
+        onAbout={() => setAboutOpen(true)}
+      />
       <Sidebar
         sessions={sessions}
         folders={folders}
         folderIcons={folderIcons}
         onSetFolderIcon={(path, icon) => void setFolderIcon(path, icon).then(refresh, failed)}
-        onConnect={connectSaved}
+        onConnect={openSaved}
+        links={links}
         onOpenAndBroadcast={openAndBroadcast}
         onOpenFiles={openFilesTab}
         onEdit={(s) => setSessionDialog({ mode: "edit", session: s })}
@@ -610,25 +681,11 @@ export function App() {
         }
         onDeleteFolder={(path) => deleteFolder(path).then(refresh, failed)}
         onMoveSession={(s, folder) => moveSession(s.id, folder).then(refresh, failed)}
-        onQuickConnect={() => setSessionDialog({ mode: "quick" })}
-        shells={shells}
-        onLocalTerminal={(id) => openLocal(id)}
         onImport={() => setImporting(true)}
         onToggleFavorite={(s) => setFavorite(s.id, !s.favorite).then(refresh, (e) => setNotice(String(e?.message ?? e)))}
         onDuplicate={(s) => {
           const { id: _id, hasSavedSecret: _h, favorite: _f, updatedAt: _u, ...input } = s;
           createSession({ ...input, name: `${s.name} (copy)` }).then(refresh, (e) => setNotice(String(e?.message ?? e)));
-        }}
-        onExport={() => setTransferMode("export")}
-        onImportSessions={() => setTransferMode("import")}
-        onSettings={() => setSettingsOpen(true)}
-        onSerial={() => setSerialOpen(true)}
-        onKeys={() => setKeysOpen(true)}
-        onAbout={() => setAboutOpen(true)}
-        onTools={() => {
-          const existing = tabs.find((t) => t.kind === "tools");
-          if (existing) setActive(existing.key);
-          else addTab("Network tools", "tools", openLocalTerminal);
         }}
       />
       <main className="workspace">
@@ -677,11 +734,13 @@ export function App() {
                   onKeyDown={(e) => tabKey(e, t)}
                 >
                   {(() => {
-                    const icon = t.sessionId ? sessions.find((x) => x.id === t.sessionId)?.icon : null;
-                    return icon ? (
-                      <SessionIconGlyph icon={icon} size={13} className="tab-icon" />
-                    ) : (
-                      <span className={`tab-kind ${t.kind}`} aria-hidden="true" />
+                    const state = linkState(t);
+                    const session = t.sessionId ? sessions.find((x) => x.id === t.sessionId) : undefined;
+                    return (
+                      <>
+                        {state ? <LinkLight state={state} /> : <TabGlyph kind={t.kind} />}
+                        {session?.icon && <SessionIconGlyph icon={session.icon} size={13} className="tab-icon" />}
+                      </>
                     );
                   })()}
                   {t.title}
@@ -768,12 +827,7 @@ export function App() {
           </div>
         )}
         <div className={`panes ${tiled ? "tiled" : ""}`}>
-          {tabs.length === 0 && (
-            <div className="placeholder">
-              <p>No open terminals.</p>
-              <p>Connect to a saved session, use Quick connect, or open a local terminal.</p>
-            </div>
-          )}
+          {tabs.length === 0 && home}
           {tabs.map((t) => (
             <div
               key={t.key}
@@ -783,7 +837,9 @@ export function App() {
               role="tabpanel"
               aria-labelledby={`tab-${t.key}`}
             >
-              {t.kind === "tools" ? (
+              {t.kind === "home" ? (
+                home
+              ) : t.kind === "tools" ? (
                 <NetworkTools dropped={toolsFolder} />
               ) : t.kind === "diff" && t.diff ? (
                 <DiffPane left={t.diff.left} right={t.diff.right} />

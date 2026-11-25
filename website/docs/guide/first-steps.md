@@ -11,15 +11,23 @@ It takes about two minutes.
 
 ![The main window](../assets/screenshots/main-window.png)
 
-- **Left, top:** **Quick connect** (connect without saving), **Local** (a
-  terminal on this computer; the ▾ picks a shell) and **Serial**.
-- **Left, middle:** your saved sessions as a folder tree, with search.
-- **Left, bottom:** **Tools** (network tools), **Keys** (SSH key manager),
-  **Import** (import and export sessions), ☀ ([Settings](settings.md)) and ⓘ
-  (About, update check).
-- **Right:** your tabs. Every connection opens in a tab. Above a terminal
-  is its toolbar: split, broadcast, log, macro, snippets and, for SSH tabs,
-  **Tunnels** and **Files**.
+- **Far left, the rail:** **Home**, **Connect** (quick connect, without
+  saving), **Local** (a terminal on this computer; right-click to pick a
+  shell), **Serial**, **Tools** (network tools and file servers), **Keys**
+  (SSH key manager) and **Import** (import and export sessions); at the
+  bottom **Settings** and **About** (update check, report a problem).
+- **Left:** your saved sessions as a folder tree, with search.
+- **Right:** the **Home** screen when nothing is open, else your tabs. Every
+  connection opens in a tab. Above a terminal is its toolbar: split,
+  broadcast, log, macro and the side panels (snippets and, for SSH tabs,
+  **Tunnels** and **Files**).
+
+A small light shows the state of every connection, on its tab and next to
+its session: green connected, amber connecting (blinking), red dropped.
+
+On **Home**, type a session name, a tag or `user@host` and press
+<kbd>Enter</kbd> to connect; below are buttons for the common first steps
+and your recent and favorite sessions.
 
 ## 2. Save a server
 
@@ -27,8 +35,8 @@ Click **+** next to *Sessions*.
 
 ![The New session dialog](../assets/screenshots/session-dialog.png){ width="440" }
 
-1. **Type:** *SSH terminal* (the other types are RDP, VNC, Telnet, FTPS and
-   FTP).
+1. **Type:** *SSH* (the other types are RDP, VNC, Telnet, FTPS, FTP and
+   S3).
 2. **Name:** anything you like, e.g. `web-01`.
 3. **Host** and **Port:** the server's name or IP address; the port is 22
    for SSH unless your server uses another one.
@@ -39,8 +47,10 @@ Click **+** next to *Sessions*.
    **Tags** (`prod, web`).
 7. **Save.** The session appears in the list.
 
-Everything else in the dialog is optional and explained in [SSH](ssh.md)
-and [Sessions](sessions.md).
+Everything else is optional and folded away under **Connection options**
+(jump host, files only, Mosh, run after login, forwarding, old algorithms)
+and **Look** (icon, colors, font); see [SSH](ssh.md) and
+[Sessions](sessions.md).
 
 ## 3. Connect and confirm the host key
 

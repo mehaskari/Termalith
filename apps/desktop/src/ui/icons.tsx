@@ -1,3 +1,5 @@
+import type { LucideIcon } from "lucide-react";
+import { Cable, Database, Folder, FolderLock, FolderUp, Laptop, Monitor, RadioTower, ScreenShare, SquareTerminal, Usb } from "lucide-react";
 import type { ReactElement } from "react";
 
 /** Small stroke icons (16px grid), drawn for Termalith. */
@@ -94,21 +96,53 @@ const PROTOCOL_LABEL: Record<string, string> = {
   ssh: "SSH",
   rdp: "RDP",
   vnc: "VNC",
-  telnet: "TEL",
+  telnet: "Telnet",
   ftp: "FTP",
   ftps: "FTPS",
   s3: "S3",
-  mosh: "MOSH",
-  serial: "COM",
-  local: "SH",
+  mosh: "Mosh",
+  serial: "Serial",
+  local: "Local shell",
   files: "SFTP",
 };
 
-/** Color-coded protocol tile used in the session tree and tabs. */
-export function ProtocolBadge({ protocol }: { protocol: string }) {
+/** One picture per connection type, drawn in the type's cable color. */
+const PROTOCOL_GLYPH: Record<string, LucideIcon> = {
+  ssh: SquareTerminal,
+  rdp: Monitor,
+  vnc: ScreenShare,
+  telnet: Cable,
+  ftp: FolderUp,
+  ftps: FolderLock,
+  s3: Database,
+  mosh: RadioTower,
+  serial: Usb,
+  local: Laptop,
+  files: Folder,
+};
+
+/** The readable name of a connection type ("SSH", "Telnet", …). */
+export function protocolLabel(protocol: string): string {
+  return PROTOCOL_LABEL[protocol] ?? protocol.toUpperCase();
+}
+
+/** Connection type tile used in the session tree, tabs and the home screen. */
+export function ProtocolBadge({ protocol, size = 15 }: { protocol: string; size?: number }) {
+  const Glyph = PROTOCOL_GLYPH[protocol] ?? SquareTerminal;
   return (
-    <span className={`proto proto-${protocol}`} aria-hidden="true">
-      {PROTOCOL_LABEL[protocol] ?? protocol.slice(0, 3).toUpperCase()}
+    <span className={`proto proto-${protocol}`} aria-hidden="true" title={protocolLabel(protocol)}>
+      <Glyph size={size} strokeWidth={1.8} />
     </span>
   );
+}
+
+export type LinkState = "up" | "wait" | "down";
+
+/**
+ * A switch-port style link light: connected, connecting (pulses) or dropped.
+ * Purely visual; the accessible name says the state.
+ */
+export function LinkLight({ state }: { state: LinkState }) {
+  const label = state === "up" ? "connected" : state === "wait" ? "connecting" : "disconnected";
+  return <span className={`link-light ${state}`} role="img" aria-label={label} title={label} />;
 }

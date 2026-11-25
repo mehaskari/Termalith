@@ -1,3 +1,4 @@
+import { Braces, CircleDot, Columns2, FolderTree, Grid2x2, Megaphone, RotateCw, Rows2, ScrollText, Square, Waypoints } from "lucide-react";
 import type { Tab } from "../app/tabs";
 import { type BroadcastState, resolveTargets } from "./broadcast";
 
@@ -77,7 +78,7 @@ export function TerminalPaneHeader(props: {
             disabled={noSplit}
             onClick={() => props.onSplit("row")}
           >
-            ◫
+            <Columns2 size={15} aria-hidden="true" />
           </button>
           <button
             type="button"
@@ -86,7 +87,7 @@ export function TerminalPaneHeader(props: {
             disabled={noSplit}
             onClick={() => props.onSplit("column")}
           >
-            ⊟
+            <Rows2 size={15} aria-hidden="true" />
           </button>
           <button
             type="button"
@@ -95,10 +96,12 @@ export function TerminalPaneHeader(props: {
             disabled={noSplit}
             onClick={() => props.onSplit("grid")}
           >
-            ⊞
+            <Grid2x2 size={15} aria-hidden="true" />
           </button>
+          <span className="toolbar-sep" aria-hidden="true" />
           {broadcast?.source === t.key ? (
             <button type="button" className="danger" onClick={props.onStopBroadcast}>
+              <Square size={13} aria-hidden="true" />
               Stop broadcast
             </button>
           ) : (
@@ -108,6 +111,7 @@ export function TerminalPaneHeader(props: {
               disabled={idle || broadcast !== null}
               onClick={props.onBroadcast}
             >
+              <Megaphone size={15} aria-hidden="true" />
               Broadcast…
             </button>
           )}
@@ -119,7 +123,8 @@ export function TerminalPaneHeader(props: {
             disabled={idle}
             onClick={props.onToggleLog}
           >
-            {t.log ? "● Log" : "Log"}
+            <ScrollText size={15} aria-hidden="true" />
+            Log
           </button>
           <button
             type="button"
@@ -129,21 +134,26 @@ export function TerminalPaneHeader(props: {
             disabled={idle || (recordingKey !== null && !recording)}
             onClick={props.onToggleMacro}
           >
-            {recording ? "■ Macro" : "Macro"}
+            <CircleDot size={15} aria-hidden="true" />
+            Macro
           </button>
+          {t.reconnect && t.ended && (
+            <button type="button" onClick={props.onReconnect}>
+              <RotateCw size={15} aria-hidden="true" />
+              Reconnect
+            </button>
+          )}
+          <span className="toolbar-sep" aria-hidden="true" />
+          <span className="segmented" role="group" aria-label="Side panel">
           <button
             type="button"
             aria-pressed={!!t.snippetsOpen}
             disabled={idle}
             onClick={() => props.onTogglePanel("snippets")}
           >
+            <Braces size={15} aria-hidden="true" />
             Snippets
           </button>
-          {t.reconnect && t.ended && (
-            <button type="button" onClick={props.onReconnect}>
-              Reconnect
-            </button>
-          )}
           {t.kind === "ssh" && (
             <>
               <button
@@ -152,6 +162,7 @@ export function TerminalPaneHeader(props: {
                 disabled={idle}
                 onClick={() => props.onTogglePanel("tunnels")}
               >
+                <Waypoints size={15} aria-hidden="true" />
                 Tunnels
               </button>
               <button
@@ -160,10 +171,12 @@ export function TerminalPaneHeader(props: {
                 disabled={idle}
                 onClick={() => props.onTogglePanel("files")}
               >
+                <FolderTree size={15} aria-hidden="true" />
                 Files
               </button>
             </>
           )}
+          </span>
         </span>
       </div>
       {broadcast?.source === t.key && (

@@ -114,7 +114,7 @@ and not saved. Jump hosts and forwarding are not available with Mosh.
 
 ## SSH keys
 
-**Keys** in the sidebar footer:
+**Keys** in the rail on the left:
 
 ![The SSH keys dialog](../assets/screenshots/ssh-keys.png){ width="440" }
 

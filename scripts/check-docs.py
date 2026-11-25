@@ -97,8 +97,9 @@ def check_settings() -> None:
 
 def check_session_types() -> None:
     dialog = read("apps/desktop/src/ui/SessionDialog.tsx")
-    types = re.findall(r'<option value="(?:ssh|rdp|vnc|telnet|ftps|ftp)">([^<]+)</option>', dialog)
-    if len(types) < 6:
+    # The type tiles: SESSION_TYPES entries with the name shown on each tile.
+    types = re.findall(r'\{ protocol: "(?:ssh|rdp|vnc|telnet|ftps|ftp|s3)", name: "([^"]+)"', dialog)
+    if len(types) < 7:
         fail(f"check-docs found only {len(types)} session types in SessionDialog.tsx; update the parser")
     doc = norm((GUIDE / "sessions.md").read_text(encoding="utf-8"))
     for t in types:

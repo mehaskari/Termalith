@@ -73,6 +73,7 @@ export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvail
       }
     >
       <form id="settings-form" className="form-grid" onSubmit={submit}>
+        <h3 className="settings-group span-2">Look</h3>
         <label className="span-2">
           Terminal colors
           <select value={s.terminalScheme} onChange={(e) => set({ terminalScheme: e.target.value })}>
@@ -119,6 +120,44 @@ export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvail
           <input type="checkbox" checked={s.cursorBlink} onChange={(e) => set({ cursorBlink: e.target.checked })} />
           Blinking cursor
         </label>
+        <label className="checkbox span-2">
+          <input type="checkbox" checked={s.highlightOutput} onChange={(e) => set({ highlightOutput: e.target.checked })} />
+          Color keywords in terminal output (error, warning, ok)
+        </label>
+        <h3 className="settings-group span-2">Terminal</h3>
+        <label className="checkbox span-2">
+          <input type="checkbox" checked={s.copyOnSelect} onChange={(e) => set({ copyOnSelect: e.target.checked })} />
+          Copy selected terminal text automatically
+        </label>
+        <label className="checkbox span-2">
+          <input type="checkbox" checked={s.rightClickPaste} onChange={(e) => set({ rightClickPaste: e.target.checked })} />
+          Right-click in a terminal pastes
+        </label>
+        <label className="checkbox span-2">
+          <input type="checkbox" checked={s.pasteWarning} onChange={(e) => set({ pasteWarning: e.target.checked })} />
+          Warn before pasting several lines or risky text
+        </label>
+        {shells.length > 1 && (
+          <label className="span-2">
+            Shell for new local terminals
+            <select
+              value={s.defaultShell ?? ""}
+              onChange={(e) => set({ defaultShell: e.target.value || null })}
+            >
+              <option value="">System default ({shells[0]?.name})</option>
+              {shells.map((sh) => (
+                <option key={sh.id} value={sh.id}>
+                  {sh.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label className="checkbox span-2">
+          <input type="checkbox" checked={s.logSessions} onChange={(e) => set({ logSessions: e.target.checked })} />
+          Log every new terminal to Documents/Termalith Logs (plain text; may contain sensitive output)
+        </label>
+        <h3 className="settings-group span-2">Connections</h3>
         <label>
           Proxy
           <select
@@ -208,56 +247,21 @@ export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvail
           </p>
         )}
         <label className="checkbox span-2">
-          <input type="checkbox" checked={s.copyOnSelect} onChange={(e) => set({ copyOnSelect: e.target.checked })} />
-          Copy selected terminal text automatically
-        </label>
-        <label className="checkbox span-2">
-          <input type="checkbox" checked={s.rightClickPaste} onChange={(e) => set({ rightClickPaste: e.target.checked })} />
-          Right-click in a terminal pastes
-        </label>
-        <label className="checkbox span-2">
-          <input type="checkbox" checked={s.pasteWarning} onChange={(e) => set({ pasteWarning: e.target.checked })} />
-          Warn before pasting several lines or risky text
-        </label>
-        <label className="checkbox span-2">
           <input type="checkbox" checked={s.autoReconnect} onChange={(e) => set({ autoReconnect: e.target.checked })} />
           Reconnect SSH tabs automatically when the connection drops
-        </label>
-        <label className="checkbox span-2">
-          <input type="checkbox" checked={s.updateCheck} onChange={(e) => set({ updateCheck: e.target.checked })} />
-          Tell me when a new version is available (checks GitHub at startup; nothing is downloaded automatically)
         </label>
         <label className="checkbox span-2">
           <input type="checkbox" checked={s.embeddedRdp} onChange={(e) => set({ embeddedRdp: e.target.checked })} />
           Show RDP and VNC sessions inside Termalith (experimental; otherwise the installed client opens)
         </label>
         <label className="checkbox span-2">
-          <input type="checkbox" checked={s.highlightOutput} onChange={(e) => set({ highlightOutput: e.target.checked })} />
-          Color keywords in terminal output (error, warning, ok)
-        </label>
-        <label className="checkbox span-2">
           <input type="checkbox" checked={s.serverMonitor} onChange={(e) => set({ serverMonitor: e.target.checked })} />
           Show a server monitor under SSH terminals (Linux servers; runs a read-only command on the server every 3 seconds)
         </label>
-        {shells.length > 1 && (
-          <label className="span-2">
-            Shell for new local terminals
-            <select
-              value={s.defaultShell ?? ""}
-              onChange={(e) => set({ defaultShell: e.target.value || null })}
-            >
-              <option value="">System default ({shells[0]?.name})</option>
-              {shells.map((sh) => (
-                <option key={sh.id} value={sh.id}>
-                  {sh.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+        <h3 className="settings-group span-2">Updates</h3>
         <label className="checkbox span-2">
-          <input type="checkbox" checked={s.logSessions} onChange={(e) => set({ logSessions: e.target.checked })} />
-          Log every new terminal to Documents/Termalith Logs (plain text; may contain sensitive output)
+          <input type="checkbox" checked={s.updateCheck} onChange={(e) => set({ updateCheck: e.target.checked })} />
+          Tell me when a new version is available (checks GitHub at startup; nothing is downloaded automatically)
         </label>
         {error && <p className="form-error span-2" role="alert">{error}</p>}
       </form>

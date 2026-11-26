@@ -127,6 +127,7 @@ export function TerminalView({
       cursorStyle: s.cursorStyle,
       fontFamily: fontStack(s.fontFamily),
       fontSize: s.fontSize,
+      lineHeight: (s.lineHeight || 100) / 100,
       scrollback: s.scrollback,
       theme: terminalTheme(initial.current.settings.terminalScheme, initial.current.theme),
       // Needed by the search addon's match decorations.
@@ -342,6 +343,7 @@ export function TerminalView({
     // Padding around the canvas uses the scheme's background too.
     if (hostRef.current) hostRef.current.style.background = term.options.theme.background ?? "";
     term.options.fontSize = settings.fontSize;
+    term.options.lineHeight = (settings.lineHeight || 100) / 100;
     term.options.fontFamily = fontStack(settings.fontFamily);
     term.options.cursorStyle = settings.cursorStyle;
     term.options.cursorBlink = settings.cursorBlink;

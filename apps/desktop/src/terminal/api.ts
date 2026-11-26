@@ -391,6 +391,8 @@ export const DEFAULT_SETTINGS: Settings = {
   highlightBad: [],
   highlightWarn: [],
   highlightGood: [],
+  lineHeight: 100,
+  confirmClose: false,
 };
 
 export const getSettings = () => invoke<Settings>("settings_get");

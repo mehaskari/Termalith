@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.1 (2026-11-26)
+
+- **Redesigned Settings.** Sections in a sidebar (Appearance, Terminal,
+  Keyword colors, Connections, Proxy, Security, Shared sessions, Updates,
+  Keyboard shortcuts), clear rows with an explanation for every setting,
+  switches instead of check boxes, and **Search settings**. A live preview
+  shows the terminal colors, font, line height, cursor and keyword colors
+  before you save; *Unsaved changes* and **Reset to defaults** are new.
+- **Line height.** *Settings → Appearance → Line height* adds room between
+  terminal lines (110–150 %).
+- **Ask before closing a connected tab.** Optional (*Settings → Terminal*):
+  closing a tab whose connection is open asks first.
+- **Keyboard shortcuts** are listed in Settings with this computer's keys.
+
 ## 0.6.0 (2026-11-26)
 
 - **Import FileZilla sites.** Paste a FileZilla `sitemanager.xml` into

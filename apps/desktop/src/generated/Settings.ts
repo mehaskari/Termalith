@@ -68,4 +68,12 @@ highlightBad: Array<string>, highlightWarn: Array<string>, highlightGood: Array<
  * without keyboard or mouse use in Termalith (0 = never). Open
  * connections stay open.
  */
-autoLockMinutes: number, };
+autoLockMinutes: number, 
+/**
+ * Terminal line height in percent of the font size (100-200).
+ */
+lineHeight: number, 
+/**
+ * Ask before closing a tab whose connection is open.
+ */
+confirmClose: boolean, };

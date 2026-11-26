@@ -142,6 +142,10 @@ pub struct Settings {
     /// without keyboard or mouse use in Termalith (0 = never). Open
     /// connections stay open.
     pub auto_lock_minutes: u16,
+    /// Terminal line height in percent of the font size (100-200).
+    pub line_height: u8,
+    /// Ask before closing a tab whose connection is open.
+    pub confirm_close: bool,
 }
 
 /// Extra keywords per color.
@@ -175,6 +179,8 @@ impl Default for Settings {
             highlight_warn: Vec::new(),
             highlight_good: Vec::new(),
             auto_lock_minutes: 0,
+            line_height: 100,
+            confirm_close: false,
         }
     }
 }
@@ -200,6 +206,9 @@ impl Settings {
                     "up to 50 words per color, each 1-40 characters",
                 ));
             }
+        }
+        if !(100..=200).contains(&self.line_height) {
+            return Err(AppError::invalid("line height", "must be 100-200 %"));
         }
         if self.auto_lock_minutes > MAX_AUTO_LOCK_MINUTES {
             return Err(AppError::invalid(
@@ -543,6 +552,13 @@ mod tests {
     }
 
     #[test]
+    fn settings_saved_before_line_height_get_the_defaults() {
+        let old: Settings = serde_json::from_str(r#"{"fontSize":14}"#).unwrap();
+        assert_eq!((old.line_height, old.confirm_close), (100, false));
+        old.validate().unwrap();
+    }
+
+    #[test]
     fn settings_default_round_trip_and_validation() {
         let s = SessionStore::open_in_memory().unwrap();
         assert_eq!(s.settings().unwrap(), Settings::default());
@@ -562,6 +578,16 @@ mod tests {
         custom.auto_lock_minutes = MAX_AUTO_LOCK_MINUTES + 1;
         assert!(s.save_settings(&custom).is_err(), "at most a day");
         custom.auto_lock_minutes = 0;
+        custom.line_height = 130;
+        custom.confirm_close = true;
+        s.save_settings(&custom).unwrap();
+        let back = s.settings().unwrap();
+        assert_eq!((back.line_height, back.confirm_close), (130, true));
+        for bad in [99, 201] {
+            custom.line_height = bad;
+            assert!(s.save_settings(&custom).is_err(), "line height {bad}");
+        }
+        custom.line_height = 100;
         custom.highlight_bad = vec!["err-disabled".into(), "down".into()];
         s.save_settings(&custom).unwrap();
         assert_eq!(

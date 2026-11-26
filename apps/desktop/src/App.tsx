@@ -86,7 +86,7 @@ import { SettingsDialog } from "./ui/SettingsDialog";
 import { UnlockDialog } from "./ui/MasterPassword";
 import { SerialDialog } from "./ui/SerialDialog";
 import { TransferSessionsDialog } from "./ui/TransferSessionsDialog";
-import { type Tab, linkState, moveBlocker, sessionLinks, useTabs } from "./app/tabs";
+import { type Tab, linkState, moveBlocker, needsCloseConfirm, sessionLinks, useTabs } from "./app/tabs";
 import { readRecent, rememberRecent } from "./app/recent";
 import { AppRail } from "./ui/AppRail";
 import { FileDiff, FilePen, House, Wrench } from "lucide-react";
@@ -136,6 +136,7 @@ export function App() {
   const { hostKeyPrompt: currentPrompt, answerHostKey, authPrompt, answerAuth } = useConnectionPrompts();
   const [confirmDelete, setConfirmDelete] = useState<SessionRecord | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState<Tab | null>(null);
+  const [confirmClose, setConfirmClose] = useState<Tab | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -243,9 +244,10 @@ export function App() {
     (key: number) => {
       const t = tabsRef.current.find((x) => x.key === key);
       if (t?.dirty) setConfirmDiscard(t);
+      else if (t && needsCloseConfirm(t, settings.confirmClose)) setConfirmClose(t);
       else closeTab(key);
     },
-    [closeTab],
+    [closeTab, settings.confirmClose],
   );
 
   const openEditor = useCallback(
@@ -1312,6 +1314,35 @@ export function App() {
           <p>
             <strong>{confirmDiscard.title}</strong> has changes that were not saved to the server.
           </p>
+        </Dialog>
+      )}
+      {confirmClose && (
+        <Dialog
+          title="Close the connection?"
+          onCancel={() => setConfirmClose(null)}
+          actions={
+            <>
+              <button type="button" onClick={() => setConfirmClose(null)}>
+                Keep open
+              </button>
+              <button
+                type="button"
+                className="danger"
+                autoFocus
+                onClick={() => {
+                  closeTab(confirmClose.key);
+                  setConfirmClose(null);
+                }}
+              >
+                Close tab
+              </button>
+            </>
+          }
+        >
+          <p>
+            <strong>{confirmClose.title}</strong> is still connected. Closing the tab ends the connection.
+          </p>
+          <p className="hint">You can turn this question off in Settings → Terminal.</p>
         </Dialog>
       )}
       {confirmDelete && (

@@ -67,3 +67,53 @@ export function matchShortcut(e: KeyLike, mac: boolean): ShortcutAction | null {
       return null;
   }
 }
+
+/** A shortcut as shown in Settings: the keys pressed and what they do. */
+export interface ShortcutHelp {
+  action: ShortcutAction;
+  label: string;
+  /** The keys, as a key event. */
+  keys: KeyLike;
+}
+
+const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({
+  key: k,
+  ctrlKey: false,
+  metaKey: false,
+  shiftKey: false,
+  altKey: false,
+  ...mods,
+});
+
+/** The application shortcuts for this platform, for the Settings list. */
+export function shortcutHelp(mac: boolean): ShortcutHelp[] {
+  const mod = (k: string, code?: string): KeyLike =>
+    mac ? key(k, { metaKey: true, code }) : key(k.toUpperCase(), { ctrlKey: true, shiftKey: true, code });
+  const list: ShortcutHelp[] = [
+    { action: "newTab", label: "New local terminal", keys: mod("t") },
+    { action: "closeTab", label: "Close tab", keys: mod("w") },
+    { action: "nextTab", label: "Next tab", keys: key("Tab", { ctrlKey: true }) },
+    { action: "prevTab", label: "Previous tab", keys: key("Tab", { ctrlKey: true, shiftKey: true }) },
+    { action: "tab1", label: "Go to tab 1–8 (9 = last)", keys: mod("1", "Digit1") },
+    { action: "palette", label: "Connect by typing (palette)", keys: mod("k") },
+    { action: "find", label: "Find in terminal", keys: mod("f") },
+    { action: "zoomIn", label: "Larger text", keys: mod("=") },
+    { action: "zoomOut", label: "Smaller text", keys: mod("-") },
+    { action: "zoomReset", label: "Default text size", keys: mod("0") },
+  ];
+  if (!mac) {
+    list.splice(6, 0, { action: "copy", label: "Copy", keys: mod("c") }, { action: "paste", label: "Paste", keys: mod("v") });
+  }
+  return list;
+}
+
+/** Key names for display: ["⌘", "T"] on macOS, ["Ctrl", "Shift", "T"] elsewhere. */
+export function keyCaps(e: KeyLike, mac: boolean): string[] {
+  const caps: string[] = [];
+  if (e.ctrlKey) caps.push(mac ? "⌃" : "Ctrl");
+  if (e.altKey) caps.push(mac ? "⌥" : "Alt");
+  if (e.shiftKey) caps.push(mac ? "⇧" : "Shift");
+  if (e.metaKey) caps.push("⌘");
+  caps.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
+  return caps;
+}

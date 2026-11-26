@@ -19,7 +19,7 @@
 <meta name="twitter:description" content="Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS and S3, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry.">
 <meta name="twitter:image" content="https://mehaskari.github.io/Termalith/assets/og.png">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Termalith","applicationCategory":"DeveloperApplication","applicationSubCategory":"Remote administration","operatingSystem":"macOS 11+, Windows 10/11, Linux","softwareVersion":"0.5.10","license":"https://opensource.org/licenses/MIT","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://mehaskari.github.io/Termalith/","downloadUrl":"https://github.com/mehaskari/Termalith/releases/latest","codeRepository":"https://github.com/mehaskari/Termalith","description":"Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS and S3, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry."}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Termalith","applicationCategory":"DeveloperApplication","applicationSubCategory":"Remote administration","operatingSystem":"macOS 11+, Windows 10/11, Linux","softwareVersion":"0.6.0","license":"https://opensource.org/licenses/MIT","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://mehaskari.github.io/Termalith/","downloadUrl":"https://github.com/mehaskari/Termalith/releases/latest","codeRepository":"https://github.com/mehaskari/Termalith","description":"Termalith is a free, open-source remote administration app for macOS, Windows and Linux: SSH and Mosh terminals, SFTP/FTP/FTPS and S3, RDP and VNC, tunnels, serial and Telnet consoles and network tools in one window. No account, no telemetry."}
 </script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
@@ -493,7 +493,7 @@
 
         <div class="install-pill">
           <span class="prompt">↓</span>
-          <span class="cmd">Termalith 0.5.10 — free, MIT licensed</span>
+          <span class="cmd">Termalith 0.6.0 — free, MIT licensed</span>
           <a class="copy-btn" href="#install">download</a>
         </div>
 
@@ -562,10 +562,11 @@
           <span class="g-tag">Terminals</span>
           <h3>Work in many places at once</h3>
           <ul>
-            <li>Local shells, tabs, up to 2×2 split panes</li>
+            <li>Opens on Home: type a name or <code>user@host</code> to connect</li>
+            <li>Local shells, tabs, up to 2×2 split panes; move a tab to its own window</li>
             <li>Type into a whole folder of servers at once, side by side</li>
-            <li>Snippets with <code>&#123;&#123;variables&#125;&#125;</code>, macros</li>
-            <li>Session logs, keyword colors, per-session look</li>
+            <li>Snippets with <code>&#123;&#123;variables&#125;&#125;</code>; macros you can edit, that wait for the prompt</li>
+            <li>Session logs, your own keyword colors, per-session look</li>
             <li>Command palette <code>⌘K</code>: type <code>ssh me@host</code> to connect</li>
             <li>Icons for sessions and folders, shared team session files</li>
           </ul>
@@ -575,10 +576,11 @@
           <h3>Connect safely, stay connected</h3>
           <ul>
             <li>Password, keys, agent, one-time codes</li>
-            <li>Strict host keys, keychain secrets</li>
+            <li>Strict host keys, keychain secrets, optional idle lock</li>
+            <li>Old switches and routers: asks before using old algorithms</li>
             <li>Jump hosts, SOCKS/HTTP proxy</li>
             <li>Tunnels <code>-L</code> <code>-R</code> <code>-D</code>, Mosh</li>
-            <li>X11 (starts VcXsrv on Windows) &amp; agent forwarding, server monitor</li>
+            <li>X11 (starts VcXsrv on Windows) &amp; agent forwarding, server monitor (Linux, macOS, FreeBSD)</li>
           </ul>
         </div>
         <div class="group">
@@ -603,7 +605,7 @@
             <li>Ping, traceroute, port scan, LAN scan, DNS</li>
             <li>Bandwidth test (iperf3), subnet calculator, Wake-on-LAN</li>
             <li>Built-in TFTP, HTTP and FTP file servers</li>
-            <li>Import from <code>~/.ssh/config</code> &amp; MobaXterm</li>
+            <li>Import from <code>~/.ssh/config</code>, MobaXterm, PuTTY &amp; FileZilla</li>
           </ul>
         </div>
       </div>

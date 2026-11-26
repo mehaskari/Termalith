@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 (2026-11-26)
 
 - **Import FileZilla sites.** Paste a FileZilla `sitemanager.xml` into
   *Import sessions*: FTP, FTPS and SFTP sites arrive in a *FileZilla*

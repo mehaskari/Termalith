@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { MAX_RECENT, readRecent, rememberRecent, withRecent } from "../app/recent";
-import { type Tab, linkState, sessionLinks } from "../app/tabs";
+import { type Tab, linkState, needsCloseConfirm, sessionLinks } from "../app/tabs";
 import { matchSessions } from "./HomeView";
 import { SESSION_TYPES, lookInUse, optionsInUse } from "./SessionDialog";
-import { splitWords } from "./SettingsDialog";
+import { DEFAULT_SETTINGS } from "../terminal/api";
+import { SECTIONS, SETTINGS_INDEX, searchSettings, settingsProblem, splitWords } from "./SettingsDialog";
+import { keyCaps, matchShortcut, shortcutHelp } from "./shortcuts";
 import { emptyForm, withSessionDefaults } from "./sessionList";
 import type { SessionRecord } from "../terminal/api";
 
@@ -99,5 +101,51 @@ describe("keyword lists in settings", () => {
   it("splits on commas and drops empty words", () => {
     expect(splitWords(" down, err-disabled,, up ,")).toEqual(["down", "err-disabled", "up"]);
     expect(splitWords("")).toEqual([]);
+  });
+});
+
+describe("settings dialog", () => {
+  it("finds settings by name, section and other words", () => {
+    expect(searchSettings("")).toEqual([]);
+    expect(searchSettings("paste").map((r) => r.id)).toEqual(["right-click-paste", "paste-warning"]);
+    expect(searchSettings("socks").map((r) => r.id)).toEqual(["proxy"]);
+    expect(searchSettings("terminal clipboard").map((r) => r.id)).toContain("copy-on-select");
+    expect(searchSettings("nothing-like-this")).toEqual([]);
+  });
+
+  it("indexes only sections that exist, each section at least once", () => {
+    const ids = new Set(SECTIONS.map((s) => s.id));
+    expect(SETTINGS_INDEX.every((e) => ids.has(e.section))).toBe(true);
+    for (const s of SECTIONS) expect(SETTINGS_INDEX.some((e) => e.section === s.id)).toBe(true);
+    expect(new Set(SETTINGS_INDEX.map((e) => e.id)).size).toBe(SETTINGS_INDEX.length);
+  });
+
+  it("points a problem to the section that shows it", () => {
+    expect(settingsProblem(DEFAULT_SETTINGS)).toBeNull();
+    expect(settingsProblem({ ...DEFAULT_SETTINGS, fontSize: 40 })?.section).toBe("appearance");
+    expect(settingsProblem({ ...DEFAULT_SETTINGS, scrollback: 10 })?.section).toBe("terminal");
+    expect(
+      settingsProblem({ ...DEFAULT_SETTINGS, proxy: { kind: "socks5", host: " ", port: 1080, username: null } })?.section,
+    ).toBe("proxy");
+  });
+
+  it("lists shortcuts that really work, with the right key names", () => {
+    for (const mac of [true, false]) {
+      for (const h of shortcutHelp(mac)) expect(matchShortcut(h.keys, mac)).toBe(h.action);
+    }
+    expect(shortcutHelp(true).some((h) => h.action === "copy")).toBe(false);
+    expect(shortcutHelp(false).some((h) => h.action === "copy")).toBe(true);
+    const close = (mac: boolean) => shortcutHelp(mac).find((h) => h.action === "closeTab");
+    expect(keyCaps(close(true)!.keys, true)).toEqual(["⌘", "W"]);
+    expect(keyCaps(close(false)!.keys, false)).toEqual(["Ctrl", "Shift", "W"]);
+  });
+
+  it("asks before closing only connected remote tabs, when the setting is on", () => {
+    expect(needsCloseConfirm(tab({ terminalId: 4 }), true)).toBe(true);
+    expect(needsCloseConfirm(tab({ terminalId: 4 }), false)).toBe(false);
+    expect(needsCloseConfirm(tab({ terminalId: 4, ended: true }), true)).toBe(false);
+    expect(needsCloseConfirm(tab({ terminalId: undefined }), true)).toBe(false);
+    expect(needsCloseConfirm(tab({ kind: "local", terminalId: 4 }), true)).toBe(false);
+    expect(needsCloseConfirm(tab({ kind: "home" }), true)).toBe(false);
   });
 });

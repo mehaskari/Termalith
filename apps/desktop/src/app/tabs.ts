@@ -39,6 +39,14 @@ export function linkState(
   return t.terminalId === undefined ? "wait" : "up";
 }
 
+/** Whether closing `t` should ask first: the setting is on and a remote connection is open. */
+export function needsCloseConfirm(
+  t: Pick<Tab, "kind" | "terminalId" | "ended" | "reconnectAt" | "desktop" | "desktopError">,
+  confirmClose: boolean,
+): boolean {
+  return confirmClose && t.kind !== "local" && linkState(t) === "up";
+}
+
 /** The best link state of each saved session that has open tabs. */
 export function sessionLinks(tabs: Tab[]): Map<string, LinkState> {
   const rank: Record<LinkState, number> = { up: 3, wait: 2, down: 1 };

@@ -80,6 +80,9 @@ def jsx_labels(source: str) -> list[str]:
     # <label ...> Text <select|input|span
     for m in re.finditer(r"<label(?: className=\"(?!checkbox)[^\"]*\")?>\s*\n\s*([A-Z][^<{\n]+?)\s*\n\s*<", source):
         out.append(m.group(1))
+    # <Row id="…" label="Text" …> (the settings dialog's rows)
+    for m in re.finditer(r'<Row\b[^>]*?\blabel="([^"]+)"', source, re.S):
+        out.append(m.group(1))
     return [" ".join(t.split()) for t in out]
 
 

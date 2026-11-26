@@ -7,10 +7,12 @@ interface Props {
   /** Rendered in the footer, right-aligned. */
   actions: ReactNode;
   tone?: "default" | "warning";
+  /** Extra class on the <dialog>, e.g. for a wider layout. */
+  className?: string;
 }
 
 /** Modal built on <dialog>: focus trapping and Esc handling come from the browser. */
-export function Dialog({ title, onCancel, children, actions, tone = "default" }: Props) {
+export function Dialog({ title, onCancel, children, actions, tone = "default", className }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -21,7 +23,7 @@ export function Dialog({ title, onCancel, children, actions, tone = "default" }:
   return (
     <dialog
       ref={ref}
-      className={`dialog dialog-${tone}`}
+      className={`dialog dialog-${tone}${className ? ` ${className}` : ""}`}
       aria-labelledby="dialog-title"
       onCancel={(e) => {
         e.preventDefault();

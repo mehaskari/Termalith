@@ -238,6 +238,7 @@ pub fn parse_ssh_config(text: &str, home: &Path, default_user: &str) -> Vec<Impo
                     icon: None,
                     s3: None,
                     legacy_ssh: false,
+                    telnet_login: false,
                 },
                 alias,
                 warnings,

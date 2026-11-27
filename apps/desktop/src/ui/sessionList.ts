@@ -226,6 +226,8 @@ export interface SessionFormState {
   x11Forward: boolean;
   /** Old, weak SSH algorithms for devices that know nothing newer. */
   legacySsh: boolean;
+  /** Telnet: answer the device's login prompts (ADR-044). */
+  telnetLogin: boolean;
   startupCommand: string;
   filesOnly: boolean;
   mosh: boolean;
@@ -265,6 +267,7 @@ export function withSessionDefaults(
     icon: null,
     s3: null,
     legacySsh: false,
+    telnetLogin: false,
     ...input,
   };
 }
@@ -285,6 +288,7 @@ export function emptyForm(): SessionFormState {
     forwardAgent: false,
     x11Forward: false,
     legacySsh: false,
+    telnetLogin: false,
     startupCommand: "",
     filesOnly: false,
     mosh: false,
@@ -315,6 +319,7 @@ export function formFromSession(s: SessionInput): SessionFormState {
     forwardAgent: s.forwardAgent ?? false,
     x11Forward: s.x11Forward ?? false,
     legacySsh: s.legacySsh ?? false,
+    telnetLogin: s.telnetLogin ?? false,
     startupCommand: s.startupCommand ?? "",
     filesOnly: s.filesOnly ?? false,
     mosh: s.mosh ?? false,
@@ -457,6 +462,7 @@ export function parseForm(
       icon: f.icon,
       s3: s3 ? { bucket, region, pathStyle: f.s3PathStyle, https: f.s3Https } : null,
       legacySsh: f.protocol === "ssh" && !mosh && f.legacySsh,
+      telnetLogin: f.protocol === "telnet" && !!username && f.telnetLogin,
     },
   };
 }

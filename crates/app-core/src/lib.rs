@@ -30,6 +30,7 @@ mod settings;
 mod shared;
 mod snippets;
 mod ssh_config;
+mod telnet_login;
 mod terminals;
 mod transfers;
 mod tunnels;
@@ -77,6 +78,7 @@ pub use snippets::{MAX_SNIPPET_LEN, Snippet, SnippetInput};
 pub use ssh_config::{
     IMPORT_FOLDER, ImportCandidate, ImportReport, import_candidates, parse_ssh_config,
 };
+pub use telnet_login::{AutoLogin, LOGIN_WINDOW, LoginStep, TelnetLogin};
 pub use terminals::{FLOW_HIGH_WATERMARK, TerminalHub};
 pub use transfers::{Download, TransferEvent, TransferRecorder, Transfers, remote_join};
 pub use tunnels::{TunnelInfo, TunnelKind, TunnelSpec, Tunnels};

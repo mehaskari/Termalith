@@ -237,6 +237,26 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             onChange={(e) => set({ username: e.target.value })}
           />
         </label>
+        {form.protocol === "telnet" && (
+          <>
+            <label className="checkbox span-2">
+              <input
+                type="checkbox"
+                checked={form.telnetLogin && !!form.username.trim()}
+                disabled={!form.username.trim()}
+                onChange={(e) => set({ telnetLogin: e.target.checked })}
+              />
+              Log in automatically (types the user name and password at the device&apos;s prompts)
+            </label>
+            {form.telnetLogin && form.username.trim() && (
+              <p className="hint span-2">
+                You are asked for the password when connecting; it can be saved in the keychain, and is saved
+                only after the device shows its prompt (# &gt; $). The password still crosses the network
+                unencrypted, as with typing it.
+              </p>
+            )}
+          </>
+        )}
         {form.protocol === "s3" && (
           <>
             <label>

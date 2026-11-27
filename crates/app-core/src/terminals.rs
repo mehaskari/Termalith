@@ -314,6 +314,7 @@ impl TerminalHub {
     /// Opens a Telnet connection (unencrypted) to `host:port`, directly or
     /// through `via` (a `direct-tcpip` channel of that SSH connection, so
     /// only the last leg is unencrypted).
+    #[allow(clippy::too_many_arguments)]
     pub async fn open_telnet(
         &self,
         host: &str,
@@ -321,6 +322,7 @@ impl TerminalHub {
         via: Option<Arc<SshSession>>,
         proxy: Option<protocol_ssh::Proxy>,
         size: TerminalSize,
+        login: Option<crate::AutoLogin>,
         sink: impl TerminalEventSink,
     ) -> Result<u64, AppError> {
         let stream: BoxedStream = match (&via, proxy) {
@@ -348,7 +350,7 @@ impl TerminalHub {
                     .await?,
             ),
         };
-        self.open_telnet_stream(stream, via, size, sink)
+        self.open_telnet_stream(stream, via, size, login, sink)
     }
 
     fn open_telnet_stream(
@@ -356,6 +358,7 @@ impl TerminalHub {
         stream: BoxedStream,
         via: Option<Arc<SshSession>>,
         size: TerminalSize,
+        mut login: Option<crate::AutoLogin>,
         mut sink: impl TerminalEventSink,
     ) -> Result<u64, AppError> {
         use tokio::io::AsyncReadExt;
@@ -397,12 +400,33 @@ impl TerminalHub {
                 if !decoded.reply.is_empty() && term.send(&decoded.reply).await.is_err() {
                     break;
                 }
+                // The device's prompts are answered after they are shown.
+                let step = match login.as_mut() {
+                    Some(l) if l.login.active() && !decoded.data.is_empty() => {
+                        l.login.feed(&decoded.data)
+                    }
+                    _ => crate::LoginStep::Wait,
+                };
                 if !decoded.data.is_empty() {
                     gate.add(decoded.data.len());
                     if !sink.emit(TerminalEvent::Output(decoded.data)) {
                         receiver_alive = false;
                         break;
                     }
+                }
+                match step {
+                    crate::LoginStep::Send(keys) => {
+                        let wire = zeroize::Zeroizing::new(protocol_telnet::Telnet::encode(&keys));
+                        if term.send(&wire).await.is_err() {
+                            break;
+                        }
+                    }
+                    crate::LoginStep::Succeeded => {
+                        if let Some(done) = login.as_mut().and_then(|l| l.on_success.take()) {
+                            done();
+                        }
+                    }
+                    crate::LoginStep::Wait | crate::LoginStep::Failed => {}
                 }
             }
             if receiver_alive {

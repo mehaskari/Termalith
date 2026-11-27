@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Telnet logs in automatically.** Tick *Log in automatically* in a Telnet
+  session with a user name: Termalith types the user name and password at
+  the device's `Username:` and `Password:` prompts, once, within the first
+  minute. A typed password can be saved in the keychain; it is saved only
+  after the device shows its command prompt.
+
 ## 0.6.1 (2026-11-26)
 
 - **Redesigned Settings.** Sections in a sidebar (Appearance, Terminal,

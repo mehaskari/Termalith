@@ -64,6 +64,7 @@ async fn a_command_runs_through_mosh() {
         icon: None,
         s3: None,
         legacy_ssh: false,
+        telnet_login: false,
     };
     let spec = mosh_command(&session, &mosh)
         .unwrap()

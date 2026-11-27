@@ -101,11 +101,14 @@ in a file browser tab.
 
 ## FTP and FTPS
 
-- **FTPS** uses explicit TLS on the FTP port. You check the server's
+- **FTPS** uses explicit TLS on the FTP port (`AUTH TLS`, port 21). Tick
+  **Implicit TLS** in the session for older servers that are encrypted from
+  the first byte, usually on port 990. Either way you check the server's
   certificate once, as for RDP; the connection fails if the certificate
-  changes unnoticed or the server offers no TLS.
+  changes unnoticed or the server offers no TLS, and data connections are
+  encrypted too.
 - **FTP** is not encrypted: passwords and files can be read on the network.
   Prefer SFTP or FTPS.
 - Leave the user name empty for anonymous login.
 - Both connect directly: no jump host, and they refuse to connect while a
-  proxy is set in Settings. Implicit FTPS (port 990) is not supported.
+  proxy is set in Settings.

@@ -89,9 +89,12 @@ pub struct FtpConfig {
     /// Empty for anonymous login.
     pub username: String,
     pub password: Zeroizing<String>,
-    /// FTPS (explicit TLS) accepting only the certificate with this SHA-256;
-    /// `None` is plain FTP. There is no fallback from one to the other.
+    /// FTPS accepting only the certificate with this SHA-256; `None` is
+    /// plain FTP. There is no fallback from one to the other.
     pub tls_pin: Option<[u8; 32]>,
+    /// With `tls_pin`: TLS from the first byte (implicit FTPS, usually port
+    /// 990) instead of `AUTH TLS` on a plain connection.
+    pub implicit_tls: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -288,18 +291,26 @@ fn verifier(pin: Option<[u8; 32]>) -> Arc<PinnedCertificate> {
 }
 
 /// SHA-256 of the certificate an FTPS server presents, without logging in.
-/// Fails on a server that does not offer TLS.
-pub async fn read_certificate(host: &str, port: u16) -> Result<[u8; 32], FtpError> {
+/// Fails on a server that does not offer TLS. `implicit`: TLS from the
+/// first byte (implicit FTPS).
+pub async fn read_certificate(host: &str, port: u16, implicit: bool) -> Result<[u8; 32], FtpError> {
     let reader = verifier(None);
-    let ftp = plain_connection(host, port).await?;
     // Rejected by the verifier on purpose: the certificate is all we want.
-    let result = ftp
-        .into_secure(tls_connector(Arc::clone(&reader))?, host)
-        .await;
+    let result = if implicit {
+        implicit_connection(host, port, Arc::clone(&reader))
+            .await
+            .map(|_| ())
+    } else {
+        let ftp = plain_connection(host, port).await?;
+        ftp.into_secure(tls_connector(Arc::clone(&reader))?, host)
+            .await
+            .map(|_| ())
+            .map_err(FtpError::from)
+    };
     let seen = *reader.seen.lock().unwrap_or_else(|e| e.into_inner());
     match (seen, result) {
         (Some(hash), _) => Ok(hash),
-        (None, Err(e)) => Err(e.into()),
+        (None, Err(e)) => Err(e),
         (None, Ok(_)) => Err(FtpError::Tls("no certificate".into())),
     }
 }
@@ -320,11 +331,41 @@ async fn plain_connection(host: &str, port: u16) -> Result<Stream, FtpError> {
     Ok(ftp)
 }
 
+/// Implicit FTPS: TLS before the server's greeting, then encrypted data
+/// connections (`PBSZ 0`, `PROT P`) like explicit FTPS.
+async fn implicit_connection(
+    host: &str,
+    port: u16,
+    verifier: Arc<PinnedCertificate>,
+) -> Result<Stream, FtpError> {
+    let addr = (host, port)
+        .to_socket_addrs()
+        .map_err(|e| FtpError::Connect(e.to_string()))?
+        .next()
+        .ok_or_else(|| FtpError::Connect("no address".into()))?;
+    let connecting = Stream::connect_secure_implicit(addr, tls_connector(verifier)?, host);
+    let mut ftp = tokio::time::timeout(CONNECT_TIMEOUT, connecting)
+        .await
+        .map_err(|_| FtpError::Connect(format!("{host}:{port} did not answer")))??;
+    // As for plain connections: data goes to the host we chose.
+    ftp.set_passive_nat_workaround(true);
+    ftp.set_mode(Mode::Passive);
+    timed(ftp.custom_command("PBSZ 0", &[Status::CommandOk])).await?;
+    timed(ftp.custom_command("PROT P", &[Status::CommandOk])).await?;
+    Ok(ftp)
+}
+
 async fn login(config: &FtpConfig) -> Result<Stream, FtpError> {
-    let mut ftp = plain_connection(&config.host, config.port).await?;
-    if let Some(pin) = config.tls_pin {
-        ftp = timed(ftp.into_secure(tls_connector(verifier(Some(pin)))?, &config.host)).await?;
-    }
+    let mut ftp = match config.tls_pin {
+        Some(pin) if config.implicit_tls => {
+            implicit_connection(&config.host, config.port, verifier(Some(pin))).await?
+        }
+        Some(pin) => {
+            let ftp = plain_connection(&config.host, config.port).await?;
+            timed(ftp.into_secure(tls_connector(verifier(Some(pin)))?, &config.host)).await?
+        }
+        None => plain_connection(&config.host, config.port).await?,
+    };
     let result = if config.username.is_empty() {
         timed(ftp.login(ANONYMOUS.0, ANONYMOUS.1)).await
     } else {

@@ -67,6 +67,7 @@ fn session(addr: &str, protocol: SessionProtocol) -> SessionInput {
         s3: None,
         legacy_ssh: false,
         telnet_login: false,
+        implicit_tls: false,
     }
 }
 

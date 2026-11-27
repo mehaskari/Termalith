@@ -1,5 +1,5 @@
 //! Import of FileZilla Site Manager entries (`sitemanager.xml`, or an
-//! export from *File → Export…*). FTP, explicit FTPS and SFTP sites become
+//! export from *File → Export…*). FTP, explicit and implicit FTPS and SFTP sites become
 //! sessions under a "FileZilla" folder, keeping FileZilla's folders.
 //! Passwords stored in the file are never imported.
 
@@ -148,14 +148,11 @@ pub fn parse_filezilla(text: &str) -> Result<(Vec<ImportCandidate>, Vec<String>)
         };
         // FileZilla protocol numbers: 0 FTP (TLS if available), 1 SFTP,
         // 3 implicit FTPS, 4 explicit FTPS, 6 plain FTP.
-        let (protocol, files_only) = match s.protocol.unwrap_or(0) {
-            0 | 4 => (SessionProtocol::Ftps, false),
-            6 => (SessionProtocol::Ftp, false),
-            1 => (SessionProtocol::Ssh, true),
-            3 => {
-                notes.push(format!("{name}: implicit FTPS (port 990) is not supported"));
-                continue;
-            }
+        let (protocol, files_only, implicit_tls) = match s.protocol.unwrap_or(0) {
+            0 | 4 => (SessionProtocol::Ftps, false, false),
+            6 => (SessionProtocol::Ftp, false, false),
+            1 => (SessionProtocol::Ssh, true, false),
+            3 => (SessionProtocol::Ftps, false, true),
             other => {
                 notes.push(format!(
                     "{name}: FileZilla protocol {other} is not supported"
@@ -188,7 +185,11 @@ pub fn parse_filezilla(text: &str) -> Result<(Vec<ImportCandidate>, Vec<String>)
                 auth = AuthMethod::KeyFile { path: path.into() };
             }
         }
-        let default_port = if files_only { 22 } else { 21 };
+        let default_port = match (files_only, implicit_tls) {
+            (true, _) => 22,
+            (false, true) => 990,
+            (false, false) => 21,
+        };
         let mut folder = vec![FILEZILLA_FOLDER.to_owned()];
         folder.extend(
             s.folder
@@ -217,6 +218,7 @@ pub fn parse_filezilla(text: &str) -> Result<(Vec<ImportCandidate>, Vec<String>)
             s3: None,
             legacy_ssh: false,
             telnet_login: false,
+            implicit_tls,
         };
         if let Err(e) = input.validate() {
             notes.push(format!("{name}: {e}"));
@@ -307,7 +309,10 @@ mod tests {
         assert!(!is_filezilla("[Bookmarks]"));
         let (sites, notes) = parse_filezilla(SAMPLE).unwrap();
         let names: Vec<&str> = sites.iter().map(|c| c.alias.as_str()).collect();
-        assert_eq!(names, ["Web & mail", "acme files", "mirror"]);
+        assert_eq!(
+            names,
+            ["Web & mail", "acme files", "mirror", "old implicit"]
+        );
 
         let web = &sites[0].input;
         assert_eq!(
@@ -330,8 +335,12 @@ mod tests {
         assert_eq!(mirror.username, "", "anonymous logon");
         assert_eq!(mirror.folder.as_deref(), Some("FileZilla/Clients"));
 
+        let old = &sites[3].input;
+        assert!(old.implicit_tls && old.protocol == SessionProtocol::Ftps);
+        assert_eq!(old.port, 990);
+        assert!(!sites[0].input.implicit_tls);
         assert!(
-            notes.iter().any(|n| n.starts_with("old implicit:")),
+            !notes.iter().any(|n| n.starts_with("old implicit:")),
             "{notes:?}"
         );
         assert!(
@@ -350,12 +359,12 @@ mod tests {
     fn imports_into_the_store() {
         let store = SessionStore::open_in_memory().unwrap();
         let report = import_filezilla(&store, SAMPLE).unwrap();
-        assert_eq!(report.created.len(), 3);
+        assert_eq!(report.created.len(), 4);
         assert!(
             store.list().unwrap().iter().all(|s| !s.has_saved_secret),
             "no passwords imported"
         );
-        assert_eq!(import_filezilla(&store, SAMPLE).unwrap().skipped.len(), 3);
+        assert_eq!(import_filezilla(&store, SAMPLE).unwrap().skipped.len(), 4);
     }
 
     #[test]

@@ -121,6 +121,7 @@ impl Connector {
                     s3: None,
                     legacy_ssh: legacy != LegacyChoice::AsSaved,
                     telnet_login: false,
+                    implicit_tls: false,
                 };
                 input.validate()?;
                 let typed = match secret {
@@ -174,7 +175,9 @@ impl Connector {
         // Checked before anything secret is sent.
         let tls_pin = if rec.input.protocol == SessionProtocol::Ftps {
             let (host, port) = (rec.input.host.as_str(), rec.input.port);
-            let fp = read_certificate(host, port).await.map_err(ftp_error)?;
+            let fp = read_certificate(host, port, rec.input.implicit_tls)
+                .await
+                .map_err(ftp_error)?;
             let check = CertificateCheck {
                 store: Arc::clone(&self.sessions),
                 broker: Arc::clone(&self.broker),
@@ -192,6 +195,7 @@ impl Connector {
             username: rec.input.username.clone(),
             password: password.unwrap_or_default(),
             tls_pin,
+            implicit_tls: rec.input.implicit_tls,
         })
         .await;
         let client = match client {

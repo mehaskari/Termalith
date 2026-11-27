@@ -228,6 +228,8 @@ export interface SessionFormState {
   legacySsh: boolean;
   /** Telnet: answer the device's login prompts (ADR-044). */
   telnetLogin: boolean;
+  /** FTPS: TLS from the first byte (implicit FTPS, port 990). */
+  implicitTls: boolean;
   startupCommand: string;
   filesOnly: boolean;
   mosh: boolean;
@@ -268,6 +270,7 @@ export function withSessionDefaults(
     s3: null,
     legacySsh: false,
     telnetLogin: false,
+    implicitTls: false,
     ...input,
   };
 }
@@ -289,6 +292,7 @@ export function emptyForm(): SessionFormState {
     x11Forward: false,
     legacySsh: false,
     telnetLogin: false,
+    implicitTls: false,
     startupCommand: "",
     filesOnly: false,
     mosh: false,
@@ -320,6 +324,7 @@ export function formFromSession(s: SessionInput): SessionFormState {
     x11Forward: s.x11Forward ?? false,
     legacySsh: s.legacySsh ?? false,
     telnetLogin: s.telnetLogin ?? false,
+    implicitTls: s.implicitTls ?? false,
     startupCommand: s.startupCommand ?? "",
     filesOnly: s.filesOnly ?? false,
     mosh: s.mosh ?? false,
@@ -463,6 +468,7 @@ export function parseForm(
       s3: s3 ? { bucket, region, pathStyle: f.s3PathStyle, https: f.s3Https } : null,
       legacySsh: f.protocol === "ssh" && !mosh && f.legacySsh,
       telnetLogin: f.protocol === "telnet" && !!username && f.telnetLogin,
+      implicitTls: f.protocol === "ftps" && f.implicitTls,
     },
   };
 }

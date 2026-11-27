@@ -16,7 +16,7 @@ keychain (see [Passwords and your data](passwords-and-data.md)).
 | **RDP** (Windows desktop) | A desktop tab or your RDP client | See [Remote desktop](remote-desktop.md). |
 | **VNC** (remote screen) | A desktop tab or your VNC client | Unencrypted unless tunnelled through SSH. |
 | **Telnet** (old devices, unencrypted) | A terminal tab | For devices without SSH; can go through a jump host. |
-| **FTPS** (files, encrypted) | A file browser tab | Explicit TLS; certificate checked once and pinned. |
+| **FTPS** (files, encrypted) | A file browser tab | Explicit TLS, or implicit TLS on port 990 (*Implicit TLS*); certificate checked once and pinned. |
 | **FTP** (files, unencrypted) | A file browser tab | Prefer SFTP or FTPS. |
 | **S3** (object storage) | A file browser tab | AWS S3 and compatible services (MinIO, Cloudflare R2, Backblaze B2, Wasabi, Ceph); see [Files](files.md#s3-object-storage). |
 
@@ -140,7 +140,7 @@ computer open **Settings → Shared sessions**, type a folder name (e.g.
   export from *File → Export…*. FTP, FTPS and SFTP sites go to a
   *FileZilla* folder with FileZilla's folders below it. Sites set to "FTP
   over TLS if available" become FTPS (change them to FTP if the server has
-  no TLS); implicit FTPS (port 990) is not supported. Passwords in the file
+  no TLS); implicit FTPS sites become FTPS with *Implicit TLS*. Passwords in the file
   are not imported.
 - **Export sessions…** writes all sessions as JSON, to back them up or move
   them to another computer. Exports never contain passwords or keychain

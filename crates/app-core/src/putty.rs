@@ -203,6 +203,7 @@ pub fn parse_putty(text: &str) -> (Vec<ImportCandidate>, Vec<String>) {
             s3: None,
             legacy_ssh: false,
             telnet_login: false,
+            implicit_tls: false,
         };
         if let Err(e) = input.validate() {
             notes.push(format!("{}: {e}", r.name));

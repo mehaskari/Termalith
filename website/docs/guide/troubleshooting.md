@@ -51,8 +51,9 @@ without questions: save its password, or use a key or the agent.
 
 **FTP/FTPS refuses to connect.** FTP and FTPS do not go through a proxy;
 choose *Direct connection* in Settings → Proxy. FTPS needs a server that
-offers explicit TLS (`AUTH TLS`); implicit FTPS on port 990 is not
-supported.
+offers TLS: explicit (`AUTH TLS`, port 21) by default, or implicit (port
+990) with *Implicit TLS* ticked in the session. If one does not answer,
+try the other.
 
 ## Passwords
 

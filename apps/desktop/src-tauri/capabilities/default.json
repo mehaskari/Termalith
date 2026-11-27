@@ -6,6 +6,8 @@
   "permissions": [
     "core:default",
     "allow-terminal-open",
+    "allow-app-set-quit-guard",
+    "allow-app-quit",
     "allow-terminal-shells",
     "allow-telnet-open",
     "allow-terminal-write",

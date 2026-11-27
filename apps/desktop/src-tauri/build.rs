@@ -52,6 +52,8 @@ fn main() {
             "open_web_link",
             "open_local_network_settings",
             "app_restart",
+            "app_set_quit_guard",
+            "app_quit",
             "crash_reports",
             "crash_dismiss",
             "frontend_error",

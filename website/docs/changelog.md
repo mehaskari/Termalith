@@ -8,6 +8,10 @@
   minute. A typed password can be saved in the keychain; it is saved only
   after the device shows its command prompt.
 
+- **Ask before quitting with open connections.** With *Ask before closing
+  a connected tab* on, closing the window or quitting Termalith while
+  connections are open asks first.
+
 ## 0.6.1 (2026-11-26)
 
 - **Redesigned Settings.** Sections in a sidebar (Appearance, Terminal,

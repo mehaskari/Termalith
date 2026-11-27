@@ -52,6 +52,8 @@ import {
   listShells,
   localTerminal,
   masterLock,
+  quitApp,
+  setQuitGuard,
 } from "./terminal/api";
 import { DesktopPane } from "./ui/DesktopPane";
 import { EditorPane } from "./ui/EditorPane";
@@ -137,6 +139,8 @@ export function App() {
   const [confirmDelete, setConfirmDelete] = useState<SessionRecord | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState<Tab | null>(null);
   const [confirmClose, setConfirmClose] = useState<Tab | null>(null);
+  /** Quitting was held: how many connections are open. */
+  const [confirmQuit, setConfirmQuit] = useState<number | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -249,6 +253,13 @@ export function App() {
     },
     [closeTab, settings.confirmClose],
   );
+
+  // The backend holds a close or quit while this is true (ADR-044 follow-up).
+  const connectedCount = tabs.filter((x) => needsCloseConfirm(x, true)).length;
+  const askOnQuit = settings.confirmClose && connectedCount > 0;
+  useEffect(() => {
+    setQuitGuard(askOnQuit).catch(() => {});
+  }, [askOnQuit]);
 
   const openEditor = useCallback(
     (terminalId: TerminalId, dir: string, name: string) => {
@@ -421,9 +432,13 @@ export function App() {
       else setDropped(e.payload);
     });
     const unlistenHover = listen<boolean>("files-hover", (e) => setFileHover(e.payload));
+    const unlistenQuit = listen("quit-requested", () =>
+      setConfirmQuit(tabsRef.current.filter((x) => needsCloseConfirm(x, true)).length),
+    );
     return () => {
       void unlistenDrop.then((f) => f());
       void unlistenHover.then((f) => f());
+      void unlistenQuit.then((f) => f());
     };
   }, [refresh, openLocal]);
 
@@ -1314,6 +1329,28 @@ export function App() {
           <p>
             <strong>{confirmDiscard.title}</strong> has changes that were not saved to the server.
           </p>
+        </Dialog>
+      )}
+      {confirmQuit !== null && (
+        <Dialog
+          title="Quit Termalith?"
+          onCancel={() => setConfirmQuit(null)}
+          actions={
+            <>
+              <button type="button" onClick={() => setConfirmQuit(null)}>
+                Keep open
+              </button>
+              <button type="button" className="danger" autoFocus onClick={() => void quitApp()}>
+                Quit
+              </button>
+            </>
+          }
+        >
+          <p>
+            {confirmQuit === 1 ? "One connection is" : `${confirmQuit} connections are`} still open. Quitting ends{" "}
+            {confirmQuit === 1 ? "it" : "them"}.
+          </p>
+          <p className="hint">You can turn this question off in Settings → Terminal.</p>
         </Dialog>
       )}
       {confirmClose && (

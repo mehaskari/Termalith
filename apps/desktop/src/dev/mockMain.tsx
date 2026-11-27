@@ -433,6 +433,11 @@ mockIPC(
       case "proxy_password_set":
         mockProxyPassword = a.password !== null;
         return null;
+      case "app_set_quit_guard":
+        return undefined;
+      case "app_quit":
+        window.location.reload();
+        return undefined;
       case "open_local_network_settings":
       case "app_restart":
         return null;

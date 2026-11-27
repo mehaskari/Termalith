@@ -39,7 +39,7 @@ height and cursor before you save.
 | **Copy selected text automatically** | Selecting text in a terminal copies it, like many Linux terminals. |
 | **Right-click pastes** | Right-click in a terminal pastes instead of opening a menu. |
 | **Warn before risky pastes** | On by default. Shows the text first when it has several lines, ends with a line break, pipes a download into a shell, or contains invisible or control characters ([details](terminals.md#find-copy-and-links)). |
-| **Ask before closing a connected tab** | Off by default. When on, closing a tab whose SSH, Telnet, serial, file or desktop connection is open (with ×, the tab menu or the shortcut) asks first. Local terminals and dropped connections close at once. |
+| **Ask before closing a connected tab** | Off by default. When on, closing a tab whose SSH, Telnet, serial, file or desktop connection is open (with ×, the tab menu or the shortcut) asks first. Closing the main window or quitting Termalith (⌘Q, *Quit*) while connections are open asks too. Local terminals and dropped connections close at once. |
 | **Log every new terminal** | Writes every new terminal's output to *Documents/Termalith Logs* as plain text. Logs may contain sensitive output. |
 
 ## Keyword colors

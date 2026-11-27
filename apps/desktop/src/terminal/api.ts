@@ -62,6 +62,10 @@ async function invoke<T>(cmd: string, args?: InvokeArgs): Promise<T> {
 
 export const openLocalNetworkSettings = () => invoke<void>("open_local_network_settings");
 export const restartApp = () => invoke<void>("app_restart");
+/** Whether closing the window or quitting should ask first (connections open). */
+export const setQuitGuard = (ask: boolean) => invoke<void>("app_set_quit_guard", { ask });
+/** Quits after the user agreed. */
+export const quitApp = () => invoke<void>("app_quit");
 
 /** Opens a terminal of the given size and wires its output/exit streams. */
 export type Opener = (

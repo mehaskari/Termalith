@@ -530,7 +530,7 @@ export function SettingsDialog({ initial, shells, onSave, onCancel, secretsAvail
               <Row
                 id="confirm-close"
                 label="Ask before closing a connected tab"
-                hint="Closing a tab ends its SSH, Telnet, serial or desktop connection."
+                hint="Closing such a tab, the window or Termalith asks first while a connection is open."
               >
                 <Toggle id="confirm-close" checked={s.confirmClose} onChange={(confirmClose) => set({ confirmClose })} />
               </Row>

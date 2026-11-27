@@ -12,6 +12,7 @@ mod launch;
 mod links;
 mod nettools;
 mod portable;
+mod quit;
 mod servers;
 mod sessions;
 mod ssh;
@@ -43,6 +44,7 @@ pub fn run() {
             let state = AppState::init(app.handle())?;
             let dropped = state.dropped.clone();
             app.manage(state);
+            app.manage(quit::QuitGuard::default());
             // Dropped paths stay in the backend; the UI only gets tokens,
             // names and sizes, so it can never name a local file itself.
             if let Some(window) = app.get_webview_window("main") {
@@ -63,6 +65,12 @@ pub fn run() {
                     }
                     WindowEvent::DragDrop(DragDropEvent::Leave) => {
                         let _ = handle.emit("files-hover", false);
+                    }
+                    // Asked first while connections are open (setting).
+                    WindowEvent::CloseRequested { api, .. } => {
+                        if handle.state::<quit::QuitGuard>().hold(&handle) {
+                            api.prevent_close();
+                        }
                     }
                     // Moved terminals' windows go with the main window.
                     WindowEvent::Destroyed => handle.exit(0),
@@ -144,6 +152,8 @@ pub fn run() {
             links::open_web_link,
             links::open_local_network_settings,
             links::app_restart,
+            quit::app_set_quit_guard,
+            quit::app_quit,
             crash::crash_reports,
             crash::crash_dismiss,
             crash::frontend_error,
@@ -219,6 +229,15 @@ pub fn run() {
         .expect("failed to build Tauri application");
 
     app.run(|handle, event| {
+        // Cmd+Q / the Quit menu (no exit code): asked first like closing.
+        if let RunEvent::ExitRequested {
+            code: None, api, ..
+        } = &event
+            && let Some(guard) = handle.try_state::<quit::QuitGuard>()
+            && guard.hold(handle)
+        {
+            api.prevent_exit();
+        }
         if let RunEvent::Exit = event
             && let Some(state) = handle.try_state::<AppState>()
         {

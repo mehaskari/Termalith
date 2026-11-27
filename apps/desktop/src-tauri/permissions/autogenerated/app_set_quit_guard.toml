@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-app-set-quit-guard"
+description = "Enables the app_set_quit_guard command without any pre-configured scope."
+commands.allow = ["app_set_quit_guard"]
+
+[[permission]]
+identifier = "deny-app-set-quit-guard"
+description = "Denies the app_set_quit_guard command without any pre-configured scope."
+commands.deny = ["app_set_quit_guard"]

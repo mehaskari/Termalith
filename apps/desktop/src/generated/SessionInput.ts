@@ -61,4 +61,9 @@ s3: S3Options | null,
  * `ssh-rsa`/`ssh-dss` host keys) for devices that know nothing newer
  * (SSH only, ADR-043).
  */
-legacySsh: boolean, };
+legacySsh: boolean, 
+/**
+ * Telnet only: send the user name and the saved password when the
+ * device asks for them (ADR-044).
+ */
+telnetLogin: boolean, };

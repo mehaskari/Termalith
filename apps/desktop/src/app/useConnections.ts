@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import {
   type IpcError,
   type Opener,
+  type TerminalId,
   type SessionRecord,
   type SshTarget,
   desktopClients,
@@ -201,7 +202,14 @@ export function useConnections(deps: {
   const connectSaved = useCallback(
     (s: SessionRecord): number | undefined => {
       if (s.protocol === "telnet") {
-        const key = addTab(s.name, "telnet", telnetTerminal(s.id));
+        const open: Opener = s.telnetLogin
+          ? (cols, rows, onOutput, onExit) =>
+              // The password is saved later, once the device shows its prompt.
+              withLogin<{ id: TerminalId; saveError?: null }>(s.name, { canSave, keyAuth: false, savedSecret: s.hasSavedSecret, saved: true }, async (password, save) => ({
+                id: await telnetTerminal(s.id, password, save)(cols, rows, onOutput, onExit),
+              })).then((r) => r.id)
+          : telnetTerminal(s.id);
+        const key = addTab(s.name, "telnet", open);
         patchTab(key, { sessionId: s.id, reconnect: () => connectSaved(s) });
         return key;
       }
@@ -251,7 +259,7 @@ export function useConnections(deps: {
         startup: s.startupCommand,
       });
     },
-    [addTab, canSave, connect, openFilesTab, patchTab, runDesktop, embeddedDesktops, notify],
+    [addTab, canSave, connect, openFilesTab, patchTab, runDesktop, embeddedDesktops, notify, withLogin],
   );
 
   return { withLogin, connect, openFilesTab, runDesktop, connectSaved };

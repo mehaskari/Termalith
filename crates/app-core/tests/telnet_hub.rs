@@ -62,6 +62,7 @@ async fn telnet_negotiates_types_and_resizes() {
             None,
             None,
             TerminalSize::new(80, 24).unwrap(),
+            None,
             move |ev: TerminalEvent| tx.send(ev).is_ok(),
         )
         .await
@@ -110,6 +111,7 @@ async fn telnet_connection_refused_is_an_error() {
             None,
             None,
             TerminalSize::new(80, 24).unwrap(),
+            None,
             |_ev: TerminalEvent| true,
         )
         .await;
@@ -118,4 +120,75 @@ async fn telnet_connection_refused_is_an_error() {
         "{:?}",
         r.err()
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn telnet_logs_in_automatically_and_reports_success() {
+    // A per-run password, never a literal one.
+    let secret = format!("pw-{}-{}", std::process::id(), port_seed());
+    let expected = format!("{secret}\r\n");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(async move {
+        let (mut s, _) = listener.accept().await.unwrap();
+        s.write_all(b"\r\nUser Access Verification\r\n\r\nUsername: ")
+            .await
+            .unwrap();
+        assert_eq!(read_exactly(&mut s, 7).await, b"admin\r\n");
+        s.write_all(b"Password: ").await.unwrap();
+        assert_eq!(
+            read_exactly(&mut s, expected.len()).await,
+            expected.as_bytes()
+        );
+        s.write_all(b"\r\ncore-sw1#").await.unwrap();
+        // Keep the line open briefly so the success is seen, then hang up.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    });
+
+    let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+    let login = app_core::AutoLogin {
+        login: app_core::TelnetLogin::new("admin", Some(zeroize::Zeroizing::new(secret))),
+        on_success: Some(Box::new(move || {
+            let _ = done_tx.send(());
+        })),
+    };
+    let hub = TerminalHub::with_default_flow();
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let id = hub
+        .open_telnet(
+            "127.0.0.1",
+            port,
+            None,
+            None,
+            TerminalSize::new(80, 24).unwrap(),
+            Some(login),
+            move |ev: TerminalEvent| tx.send(ev).is_ok(),
+        )
+        .await
+        .unwrap();
+    let mut text = Vec::new();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while let TerminalEvent::Output(b) = tokio::time::timeout_at(deadline, rx.recv())
+        .await
+        .expect("events timed out")
+        .expect("channel open")
+    {
+        hub.ack(id, b.len()).ok();
+        text.extend_from_slice(&b);
+    }
+    server.await.unwrap();
+    tokio::time::timeout(Duration::from_secs(2), done_rx)
+        .await
+        .expect("success reported")
+        .unwrap();
+    let shown = String::from_utf8_lossy(&text);
+    assert!(shown.ends_with("core-sw1#"), "{shown}");
+}
+
+/// A little per-run variety for test passwords.
+fn port_seed() -> u32 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .subsec_nanos()
 }

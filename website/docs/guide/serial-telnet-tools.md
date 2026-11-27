@@ -20,6 +20,20 @@ the network. Choose a jump host (**Connect via**) so that only the last leg,
 from the jump host to the device, is unencrypted. Telnet can also go
 through the proxy in [Settings](settings.md).
 
+### Log in automatically
+
+With a **Username** filled in, tick **Log in automatically** in the session.
+When the device asks `Username:` or `login:`, Termalith types the user name;
+when it asks `Password:`, it types the password. Each is typed once, within
+the first minute after connecting; if the device asks again or says the
+login failed, Termalith stops and you type yourself.
+
+The first time you are asked for the password; tick *Save in the system
+keychain* to keep it. Telnet does not report whether a login worked, so the
+password is saved only when the device then shows a command prompt (a line
+ending in `#`, `>`, `$` or `%`) and no failure message. The password still
+crosses the network unencrypted, as when you type it.
+
 ## Network tools
 
 **Tools** in the rail on the left:

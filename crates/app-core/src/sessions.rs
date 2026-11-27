@@ -179,6 +179,10 @@ pub struct SessionInput {
     /// (SSH only, ADR-043).
     #[serde(default)]
     pub legacy_ssh: bool,
+    /// Telnet only: send the user name and the saved password when the
+    /// device asks for them (ADR-044).
+    #[serde(default)]
+    pub telnet_login: bool,
 }
 
 /// Where an S3 session's files are: the host and port are the endpoint,
@@ -488,6 +492,17 @@ impl SessionInput {
             }
             _ => {}
         }
+        if self.telnet_login {
+            if self.protocol != SessionProtocol::Telnet {
+                return Err(AppError::invalid(
+                    "automatic login",
+                    "only for Telnet sessions",
+                ));
+            }
+            if self.username.trim().is_empty() {
+                return Err(AppError::invalid("automatic login", "needs a user name"));
+            }
+        }
         if self.legacy_ssh && self.protocol != SessionProtocol::Ssh {
             return Err(AppError::invalid(
                 "legacy SSH algorithms",
@@ -589,7 +604,7 @@ impl SessionStore {
     pub fn list(&self) -> Result<Vec<SessionRecord>, AppError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source, s3, legacy_ssh
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source, s3, legacy_ssh, telnet_login
              FROM sessions ORDER BY folder IS NOT NULL, folder COLLATE NOCASE, name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], row_to_record)?;
@@ -600,7 +615,7 @@ impl SessionStore {
     pub fn get(&self, id: &SessionId) -> Result<SessionRecord, AppError> {
         let conn = self.conn();
         conn.query_row(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source, s3, legacy_ssh
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source, s3, legacy_ssh, telnet_login
              FROM sessions WHERE id = ?1",
             [id.as_str()],
             row_to_record,
@@ -616,8 +631,8 @@ impl SessionStore {
         let (kind, key) = auth_columns(&input.auth);
         let t = now();
         self.conn().execute(
-            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, s3, legacy_ssh)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
+            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, s3, legacy_ssh, telnet_login)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
             params![
                 id.as_str(),
                 input.name.trim(),
@@ -640,7 +655,8 @@ impl SessionStore {
                 appearance_json(&input.appearance),
                 Icon::to_json(&input.icon),
                 S3Options::to_json(&input.s3),
-                input.legacy_ssh
+                input.legacy_ssh,
+                input.telnet_login
             ],
         )?;
         self.get(&id)
@@ -706,7 +722,7 @@ impl SessionStore {
             "UPDATE sessions SET name = ?2, host = ?3, port = ?4, username = ?5, auth_kind = ?6,
              key_path = ?7, folder = ?8, credential_ref = ?9, updated_at = ?10, jump_session_id = ?11,
              protocol = ?12, domain = ?13, tags = ?14, forward_agent = ?15,
-             x11_forward = ?16, startup_command = ?17, files_only = ?18, mosh = ?19, appearance = ?20, icon = ?21, s3 = ?22, legacy_ssh = ?23
+             x11_forward = ?16, startup_command = ?17, files_only = ?18, mosh = ?19, appearance = ?20, icon = ?21, s3 = ?22, legacy_ssh = ?23, telnet_login = ?24
              WHERE id = ?1",
             params![
                 id.as_str(),
@@ -731,7 +747,8 @@ impl SessionStore {
                 appearance_json(&input.appearance),
                 Icon::to_json(&input.icon),
                 S3Options::to_json(&input.s3),
-                input.legacy_ssh
+                input.legacy_ssh,
+                input.telnet_login
             ],
         )?;
         Ok((self.get(id)?, stale))
@@ -861,6 +878,7 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
             icon: Icon::from_json(r.get(21)?),
             s3: S3Options::from_json(r.get(23)?),
             legacy_ssh: r.get::<_, i64>(24)? != 0,
+            telnet_login: r.get::<_, i64>(25)? != 0,
         },
         updated_at: r.get(9)?,
         shared: r.get(22)?,
@@ -892,6 +910,7 @@ mod tests {
             icon: None,
             s3: None,
             legacy_ssh: false,
+            telnet_login: false,
         }
     }
 
@@ -1087,6 +1106,7 @@ mod tests {
             icon: None,
             s3: None,
             legacy_ssh: false,
+            telnet_login: false,
         };
         let rec = store.create(&rdp).unwrap();
         assert_eq!(store.get(&rec.id).unwrap().input, rdp);
@@ -1222,6 +1242,49 @@ mod tests {
             ),
             Err(AppError::NotFound)
         ));
+    }
+
+    #[test]
+    fn telnet_login_is_saved_for_telnet_sessions_with_a_user_and_survives_v24() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("v24.db");
+        {
+            // A database from before v25 keeps its sessions, auto login off.
+            let mut conn = Connection::open(&path).unwrap();
+            conn.execute_batch(MIGRATIONS[0]).unwrap();
+            conn.pragma_update(None, "user_version", 1).unwrap();
+            conn.execute(
+                "INSERT INTO sessions (id, name, host, port, username, auth_kind, created_at, updated_at)
+                 VALUES ('ses-0123456789abcdef01234567', 'switch', 'h', 22, 'u', 'password', 1, 1)",
+                [],
+            )
+            .unwrap();
+            let tx = conn.transaction().unwrap();
+            for sql in &MIGRATIONS[1..24] {
+                tx.execute_batch(sql).unwrap();
+            }
+            tx.pragma_update(None, "user_version", 24).unwrap();
+            tx.commit().unwrap();
+        }
+        let store = SessionStore::open(&path).unwrap();
+        let id = SessionId::parse("ses-0123456789abcdef01234567").unwrap();
+        assert!(!store.get(&id).unwrap().input.telnet_login);
+
+        let mut s = input();
+        s.protocol = SessionProtocol::Telnet;
+        s.port = 23;
+        s.telnet_login = true;
+        let rec = store.create(&s).unwrap();
+        assert!(rec.input.telnet_login);
+        s.telnet_login = false;
+        assert!(!store.update(&rec.id, &s).unwrap().0.input.telnet_login);
+
+        s.telnet_login = true;
+        s.username = "  ".into();
+        assert!(s.validate().is_err(), "needs a user name");
+        s.username = "admin".into();
+        s.protocol = SessionProtocol::Ssh;
+        assert!(s.validate().is_err(), "Telnet only");
     }
 
     #[test]

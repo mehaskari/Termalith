@@ -242,15 +242,22 @@ pub async fn terminal_split(
 }
 
 /// Opens saved Telnet session `session_id` (unencrypted; the UI says so).
+/// With automatic login (ADR-044) the user name and the saved or typed
+/// `password` answer the device's prompts; a typed password is saved
+/// (`save_password`) only once the device shows a command prompt.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn telnet_open(
     state: State<'_, AppState>,
     session_id: String,
+    password: Option<String>,
+    save_password: Option<bool>,
     cols: u16,
     rows: u16,
     on_output: Channel<InvokeResponseBody>,
     on_exit: Channel<ExitPayload>,
 ) -> Result<u64, IpcError> {
+    let password = password.map(zeroize::Zeroizing::new);
     let size = TerminalSize::new(cols, rows)?;
     let rec = state
         .connector
@@ -268,6 +275,35 @@ pub async fn telnet_open(
         Some(jump) => Some(state.connector.connect_tunnel(jump).await?),
         None => None,
     };
+    let login = if rec.input.telnet_login {
+        let secret = match &password {
+            Some(p) => Some(p.clone()),
+            None => state.connector.saved_secret(rec.credential.clone()).await,
+        };
+        let Some(secret) = secret else {
+            return Err(app_core::AppError::PasswordRequired.into());
+        };
+        let save = save_password.unwrap_or(false) && state.secrets_available;
+        let on_success: Option<Box<dyn FnOnce() + Send>> = match password {
+            Some(typed) if save => {
+                let connector = Arc::clone(&state.connector);
+                let (id, cred) = (rec.id.clone(), rec.credential.clone());
+                Some(Box::new(move || {
+                    tauri::async_runtime::spawn(async move {
+                        // Telnet has no other way to report it; the login itself worked.
+                        let _ = connector.remember(&id, cred, Some(typed), true).await;
+                    });
+                }))
+            }
+            _ => None,
+        };
+        Some(app_core::AutoLogin {
+            login: app_core::TelnetLogin::new(&rec.input.username, Some(secret)),
+            on_success,
+        })
+    } else {
+        None
+    };
     let (handles, sink) = logged_sink(on_output, on_exit);
     let id = state
         .hub
@@ -277,6 +313,7 @@ pub async fn telnet_open(
             via,
             state.connector.proxy().await?,
             size,
+            login,
             sink,
         )
         .await?;

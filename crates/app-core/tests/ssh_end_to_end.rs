@@ -81,6 +81,7 @@ fn key_session(r: &Rig) -> app_core::SessionRecord {
             icon: None,
             s3: None,
             legacy_ssh: false,
+            telnet_login: false,
         })
         .unwrap()
 }
@@ -199,6 +200,7 @@ async fn password_sessions_without_secret_ask_for_one() {
             icon: None,
             s3: None,
             legacy_ssh: false,
+            telnet_login: false,
         })
         .unwrap();
     let res = r
@@ -470,6 +472,7 @@ async fn secret_is_saved_only_after_a_successful_connection() {
             icon: None,
             s3: None,
             legacy_ssh: false,
+            telnet_login: false,
         })
         .unwrap();
     let provided = |s: &str| PasswordInput::Provided {
@@ -1138,6 +1141,7 @@ async fn agent_session_without_an_agent_explains_why() {
             icon: None,
             s3: None,
             legacy_ssh: false,
+            telnet_login: false,
         })
         .unwrap();
     // The rig's connector has `agent: None`.
@@ -1183,6 +1187,7 @@ async fn saved_session_behind_a_jump_host() {
         icon: None,
         s3: None,
         legacy_ssh: false,
+        telnet_login: false,
     };
     let target = r.connector.sessions.create(&behind).unwrap();
 
@@ -1241,6 +1246,7 @@ async fn saved_session_behind_a_jump_host() {
             icon: None,
             s3: None,
             legacy_ssh: false,
+            telnet_login: false,
         })
         .unwrap();
     behind.jump_via = Some(pw_bastion.id);
@@ -1554,6 +1560,7 @@ async fn telnet_through_an_ssh_jump_host() {
             Some(session),
             None,
             TerminalSize::new(80, 24).unwrap(),
+            None,
             move |ev: TerminalEvent| tx.send(ev).is_ok(),
         )
         .await

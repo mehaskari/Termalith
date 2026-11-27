@@ -94,6 +94,7 @@ pub fn parse_mobaxterm(text: &str) -> (Vec<ImportCandidate>, Vec<String>) {
             icon: None,
             s3: None,
             legacy_ssh: false,
+            telnet_login: false,
         };
         if let Err(e) = input.validate() {
             notes.push(format!("{key}: {e}"));

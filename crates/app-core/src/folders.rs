@@ -267,6 +267,7 @@ mod tests {
                 icon: None,
                 s3: None,
                 legacy_ssh: false,
+                telnet_login: false,
             })
             .unwrap()
             .id

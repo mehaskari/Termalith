@@ -875,11 +875,15 @@ export const installKey = (terminalId: TerminalId, name: string) =>
 
 // ---------------------------------------------------------------- telnet
 
-/** Opens a saved Telnet session (unencrypted). */
+/**
+ * Opens a saved Telnet session (unencrypted). With automatic login the
+ * password (typed, or saved when omitted) answers the device's prompt;
+ * `savePassword` keeps a typed one once the login worked.
+ */
 export const telnetTerminal =
-  (sessionId: string): Opener =>
+  (sessionId: string, password?: string, savePassword = false): Opener =>
   (cols, rows, onOutput, onExit) =>
-    invoke<TerminalId>("telnet_open", { sessionId, cols, rows, ...channels(onOutput, onExit) });
+    invoke<TerminalId>("telnet_open", { sessionId, password, savePassword, cols, rows, ...channels(onOutput, onExit) });
 
 // ---------------------------------------------------------------- moved terminals (P8-10)
 

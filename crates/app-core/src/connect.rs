@@ -120,6 +120,7 @@ impl Connector {
                     icon: None,
                     s3: None,
                     legacy_ssh: legacy != LegacyChoice::AsSaved,
+                    telnet_login: false,
                 };
                 input.validate()?;
                 let typed = match secret {

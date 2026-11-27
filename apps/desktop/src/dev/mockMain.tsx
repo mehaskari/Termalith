@@ -289,9 +289,19 @@ mockIPC(
         return { id: nextTerm++, label: s.name };
       }
       case "telnet_open": {
+        const session = sessions.get(a.sessionId as string);
+        if (session?.telnetLogin && !a.password && !session.hasSavedSecret)
+          throw { code: "password_required", message: "a password is required" };
         const id = nextTerm++;
         outputs.set(id, { ch: a.onOutput as ChannelLike, index: 0 });
-        setTimeout(() => send(id, "\r\nUser Access Verification\r\n\r\nUsername: "), 50);
+        if (session?.telnetLogin) {
+          // Automatic login: the backend answers the prompts.
+          const user = session.username;
+          setTimeout(() => send(id, `\r\nUser Access Verification\r\n\r\nUsername: ${user}\r\nPassword: \r\n\r\ncore-sw1#`), 50);
+          if (a.password && a.savePassword) sessions.set(session.id, { ...session, hasSavedSecret: true });
+        } else {
+          setTimeout(() => send(id, "\r\nUser Access Verification\r\n\r\nUsername: "), 50);
+        }
         return id;
       }
       case "terminal_shells":

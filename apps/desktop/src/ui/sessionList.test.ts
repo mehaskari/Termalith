@@ -64,7 +64,7 @@ describe("parseForm", () => {
     const r = parseForm(base, { requireName: true });
     expect(r).toEqual({
       ok: true,
-      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null, icon: null, s3: null, legacySsh: false, telnetLogin: false },
+      value: { name: "web", host: "example.com", port: 22, username: "me", auth: { kind: "password" }, folder: null, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null, icon: null, s3: null, legacySsh: false, telnetLogin: false, implicitTls: false },
     });
   });
 
@@ -101,7 +101,7 @@ describe("parseForm", () => {
     const rec = s("web", "prod");
     const r = parseForm(formFromSession(rec), { requireName: true });
     expect(r.ok && r.value).toEqual({
-      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null, icon: null, s3: null, legacySsh: false, telnetLogin: false,
+      name: rec.name, host: rec.host, port: rec.port, username: rec.username, auth: rec.auth, folder: rec.folder, jumpVia: null, protocol: "ssh", domain: null, tags: [], forwardAgent: false, x11Forward: false, startupCommand: null, filesOnly: false, mosh: false, appearance: null, icon: null, s3: null, legacySsh: false, telnetLogin: false, implicitTls: false,
     });
   });
 });
@@ -353,6 +353,15 @@ describe("old SSH algorithms option", () => {
     const mosh = parseForm({ ...base, mosh: true }, { requireName: true });
     expect(mosh.ok && mosh.value.legacySsh).toBe(false);
     expect(formFromSession(withSessionDefaults({ name: "a", host: "h", port: 22, username: "u", auth: { kind: "password" }, folder: null, legacySsh: true })).legacySsh).toBe(true);
+  });
+
+  it("keeps implicit TLS only for FTPS sessions", () => {
+    const o = { requireName: true };
+    const base = { ...emptyForm(), name: "old", host: "ftp.example.com", implicitTls: true };
+    const ftps = parseForm({ ...withProtocol(base, "ftps"), implicitTls: true, port: "990" }, o);
+    expect(ftps.ok && ftps.value.implicitTls).toBe(true);
+    const ftp = parseForm({ ...withProtocol(base, "ftp"), implicitTls: true }, o);
+    expect(ftp.ok && ftp.value.implicitTls).toBe(false);
   });
 
   it("keeps automatic Telnet login only for Telnet sessions with a user name", () => {

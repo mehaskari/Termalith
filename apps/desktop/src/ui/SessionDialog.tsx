@@ -179,9 +179,11 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
         )}
         {form.protocol === "ftps" && (
           <p className="hint span-2">
-            Uses explicit TLS on the FTP port. You are shown the server&apos;s certificate the first time;
-            the connection fails if the server does not offer TLS. Leave the username empty to log in
-            anonymously.
+            {form.implicitTls
+              ? "Implicit TLS: encrypted from the first byte, usually on port 990."
+              : "Uses explicit TLS on the FTP port."}{" "}
+            You are shown the server&apos;s certificate the first time; the connection fails if the server
+            does not offer TLS. Leave the username empty to log in anonymously.
           </p>
         )}
         {form.protocol === "s3" && (
@@ -237,6 +239,21 @@ export function SessionDialog({ mode, initial, editingId, sessions, folders = []
             onChange={(e) => set({ username: e.target.value })}
           />
         </label>
+        {form.protocol === "ftps" && (
+          <label className="checkbox span-2">
+            <input
+              type="checkbox"
+              checked={form.implicitTls}
+              onChange={(e) => {
+                const implicit = e.target.checked;
+                // Follow the usual port unless the user chose another one.
+                const port = implicit && form.port === "21" ? "990" : !implicit && form.port === "990" ? "21" : form.port;
+                set({ implicitTls: implicit, port });
+              }}
+            />
+            Implicit TLS (older servers on port 990)
+          </label>
+        )}
         {form.protocol === "telnet" && (
           <>
             <label className="checkbox span-2">

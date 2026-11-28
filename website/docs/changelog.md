@@ -12,6 +12,11 @@
   a connected tab* on, closing the window or quitting Termalith while
   connections are open asks first.
 
+- **Implicit FTPS.** FTPS sessions can tick *Implicit TLS* for older
+  servers that are encrypted from the first byte (port 990). The
+  certificate is checked and pinned as for explicit FTPS. FileZilla sites
+  with implicit FTPS are now imported.
+
 ## 0.6.1 (2026-11-26)
 
 - **Redesigned Settings.** Sections in a sidebar (Appearance, Terminal,

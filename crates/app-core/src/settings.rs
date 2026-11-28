@@ -382,6 +382,9 @@ struct ExportedSession {
     /// Telnet automatic login (ADR-044); the password never travels.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     telnet_login: bool,
+    /// Implicit FTPS (ADR-045).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    implicit_tls: bool,
 }
 
 /// Serializes every session as versioned JSON. Never includes secrets.
@@ -419,6 +422,7 @@ pub fn export_sessions(store: &SessionStore) -> Result<String, AppError> {
                 s3: s.input.s3.clone(),
                 legacy_ssh: s.input.legacy_ssh,
                 telnet_login: s.input.telnet_login,
+                implicit_tls: s.input.implicit_tls,
             })
             .collect(),
     };
@@ -539,6 +543,7 @@ fn to_input(s: &ExportedSession) -> SessionInput {
         s3: s.s3.clone(),
         legacy_ssh: s.legacy_ssh,
         telnet_login: s.telnet_login,
+        implicit_tls: s.implicit_tls,
     }
 }
 
@@ -662,6 +667,7 @@ mod tests {
             s3: None,
             legacy_ssh: false,
             telnet_login: false,
+            implicit_tls: false,
         }
     }
 

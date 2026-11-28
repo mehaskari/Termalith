@@ -183,6 +183,10 @@ pub struct SessionInput {
     /// device asks for them (ADR-044).
     #[serde(default)]
     pub telnet_login: bool,
+    /// FTPS only: TLS from the first byte (implicit FTPS, usually port 990)
+    /// instead of `AUTH TLS` (ADR-045).
+    #[serde(default)]
+    pub implicit_tls: bool,
 }
 
 /// Where an S3 session's files are: the host and port are the endpoint,
@@ -492,6 +496,9 @@ impl SessionInput {
             }
             _ => {}
         }
+        if self.implicit_tls && self.protocol != SessionProtocol::Ftps {
+            return Err(AppError::invalid("implicit TLS", "only for FTPS sessions"));
+        }
         if self.telnet_login {
             if self.protocol != SessionProtocol::Telnet {
                 return Err(AppError::invalid(
@@ -604,7 +611,7 @@ impl SessionStore {
     pub fn list(&self) -> Result<Vec<SessionRecord>, AppError> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source, s3, legacy_ssh, telnet_login
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source, s3, legacy_ssh, telnet_login, implicit_tls
              FROM sessions ORDER BY folder IS NOT NULL, folder COLLATE NOCASE, name COLLATE NOCASE",
         )?;
         let rows = stmt.query_map([], row_to_record)?;
@@ -615,7 +622,7 @@ impl SessionStore {
     pub fn get(&self, id: &SessionId) -> Result<SessionRecord, AppError> {
         let conn = self.conn();
         conn.query_row(
-            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source, s3, legacy_ssh, telnet_login
+            "SELECT id, name, host, port, username, auth_kind, key_path, credential_ref, folder, updated_at, jump_session_id, favorite, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, shared_source, s3, legacy_ssh, telnet_login, implicit_tls
              FROM sessions WHERE id = ?1",
             [id.as_str()],
             row_to_record,
@@ -631,8 +638,8 @@ impl SessionStore {
         let (kind, key) = auth_columns(&input.auth);
         let t = now();
         self.conn().execute(
-            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, s3, legacy_ssh, telnet_login)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
+            "INSERT INTO sessions (id, name, host, port, username, auth_kind, key_path, folder, created_at, updated_at, jump_session_id, protocol, domain, tags, forward_agent, x11_forward, startup_command, files_only, mosh, appearance, icon, s3, legacy_ssh, telnet_login, implicit_tls)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
             params![
                 id.as_str(),
                 input.name.trim(),
@@ -656,7 +663,8 @@ impl SessionStore {
                 Icon::to_json(&input.icon),
                 S3Options::to_json(&input.s3),
                 input.legacy_ssh,
-                input.telnet_login
+                input.telnet_login,
+                input.implicit_tls
             ],
         )?;
         self.get(&id)
@@ -722,7 +730,7 @@ impl SessionStore {
             "UPDATE sessions SET name = ?2, host = ?3, port = ?4, username = ?5, auth_kind = ?6,
              key_path = ?7, folder = ?8, credential_ref = ?9, updated_at = ?10, jump_session_id = ?11,
              protocol = ?12, domain = ?13, tags = ?14, forward_agent = ?15,
-             x11_forward = ?16, startup_command = ?17, files_only = ?18, mosh = ?19, appearance = ?20, icon = ?21, s3 = ?22, legacy_ssh = ?23, telnet_login = ?24
+             x11_forward = ?16, startup_command = ?17, files_only = ?18, mosh = ?19, appearance = ?20, icon = ?21, s3 = ?22, legacy_ssh = ?23, telnet_login = ?24, implicit_tls = ?25
              WHERE id = ?1",
             params![
                 id.as_str(),
@@ -748,7 +756,8 @@ impl SessionStore {
                 Icon::to_json(&input.icon),
                 S3Options::to_json(&input.s3),
                 input.legacy_ssh,
-                input.telnet_login
+                input.telnet_login,
+                input.implicit_tls
             ],
         )?;
         Ok((self.get(id)?, stale))
@@ -879,6 +888,7 @@ fn row_to_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<Result<SessionRecord
             s3: S3Options::from_json(r.get(23)?),
             legacy_ssh: r.get::<_, i64>(24)? != 0,
             telnet_login: r.get::<_, i64>(25)? != 0,
+            implicit_tls: r.get::<_, i64>(26)? != 0,
         },
         updated_at: r.get(9)?,
         shared: r.get(22)?,
@@ -911,6 +921,7 @@ mod tests {
             s3: None,
             legacy_ssh: false,
             telnet_login: false,
+            implicit_tls: false,
         }
     }
 
@@ -1107,6 +1118,7 @@ mod tests {
             s3: None,
             legacy_ssh: false,
             telnet_login: false,
+            implicit_tls: false,
         };
         let rec = store.create(&rdp).unwrap();
         assert_eq!(store.get(&rec.id).unwrap().input, rdp);
@@ -1285,6 +1297,22 @@ mod tests {
         s.username = "admin".into();
         s.protocol = SessionProtocol::Ssh;
         assert!(s.validate().is_err(), "Telnet only");
+    }
+
+    #[test]
+    fn implicit_tls_is_saved_for_ftps_sessions_only() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let mut s = input();
+        s.protocol = SessionProtocol::Ftps;
+        s.port = 990;
+        s.implicit_tls = true;
+        let rec = store.create(&s).unwrap();
+        assert!(rec.input.implicit_tls);
+        s.implicit_tls = false;
+        assert!(!store.update(&rec.id, &s).unwrap().0.input.implicit_tls);
+        s.implicit_tls = true;
+        s.protocol = SessionProtocol::Ftp;
+        assert!(s.validate().is_err(), "FTPS only");
     }
 
     #[test]

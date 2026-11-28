@@ -251,6 +251,8 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     "ALTER TABLE sessions ADD COLUMN legacy_ssh INTEGER NOT NULL DEFAULT 0;",
     // v25: Telnet sessions can log in automatically (ADR-044).
     "ALTER TABLE sessions ADD COLUMN telnet_login INTEGER NOT NULL DEFAULT 0;",
+    // v26: implicit FTPS (TLS from the first byte, ADR-045).
+    "ALTER TABLE sessions ADD COLUMN implicit_tls INTEGER NOT NULL DEFAULT 0;",
 ];
 
 pub(crate) fn migrate(conn: &mut Connection) -> Result<(), AppError> {

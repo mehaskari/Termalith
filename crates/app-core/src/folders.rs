@@ -268,6 +268,7 @@ mod tests {
                 s3: None,
                 legacy_ssh: false,
                 telnet_login: false,
+                implicit_tls: false,
             })
             .unwrap()
             .id

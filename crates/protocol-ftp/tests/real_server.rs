@@ -17,6 +17,7 @@ fn config(suffix: &str) -> Option<FtpConfig> {
         username: "termalith".into(),
         password: Zeroizing::new(format!("{password}{suffix}")),
         tls_pin: None,
+        implicit_tls: false,
     })
 }
 
@@ -146,7 +147,7 @@ async fn ftps_accepts_only_the_pinned_certificate() {
     };
     let (host, port) = addr.rsplit_once(':').unwrap();
     let port: u16 = port.parse().unwrap();
-    let pin = read_certificate(host, port).await.unwrap();
+    let pin = read_certificate(host, port, false).await.unwrap();
     let hex: String = pin.iter().map(|b| format!("{b:02x}")).collect();
     assert_eq!(hex, expected.to_lowercase());
 
@@ -156,6 +157,7 @@ async fn ftps_accepts_only_the_pinned_certificate() {
         username: base.username.clone(),
         password: base.password.clone(),
         tls_pin,
+        implicit_tls: false,
     };
     // Wrong certificate: refused before the password is sent, no fallback.
     let wrong = FtpClient::connect(secure(Some([0; 32]))).await;
@@ -189,5 +191,62 @@ async fn a_plain_server_is_not_accepted_as_ftps() {
         eprintln!("TERMALITH_TEST_FTP not set; skipped");
         return;
     };
-    assert!(read_certificate(&plain.host, plain.port).await.is_err());
+    assert!(
+        read_certificate(&plain.host, plain.port, false)
+            .await
+            .is_err()
+    );
+    assert!(
+        read_certificate(&plain.host, plain.port, true)
+            .await
+            .is_err()
+    );
+}
+
+/// TERMALITH_TEST_FTPS_IMPLICIT is an implicit FTPS server (TLS from the
+/// first byte) with the same certificate as TERMALITH_TEST_FTPS.
+#[tokio::test]
+async fn implicit_ftps_accepts_only_the_pinned_certificate() {
+    let (Ok(addr), Ok(expected), Some(base)) = (
+        std::env::var("TERMALITH_TEST_FTPS_IMPLICIT"),
+        std::env::var("TERMALITH_TEST_FTPS_SHA256"),
+        config(""),
+    ) else {
+        eprintln!("TERMALITH_TEST_FTPS_IMPLICIT not set; skipped");
+        return;
+    };
+    let (host, port) = addr.rsplit_once(':').unwrap();
+    let port: u16 = port.parse().unwrap();
+    let pin = read_certificate(host, port, true).await.unwrap();
+    let hex: String = pin.iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(hex, expected.to_lowercase());
+    // Explicit TLS does not work on an implicit port (no plain greeting).
+    assert!(read_certificate(host, port, false).await.is_err());
+
+    let secure = |tls_pin| FtpConfig {
+        host: host.to_owned(),
+        port,
+        username: base.username.clone(),
+        password: base.password.clone(),
+        tls_pin,
+        implicit_tls: true,
+    };
+    let wrong = FtpClient::connect(secure(Some([0; 32]))).await;
+    assert!(matches!(wrong, Err(FtpError::Tls(_))), "{:?}", wrong.err());
+
+    let ftp = FtpClient::connect(secure(Some(pin))).await.unwrap();
+    let cancel = CancellationToken::new();
+    let local = tempfile::tempdir().unwrap();
+    let up = local.path().join("up.bin");
+    let data: Vec<u8> = (0..100_000u32).map(|i| (i % 241) as u8).collect();
+    std::fs::write(&up, &data).unwrap();
+    ftp.upload(&up, "/implicit.bin", false, &cancel, |_| {})
+        .await
+        .unwrap();
+    let down = local.path().join("down.bin");
+    ftp.download("/implicit.bin", &down, false, &cancel, |_| {})
+        .await
+        .unwrap();
+    assert_eq!(std::fs::read(&down).unwrap(), data);
+    ftp.delete("/implicit.bin").await.unwrap();
 }

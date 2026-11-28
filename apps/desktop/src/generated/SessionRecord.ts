@@ -76,4 +76,9 @@ legacySsh: boolean,
  * Telnet only: send the user name and the saved password when the
  * device asks for them (ADR-044).
  */
-telnetLogin: boolean, };
+telnetLogin: boolean, 
+/**
+ * FTPS only: TLS from the first byte (implicit FTPS, usually port 990)
+ * instead of `AUTH TLS` (ADR-045).
+ */
+implicitTls: boolean, };

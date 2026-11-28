@@ -216,8 +216,11 @@ jobs:
           cat "$cert.crt" >> "$cert"
           root2="$(mktemp -d)"
           "$RUNNER_TEMP/ftp/bin/python" scripts/ftp-test-server.py "$root2" 2990 "$cert" &
-          for p in 2121 2990; do for _ in $(seq 30); do nc -z 127.0.0.1 $p && break; sleep 1; done; done
+          root3="$(mktemp -d)"
+          "$RUNNER_TEMP/ftp/bin/python" scripts/ftp-test-server.py "$root3" 2991 "$cert" implicit &
+          for p in 2121 2990 2991; do for _ in $(seq 30); do nc -z 127.0.0.1 $p && break; sleep 1; done; done
           export TERMALITH_TEST_FTP=127.0.0.1:2121 TERMALITH_TEST_FTPS=127.0.0.1:2990
+          export TERMALITH_TEST_FTPS_IMPLICIT=127.0.0.1:2991
           export TERMALITH_TEST_FTPS_SHA256="$(openssl x509 -in "$cert.crt" -outform DER | openssl dgst -sha256 -r | cut -d' ' -f1)"
           cargo test -p protocol-ftp --test real_server -- --nocapture
           cargo test -p app-core --test ftp_login -- --nocapture
